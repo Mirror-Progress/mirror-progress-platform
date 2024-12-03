@@ -4,3 +4,6 @@
 2024-12-02 20:05:10.636 | INFO     | app.main:shutdown_event:36 - Shutting down the application
 2024-12-02 20:05:14.349 | INFO     | app.main:startup_event:32 - Starting up the application
 2024-12-02 20:05:31.741 | INFO     | app.main:shutdown_event:36 - Shutting down the application
+2024-12-02 20:22:46.000 | INFO     | app.main:startup_event:32 - Starting up the application
+2024-12-02 20:22:56.340 | INFO     | app.api.routes:handle_contact:22 - Saved contact form submission from user@example.com with id 674e87a0aeb23f59e4f11bd0
+2024-12-02 20:25:53.227 | INFO     | app.main:shutdown_event:36 - Shutting down the application

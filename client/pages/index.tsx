@@ -15,7 +15,7 @@ const Home: NextPage = () => {
       </Head>
 
       <main className={styles.main + " flex flex-col items-center justify-center w-full flex-1 px-20 text-center"}>
-        <h1 className={styles.title + " text-4xl font-bold mb-8"}>Welcome to Mirror Progress</h1>
+        <h1 className={styles.title + " text-4xl font-bold mb-8"}>We are a team of experts that partner closely with organizations who want to move ahead.</h1>
       </main>
     </div>
   );

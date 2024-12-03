@@ -13,7 +13,7 @@ app = FastAPI(title="Mirror Progress API", debug=settings.debug)
 
 # Configure CORS
 origins = [
-    "http://localhost:3000",
+    "https://localhost:3000",
     # Add production frontend URL here
 ]
 
