@@ -7,7 +7,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <>
       {/* <Header /> */}
-      <main className="mx-[24px]">{children}</main>
+      <main className="basic-pd">{children}</main>
     </>
   );
 };

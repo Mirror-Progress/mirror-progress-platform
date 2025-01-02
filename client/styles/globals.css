@@ -13,6 +13,12 @@ body {
   color: white;
 }
 
-/* @layer components {
+html {
+  scroll-behavior: smooth;
+}
 
-} */
+@layer utilities {
+  .basic-pd {
+    @apply px-[24px];
+  }
+}

@@ -7,12 +7,12 @@ const Home: NextPage = () => {
   console.log(Hero);
   return (
     <>
-      {/* <Header />
+      <Header />
       <Hero />
       <Solutions />
       <Process />
       <Form />
-      <Footer /> */}
+      <Footer />
     </>
   );
   // <div

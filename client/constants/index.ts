@@ -50,43 +50,44 @@ export const solutionSlides = [
   {
     id: 0,
     title: 'Energy Transformation',
-    path: '/images/diagram1.svg',
+    path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
   {
     id: 1,
     title: 'Data & AI Solutions',
-    path: '/images/diagram2.svg',
+    path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
   {
     id: 2,
     title: 'Design Engineering',
-    path: '/images/diagram3.svg',
+    path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
   {
     id: 3,
     title: 'Design & Experiences',
-    path: '/images/diagram4.svg',
+    path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
   {
     id: 4,
     title: 'Smart Infrastructure',
-    path: '/images/diagram5.svg',
+    path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
   {
     id: 5,
     title: 'Sustainable Futures',
-    path: '/images/diagram6.svg',
+    path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
 ];
 
 export const paragraphs = {
   hero: 'We are a team of experts that partner closely with organizations who want to move ahead.',
+  process: 'We begin all ventures by asking simple questions.',
   solution:
     'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   footer:
@@ -105,6 +106,10 @@ export const icons = {
   green: {
     name: 'white',
     path: '/images/Green.svg',
+  },
+  arrow: {
+    name: 'arrow',
+    path: '/images/arrow.svg',
   },
 };
 
