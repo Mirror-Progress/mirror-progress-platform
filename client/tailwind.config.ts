@@ -20,6 +20,24 @@ export default {
         secondaryGrey: '#A2A2A2',
         white: '#FFFFFF',
       },
+      fontFamily: {
+        dmSans: ['DM Sans', 'sans-serif'],
+        inter: ['Inter', 'serif'],
+        diatype: ['Diatype', 'sans-serif'],
+      },
+      lineHeight: {
+        '100': '100%',
+        '120': '120%',
+      },
+      letterSpacing: {
+        '3p': '3%',
+        m2p: '-2.2%',
+        m3p: '-3%',
+      },
+      backgroundImage: {
+        'footer-gradient':
+          'linear-gradient(to bottom, #012727 0%, #1B3636 12%, #4F7171 55%, #9EB5B5 80%, #FFFFFF 100%)',
+      },
     },
   },
   plugins: [],

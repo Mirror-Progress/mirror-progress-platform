@@ -6,10 +6,10 @@ interface FooterBtnProps {
 
 const FooterBtn: React.FC<FooterBtnProps> = ({ text }) => {
   return (
-    <button className="w-[132px] h-[36px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize">
+    <a className=" block text-center py-[8px] px-[24px] w-[132px] h-[36px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize cursor-pointer font-inter">
       {' '}
       {text}
-    </button>
+    </a>
   );
 };
 
