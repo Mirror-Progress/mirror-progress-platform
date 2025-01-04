@@ -4,7 +4,7 @@ import Header from './Header';
 
 const Hero: React.FC = () => {
   return (
-    <div className="relative h-screen ">
+    <div className="relative h-screen bg-[#012727] ">
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">

@@ -11,12 +11,12 @@ const Form: React.FC = () => {
   const [messageValue, setMessageValue] = useState('');
 
   // useEffect(() => {
-    
+
   // }, [emailValue, messageValue]);
 
   return (
-    <section id="Form" className="h-[90vh]  mb-[100px]">
-      <div>
+    <section id="Form" className="h-[90vh]   bg-[#012727]">
+      <div className="h-full mb-[100px]">
         <form action="" className="mx-auto w-[878px]">
           <h1 className="max-w-[515px]  text-center mx-auto text-[40px] font-dmSans">
             Get in Touch
@@ -60,7 +60,7 @@ const Form: React.FC = () => {
             >
               Send
             </button>
-            <p className="uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-[#A2A2A2]">
+            <p className="uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-[#A2A2A2] ">
               By providing your email address, you consent to OUR{' '}
               <span className="text-[#FFFFFF]">PRIVACY POLICY </span>
               AND TO receive communications from MIRROR PROGRESS.

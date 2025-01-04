@@ -4,7 +4,7 @@ import { FooterBtn, SocialMedia } from './';
 
 const Footer: React.FC = () => {
   return (
-    <footer className="h-[910px] max-w-full basic-pd bg-footer-gradient">
+    <footer className="h-[910px] max-w-[100%] basic-pd bg-footer-gradient">
       <div className="grid grid-cols-2 pt-[30px] h-full">
         <div className="h-full">
           <img
@@ -17,75 +17,23 @@ const Footer: React.FC = () => {
           <p className="w-[545px] text-[24px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
-          <div>
-            <div className=" grid grid-cols-6 grid-rows-1  my-[64px]  gap-x-[28px] gap-y-[34px]">
-              <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
-                <video
-                  className="h-full w-full pointer-events-none rounded-[19.51px] "
-                  loop
-                  autoPlay
-                  playsInline={true}
+          <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
+            <div className=" grid grid-cols-6 grid-rows-1  my-[64px]  gap-x-[7px] gap-y-[34px]">
+              {solutionSlides.map((s, i) => (
+                <div
+                  className="bg-[#000000] bg-opacity-15 rounded-[19.51px]"
+                  key={s.id}
                 >
-                  <source src={solutionSlides[0].path} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
-                <video
-                  className="h-full w-full pointer-events-none rounded-[19.51px] "
-                  loop
-                  autoPlay
-                  playsInline={true}
-                >
-                  <source src={solutionSlides[0].path} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
-                <video
-                  className="h-full w-full pointer-events-none rounded-[19.51px] "
-                  loop
-                  autoPlay
-                  playsInline={true}
-                >
-                  <source src={solutionSlides[0].path} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
-                <video
-                  className="h-full w-full pointer-events-none rounded-[19.51px] "
-                  loop
-                  autoPlay
-                  playsInline={true}
-                >
-                  <source src={solutionSlides[0].path} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
-                <video
-                  className="h-full w-full pointer-events-none rounded-[19.51px] "
-                  loop
-                  autoPlay
-                  playsInline={true}
-                >
-                  <source src={solutionSlides[0].path} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">
-                <video
-                  className="h-full w-full pointer-events-none rounded-[19.51px] "
-                  loop
-                  autoPlay
-                  playsInline={true}
-                >
-                  <source src={solutionSlides[0].path} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
+                  <img
+                    src={s.image.path}
+                    alt={s.title}
+                    className="w-[106.12px] h-[105.02px]"
+                  />
+                </div>
+              ))}
             </div>
+          </div>
+          <div>
             <div className="flex flex-col w-[132px] h-[171px] gap-[16px]">
               <FooterBtn text="Get in Touch" />
               <FooterBtn text="What We do" />
@@ -104,7 +52,7 @@ const Footer: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-[17px] mt-[200px]  mb-[11px]">
+          <div className="flex flex-col gap-[17px] mt-[180px]  mb-[11px]">
             <div>
               <a
                 href=""
