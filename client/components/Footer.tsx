@@ -5,7 +5,7 @@ import { FooterBtn, SocialMedia } from './';
 const Footer: React.FC = () => {
   return (
     <footer className="h-[910px] max-w-[100%] basic-pd bg-footer-gradient">
-      <div className="grid grid-cols-2 pt-[30px] h-full">
+      <div className="grid grid-cols-2  h-full">
         <div className="h-full">
           <img
             src={icons.white.path}
@@ -14,7 +14,7 @@ const Footer: React.FC = () => {
           />
         </div>
         <div className="pr-[53px] h-full">
-          <p className="w-[545px] text-[24px] font-light font-dmSans">
+          <p className="max-w-[545px] text-[24px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
           <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px]">

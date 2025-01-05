@@ -15,8 +15,8 @@ const Form: React.FC = () => {
   // }, [emailValue, messageValue]);
 
   return (
-    <section id="Form" className="h-[90vh]   bg-[#012727]">
-      <div className="h-full mb-[100px]">
+    <section id="Form" className="h-[90vh] basic-pd bg-[#012727] mb-[100px]">
+      <div className="h-full ">
         <form action="" className="mx-auto w-[878px]">
           <h1 className="max-w-[515px]  text-center mx-auto text-[40px] font-dmSans">
             Get in Touch
@@ -27,7 +27,7 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="block text-[16px] w-[463px] h-[57px] mx-auto mt-[64px] bg-[#284C4C] bg-opacity-[53] rounded-[24px] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50"
+              className="block text-[16px] max-w-[463px] h-[57px] mx-auto mt-[64px] bg-[#284C4C] bg-opacity-[53] rounded-[24px] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50"
               value={emailValue}
               onChange={(ev) => setEmailValue(ev.target.value)}
             />

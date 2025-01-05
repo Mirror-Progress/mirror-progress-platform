@@ -37,6 +37,10 @@ export default {
       backgroundImage: {
         'footer-gradient':
           'linear-gradient(to bottom, #012727 0%, #1B3636 12%, #4F7171 55%, #9EB5B5 80%, #FFFFFF 100%)',
+        'heroL-gradient':
+          'linear-gradient(to right, #000000 0%, #FFFFFF 77%)',
+        'hero-right-gradient':
+          'linear-gradient(to left, rgba(29, 34, 34, 0) 0%, rgba(29, 32, 34, 1) 77%)',
       },
     },
   },

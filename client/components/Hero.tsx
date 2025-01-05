@@ -15,12 +15,12 @@ const Hero: React.FC = () => {
       </section>
       <div
         id="left"
-        className="w-[237px] h-full absolute bg-gradient-to-r from-[#1D2222C4] to-[#1D222200] top-0 left-0"
+        className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0"
       ></div>
       <div
         id="right"
         className="w-[237px] h-full absolute
-        bg-gradient-to-l to-[#1D222200] from-[#1D2222C4] top-0 right-0"
+        bg-gradient-to-l to-[#1D222200] from-[#1D2222FF] top-0 right-0"
       ></div>
     </div>
   );
