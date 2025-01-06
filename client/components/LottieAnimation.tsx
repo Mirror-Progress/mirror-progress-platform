@@ -1,0 +1,21 @@
+import React from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+
+interface LottieAnimationProps {
+  src: string; // URL of the .lottie file
+  loop?: boolean;
+  autoplay?: boolean;
+}
+
+const LottieAnimation: React.FC<LottieAnimationProps> = () => {
+  return (
+    <DotLottieReact
+      src="/animation/process.lottie"
+      loop
+      autoplay
+      className="h-[300px] w-[300px]"
+    />
+  );
+};
+
+export default LottieAnimation;

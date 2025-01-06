@@ -1,13 +1,20 @@
 import React from 'react';
 import { paragraphs } from '../constants';
+import { LottieAnimation } from './';
 
 const Process: React.FC = () => {
   return (
-    <section className="py-[128px] basic-pd bg-[#126363] ">
-      <div className="h-screen flex flex-col justify-around items-center gap-[120px]">
-        <div className="h-[377px] w-[377px] rounded-full border-solid border-[2px]"></div>
-        <p className="max-w-[690px] text-[32px] font-light text-center font-dmSans">
-          {paragraphs.process}
+    <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
+      <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
+        <div className="h-[377px] w-[377px] flex justify-center items-center ">
+          <LottieAnimation
+            src="https://lottie.host/8f32ce3c-628c-44fa-b860-8c6bb1afec27/3ado51lgMu.lottie"
+            loop={true}
+            autoplay={true}
+          />
+        </div>
+        <p className="max-w-[900px] text-[32px] font-light text-center font-dmSans">
+          {paragraphs.process[2]}
         </p>
       </div>
     </section>

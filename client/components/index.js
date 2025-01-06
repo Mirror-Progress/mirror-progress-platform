@@ -7,6 +7,9 @@ import Footer from './Footer';
 import FooterBtn from './FooterBtn';
 import SocialMedia from './SocialMedia';
 import Office from './Office';
+import LottieAnimation from './LottieAnimation';
+import Privacy from './Privacy';
+import Terms from './Terms';
 
 export {
   Header,
@@ -18,4 +21,7 @@ export {
   FooterBtn,
   SocialMedia,
   Office,
+  LottieAnimation,
+  Privacy,
+  Terms,
 };

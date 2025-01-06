@@ -10,7 +10,7 @@ const Solutions: React.FC = () => {
         </div>
         <div className="min-h-[90%] flex overflow-hidden ">
           {solutionSlides.map((s) => (
-            <div className="flex">
+            <div className="flex" key={s.id}>
               <div className="w-[1px]  bg-white"></div>
               <div className={`${s.id !== 0 ? 'w-[164px]' : ''}`}>
                 <h2

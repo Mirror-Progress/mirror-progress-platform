@@ -4,7 +4,7 @@ import FooterBtn from './FooterBtn';
 
 const Header: React.FC = () => {
   return (
-    <header className="flex justify-between items-center h-[84px] max-w-full basic-pd">
+    <header className="flex justify-between items-center h-[84px] max-w-full basic-pd absolute top-0 left-0 right-0 z-[2]">
       <a href="/">
         <img
           className="h-[28px]"
@@ -14,7 +14,10 @@ const Header: React.FC = () => {
       </a>
       <nav className="flex items-center gap-[32px]">
         <div>
-          <a href="#Solutions font-dmSans"> What We do </a>
+          <a href="#Solutions" className="font-dmSans">
+            {' '}
+            What We do{' '}
+          </a>
         </div>
         <a
           href="#Form"

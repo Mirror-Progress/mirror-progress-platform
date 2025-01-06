@@ -1,5 +1,3 @@
-import path from 'path';
-
 export const navLinks = [
   {
     id: 1,
@@ -53,7 +51,7 @@ export const solutionSlides = [
     id: 0,
     title: 'Energy Transformation',
     image: {
-      path: '/images/diagram1.svg',
+      path: '/images/Energy_Transformation.svg',
     },
     video: {
       path: '/videos/solution1.mp4',
@@ -65,7 +63,7 @@ export const solutionSlides = [
     id: 1,
     title: 'Data & AI Solutions',
     image: {
-      path: '/images/diagram2.svg',
+      path: '/images/AI_Solutions.svg',
     },
     video: {
       path: '/videos/solution1.mp4',
@@ -77,19 +75,18 @@ export const solutionSlides = [
     id: 2,
     title: 'Design Engineering',
     image: {
-      path: '/images/diagram3.svg',
+      path: '/images/Design_Engineering.svg',
     },
     video: {
       path: '/videos/solution1.mp4',
     },
-    // path: '/videos/solution1.mp4',
     text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   },
   {
     id: 3,
     title: 'Design & Experiences',
     image: {
-      path: '/images/diagram4.svg',
+      path: '/images/Design_&_Experiences.svg',
     },
     video: {
       path: '/videos/solution1.mp4',
@@ -101,7 +98,7 @@ export const solutionSlides = [
     id: 4,
     title: 'Smart Infrastructure',
     image: {
-      path: '/images/diagram5.svg',
+      path: '/images/Smart _Infrastructure.svg',
     },
     video: {
       path: '/videos/solution1.mp4',
@@ -113,7 +110,7 @@ export const solutionSlides = [
     id: 5,
     title: 'Sustainable Futures',
     image: {
-      path: '/images/diagram6.svg',
+      path: '/images/Sustainable_Futures.svg',
     },
     video: {
       path: '/videos/solution1.mp4',
@@ -125,7 +122,11 @@ export const solutionSlides = [
 
 export const paragraphs = {
   hero: 'We are a team of experts that partner closely with organizations who want to move ahead.',
-  process: 'We begin all ventures by asking simple questions.',
+  process: [
+    'We begin all ventures by asking simple questions.',
+    'We iterate to find the right solutions.',
+    'We end with systems that scale and help our parterns expand.',
+  ],
   solution:
     'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
   footer:

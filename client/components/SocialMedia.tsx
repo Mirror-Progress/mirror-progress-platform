@@ -4,12 +4,16 @@ interface SocialMediaProps {
   text: string;
   path: string;
   alt: string;
+  href: string;
 }
 
-const SocialMedia: React.FC<SocialMediaProps> = ({ text, path, alt }) => {
+const SocialMedia: React.FC<SocialMediaProps> = ({ text, path, alt, href }) => {
   return (
-    <div className="w-full h-[14px] flex  items-center gap-[10px]">
-      <a href="/" className="uppercase text-[14px] font-medium h-[14px]">
+    <div className="h-[14px] flex  items-center gap-[10px]">
+      <a
+        href={href}
+        className="uppercase text-[14px] font-medium font-diatype tracking-m3p"
+      >
         {text}
       </a>
       <div className="h-[14px] w-[14px] flex items-center">

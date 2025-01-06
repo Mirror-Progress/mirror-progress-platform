@@ -9,9 +9,9 @@
 @font-face {
   font-family: 'Diatype';
   src:
-    url('/client/public/Diatype/ABCDiatypeMono-Regular-Trial.woff2')
+    url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff2')
       format('woff2'),
-    url('/client/public/Diatype/ABCDiatypeMono-Regular-Trial.woff')
+    url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff')
       format('woff');
   font-weight: normal;
 }
@@ -19,9 +19,9 @@
 @font-face {
   font-family: 'Diatype';
   src:
-    url('/client/public/Diatype/ABCDiatypeMono-Medium-Trial.woff2')
+    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff2')
       format('woff2'),
-    url('/client/public/Diatype/ABCDiatypeMono-Medium-Trial.woff')
+    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff')
       format('woff');
   font-weight: medium;
 }
