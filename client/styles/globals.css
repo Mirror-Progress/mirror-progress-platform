@@ -9,20 +9,16 @@
 @font-face {
   font-family: 'Diatype';
   src:
-    url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff2')
-      format('woff2'),
-    url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff')
-      format('woff');
+    url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff2') format('woff2'),
+    url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff') format('woff');
   font-weight: normal;
 }
 
 @font-face {
   font-family: 'Diatype';
   src:
-    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff2')
-      format('woff2'),
-    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff')
-      format('woff');
+    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff2') format('woff2'),
+    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff') format('woff');
   font-weight: medium;
 }
 
@@ -35,6 +31,7 @@
 body {
   background-color: #012727;
   color: white;
+  box-sizing: border-box;
 }
 
 html {
@@ -44,5 +41,8 @@ html {
 @layer utilities {
   .basic-pd {
     @apply px-[24px];
+  }
+  .input {
+    @apply block text-[16px] bg-[#284C4C] bg-opacity-[53] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50 ;
   }
 }

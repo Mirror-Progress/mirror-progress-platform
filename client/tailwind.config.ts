@@ -16,6 +16,7 @@ export default {
         primary: '#012727',
         secondaryGreen: '#012727',
         secondaryGrey: '#A2A2A2',
+        secondaryBlack: '#1D2222',
         white: '#FFFFFF',
       },
       fontFamily: {
@@ -32,6 +33,7 @@ export default {
         '3p': '3%',
         m2p: '-2.2%',
         m3p: '-3%',
+        m6p: '-6%',
       },
       backgroundImage: {
         'footer-gradient':

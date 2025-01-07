@@ -1,20 +1,22 @@
 import React from 'react';
 import { icons } from '../constants';
-import FooterBtn from './FooterBtn';
 
 const Header: React.FC = () => {
   return (
     <header className="flex justify-between items-center h-[84px] max-w-full basic-pd absolute top-0 left-0 right-0 z-[2]">
       <a href="/">
         <img
-          className="h-[28px]"
           src={icons.white.path}
           alt={icons.white.name}
+          width={28.85}
+          height={26.93}
+          className='max-md:hidden'
         />
+        <div className='hidden max-md:flex font-dmSans text-[18px] leading-100 tracking-m6p font-medium'>Mirror Progress</div>
       </a>
       <nav className="flex items-center gap-[32px]">
         <div>
-          <a href="#Solutions" className="font-dmSans">
+          <a href="#Solutions" className="font-dmSans max-md:hidden">
             {' '}
             What We do{' '}
           </a>

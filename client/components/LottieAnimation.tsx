@@ -13,7 +13,7 @@ const LottieAnimation: React.FC<LottieAnimationProps> = () => {
       src="/animation/process.lottie"
       loop
       autoplay
-      className="h-[300px] w-[300px]"
+      className="lg:h-[400px] lg:w-[600px] max-md:w-full"
     />
   );
 };

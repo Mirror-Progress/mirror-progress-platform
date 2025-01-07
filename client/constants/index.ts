@@ -296,3 +296,14 @@ export const termsConditions = [
     text: 'Except where prohibited by law, by using this Site you indemnify and hold harmless Mirror Progress LLC and our directors, officers, agents, employees, subsidiaries, and affiliates from any actions, claims, losses, damages, liabilities and expenses including legal fees arising out of your use of our Site or your violation of these Terms and Conditions.',
   },
 ];
+
+export const heroMP = {
+  mirror: {
+    alt: 'mirror',
+    path: '/images/mirror.svg',
+  },
+  progress: {
+    alt: 'progress',
+    path: '/images/progress.svg',
+  },
+};

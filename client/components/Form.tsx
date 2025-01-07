@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { offices } from '../constants';
+import React, { MutableRefObject, useRef, useState } from 'react';
+import { offices, policyText } from '../constants';
 import { Office } from './';
 
 const Form: React.FC = () => {
@@ -19,24 +19,32 @@ const Form: React.FC = () => {
       popup.current.style.display = 'flex';
   };
 
-  // useEffect(() => {
+  const policyRef = useRef<HTMLDivElement | null>(null);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
 
-  // }, [emailValue, messageValue]);
+  const show = (el: MutableRefObject<HTMLDivElement | null>) => {
+    if (el.current) el.current.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  };
 
   return (
-    <section id="Form" className="h-[90vh] basic-pd bg-[#012727] mb-[100px]">
-      <div className="h-full relative flex justify-center items-center ">
-        <form action="" className="mx-auto w-[878px]">
-          <h1 className="max-w-[515px]  text-center mx-auto text-[40px] font-dmSans mt-[20px]">
+    <section
+      id="Form"
+      className="h-[90vh] w-full basic-pd mb-[100px] "
+      ref={sectionRef}
+    >
+      <div className="h-full w-full relative flex justify-center items-center">
+        <form action="" className="w-full">
+          <h1 className="text-center mx-auto text-[40px] font-dmSans mt-[20px]">
             Get in Touch
           </h1>
-          <div>
+          <div className="w-full flex flex-col items-center">
             <input
               ref={email}
               type="email"
               placeholder="Your email"
               name="mail"
-              className="block text-[16px] max-w-[463px] h-[57px] mx-auto mt-[64px] bg-[#284C4C] bg-opacity-[53] rounded-[24px] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50"
+              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px]"
               value={emailValue}
               onChange={(ev) => setEmailValue(ev.target.value)}
             />
@@ -45,16 +53,16 @@ const Form: React.FC = () => {
               type="text"
               placeholder="Write your message here..."
               name="mail"
-              className="block text-[16px] w-[877px] h-[150px] mx-auto mt-[12px] bg-[#284C4C] bg-opacity-[53] rounded-[51px] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50"
+              className="input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] mt-[12px] rounded-[51px]"
               value={messageValue}
               onChange={(ev) => setMessageValue(ev.target.value)}
             />
           </div>
-          <div>
-            <div className="uppercase max-w-[348px] mx-auto text-center text-[14px] font-normal text-[#FFFFFF] mt-[24px] font-diatype leading-normal tracking-m3p ">
+          <div className="w-full">
+            <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white mt-[24px] font-diatype leading-normal tracking-m3p ">
               Choose an office
             </div>
-            <div className="w-[846px] h-[66px] rounded-[40px] bg-[#284C4C87] mx-auto mt-[24px] flex ">
+            <div className="lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[40px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
               {offices.map((o) => (
                 <Office
                   text={o.text}
@@ -65,26 +73,32 @@ const Form: React.FC = () => {
               ))}
             </div>
             <button
-              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-[#FFFFFF] border-opacity-10 font-inter  ${emailValue !== '' && messageValue !== '' ? 'text-[#012727] bg-[#FFFFFF] ' : 'text-[#A2A2A2] bg-[#FFFFFF] bg-opacity-15'}  `}
+              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  ${emailValue !== '' && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15'}  max-md:w-full max-md:h-[64px] max-md:bg-[#616161] max-md:text-[#1D2222]`}
               onClick={(e) => handleForm(e)}
             >
               Send
             </button>
-            <p className="uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-[#A2A2A2] ">
+            <p className="uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-secondaryGrey">
               By providing your email address, you consent to OUR{' '}
-              <a className="text-[#FFFFFF]  cursor-pointer">PRIVACY POLICY </a>
+              <a
+                href="#Form"
+                className="text-white  cursor-pointer"
+                onClick={() => show(policyRef)}
+              >
+                PRIVACY POLICY{' '}
+              </a>
               AND TO receive communications from MIRROR PROGRESS.
             </p>
           </div>
         </form>
         <div
           ref={popup}
-          className="h-[95%] w-[564px] absolute bg-[#000000] bg-opacity-30 mx-auto top-[15%] flex-col items-center justify-center rounded-[0px] backdrop-blur-lg hidden"
+          className="h-[95%] w-[564px] absolute bg-black bg-opacity-30 mx-auto top-[15%] flex-col items-center justify-center  backdrop-blur-lg hidden rounded-[80px]"
         >
           <div className="w-[340px] mb-[84px]">
-            <h3 className="font-dmSans text-[80px] leading-100 tracking-m3p font-light text-center">
+            <h2 className="font-dmSans text-[80px] leading-100 tracking-m3p font-light text-center">
               Received
-            </h3>
+            </h2>
             <p className="font-diatype text-[18px] leading-120 text-center mt-[64px]">
               Thank you for your message. We’ve received it and will get back to
               you as soon as we can.
@@ -92,16 +106,63 @@ const Form: React.FC = () => {
           </div>
           <div>
             <button
-              className={`rounded-[24px] text-[14px] text-[#FFFFFF] font-normal font-inter leading-140 px-[24px] py-[8px] bg-[#FFFFFF] bg-opacity-20`}
+              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20`}
               onClick={() => {
                 if (popup.current) popup.current.style.display = '';
+                setEmailValue('');
+                setMessageValue('');
               }}
             >
               Close
             </button>
           </div>
         </div>
-        
+      </div>
+
+      {/* POLICY */}
+      <div
+        ref={policyRef}
+        className="w-full h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
+      >
+        <div className="max-w-[464px]">
+          <h2 className="font-dmSans text-[80px] font-light leading-100 tracking-m2p pt-[180px]">
+            {' '}
+            Privacy Policy{' '}
+          </h2>
+          <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
+            {' '}
+            Effective Date: Januarty 1st 2025
+          </h3>
+          <div>
+            {policyText.map((t) => (
+              <div
+                key={t.id}
+                className="font-dmSans text-[17px] leading-120 font-normal mb-[30px]"
+              >
+                <h4>{t.title}</h4>
+                <p>{t.text}</p>
+                <ul className=" pl-[35px]">
+                  {t.items.map((i) => (
+                    <li key={i.id} className="list-disc">
+                      {i.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div>
+            <button
+              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 fixed top-[200px] right-[300px] `}
+              onClick={() => {
+                if (policyRef.current) policyRef.current.style.display = '';
+                document.body.style.overflow = '';
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );

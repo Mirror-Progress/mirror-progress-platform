@@ -6,7 +6,7 @@ const Process: React.FC = () => {
   return (
     <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
       <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
-        <div className="h-[377px] w-[377px] flex justify-center items-center ">
+        <div className="lg:h-[600px] lg:w-[600px] max-md:w-[90%] flex justify-center items-center ">
           <LottieAnimation
             src="https://lottie.host/8f32ce3c-628c-44fa-b860-8c6bb1afec27/3ado51lgMu.lottie"
             loop={true}

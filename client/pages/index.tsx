@@ -11,8 +11,6 @@ const Home: NextPage = () => {
       <Process />
       <Form />
       <Footer />
-      {/* <Conditions /> */}
-      {/* <Privacy /> */}
     </>
   );
 };

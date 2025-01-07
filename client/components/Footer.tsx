@@ -1,4 +1,4 @@
-import React, { MutableRefObject, useRef } from 'react';
+import React, { MutableRefObject, useRef, useState } from 'react';
 import {
   icons,
   paragraphs,
@@ -6,7 +6,7 @@ import {
   solutionSlides,
   termsConditions,
 } from '../constants';
-import { Terms, FooterBtn, SocialMedia } from './';
+import { FooterBtn, SocialMedia } from './';
 
 const Footer: React.FC = () => {
   const termsRef = useRef<HTMLDivElement | null>(null);
@@ -15,27 +15,36 @@ const Footer: React.FC = () => {
   /* Functionalities  */
   const show = (el: MutableRefObject<HTMLDivElement | null>) => {
     if (el.current) el.current.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  };
+
+  const hide = (el: MutableRefObject<HTMLDivElement | null>) => {
+    if (el.current) el.current.style.display = '';
+    document.body.style.overflow = '';
   };
 
   return (
-    <footer className="h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] pb-[10px] relative">
-      <div className="grid grid-cols-2  h-full">
-        <div className="h-full">
+    <footer
+      id="Footer"
+      className="h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] pb-[10px] relative"
+    >
+      <div className="grid grid-cols-2 max-md:grid-cols-5 h-full">
+        <div className="h-full max-md:col-span-1">
           <img
             src={icons.white.path}
             alt={icons.white.name}
             className="w-[46px]"
           />
         </div>
-        <div className="pr-[53px] h-full flex flex-col justify-between">
-          <p className="max-w-[545px] text-[24px] font-light font-dmSans">
+        <div className="lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3">
+          <p className="max-w-[545px] text-[24px] max-md:text-[16px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
-          <div className="bg-[#000000] bg-opacity-15 rounded-[19.51px] my-[15px]">
-            <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px]">
+          <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px]">
+            <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px] max-md:hidden">
               {solutionSlides.map((s, i) => (
                 <div
-                  className="bg-[#000000] bg-opacity-15 rounded-[19.51px]"
+                  className="bg-black bg-opacity-15 rounded-[19.51px]"
                   key={s.id}
                 >
                   <video
@@ -48,12 +57,6 @@ const Footer: React.FC = () => {
                   >
                     <source src={s.video.path} type="video/mp4" />
                   </video>
-
-                  {/* <img
-                    src={s.image.path}
-                    alt={s.title}
-                    className="w-[106.12px] h-[105.02px]"
-                  /> */}
                 </div>
               ))}
             </div>
@@ -82,8 +85,11 @@ const Footer: React.FC = () => {
           <div className="flex flex-col gap-[5px]">
             <div>
               <a
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] cursor-pointer"
-                onClick={() => show(termsRef)}
+                href="#Footer"
+                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack cursor-pointer"
+                onClick={() => {
+                  show(termsRef);
+                }}
               >
                 {' '}
                 TERMS{' '}
@@ -91,7 +97,7 @@ const Footer: React.FC = () => {
             </div>
             <div>
               <a
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] cursor-pointer"
+                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] "
                 onClick={() => show(policyRef)}
               >
                 {' '}
@@ -100,8 +106,8 @@ const Footer: React.FC = () => {
             </div>
             <div>
               <a
-                href=""
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222]"
+                href="#Footer"
+                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack"
               >
                 {' '}
                 © 2024 Mirror Progress LLC All Rights Reserved{' '}
@@ -111,7 +117,7 @@ const Footer: React.FC = () => {
         </div>
       </div>
 
-      {/* TERMS */}
+      {/* TERMS MODAL*/}
       <div
         ref={termsRef}
         className="w-full h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0"
@@ -138,10 +144,8 @@ const Footer: React.FC = () => {
           </div>
           <div>
             <button
-              className={`rounded-[24px] text-[14px] text-[#FFFFFF] font-normal font-inter leading-140 px-[24px] py-[8px] bg-[#FFFFFF] bg-opacity-20 fixed top-[200px] right-[300px]`}
-              onClick={() => {
-                if (termsRef.current) termsRef.current.style.display = '';
-              }}
+              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 fixed top-[200px] right-[300px]`}
+              onClick={() => hide(termsRef)}
             >
               Close
             </button>
@@ -149,10 +153,11 @@ const Footer: React.FC = () => {
         </div>
       </div>
 
-      {/* POLICY */}
+      {/* POLICY MODAL */}
+
       <div
         ref={policyRef}
-        className="w-full h-screen overflow-y-scroll hidden justify-center bg-[#000000] bg-opacity-20 backdrop-blur-lg absolute top-0 left-0 "
+        className="w-full h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0 "
       >
         <div className="max-w-[464px]">
           <h2 className="font-dmSans text-[80px] font-light leading-100 tracking-m2p pt-[180px]">
@@ -183,10 +188,8 @@ const Footer: React.FC = () => {
           </div>
           <div>
             <button
-              className={`rounded-[24px] text-[14px] text-[#FFFFFF] font-normal font-inter leading-140 px-[24px] py-[8px] bg-[#FFFFFF] bg-opacity-20 fixed top-[200px] right-[300px] `}
-              onClick={() => {
-                if (policyRef.current) policyRef.current.style.display = '';
-              }}
+              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 fixed top-[200px] right-[300px] `}
+              onClick={() => hide(policyRef)}
             >
               Close
             </button>
