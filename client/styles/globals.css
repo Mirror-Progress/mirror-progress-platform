@@ -40,9 +40,9 @@ html {
 
 @layer utilities {
   .basic-pd {
-    @apply px-[24px];
+    @apply px-[24px] max-md:px-[16px];
   }
   .input {
-    @apply block text-[16px] bg-[#284C4C] bg-opacity-[53] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50 ;
+    @apply block text-[16px] bg-[#284C4C] bg-opacity-[53] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50;
   }
 }

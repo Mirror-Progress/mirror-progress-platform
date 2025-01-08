@@ -1,4 +1,9 @@
-import React, { MutableRefObject, useRef, useState } from 'react';
+import React, {
+  MutableRefObject,
+  SyntheticEvent,
+  useRef,
+  useState,
+} from 'react';
 import {
   icons,
   paragraphs,
@@ -7,10 +12,16 @@ import {
   termsConditions,
 } from '../constants';
 import { FooterBtn, SocialMedia } from './';
+import { Metadata } from 'next';
+import { useGSAP } from '@gsap/react';
+import { gsapAnimate } from '../utils/animations';
 
 const Footer: React.FC = () => {
   const termsRef = useRef<HTMLDivElement | null>(null);
   const policyRef = useRef<HTMLDivElement | null>(null);
+  const [loadedMetaData, setLoadedMetaData] = useState<
+    (Metadata | SyntheticEvent<HTMLVideoElement, Event>)[]
+  >([]);
 
   /* Functionalities  */
   const show = (el: MutableRefObject<HTMLDivElement | null>) => {
@@ -22,6 +33,27 @@ const Footer: React.FC = () => {
     if (el.current) el.current.style.display = '';
     document.body.style.overflow = '';
   };
+
+  const handleLoadedData = (
+    e: React.SyntheticEvent<HTMLVideoElement, Event> | Metadata
+  ) => {
+    setLoadedMetaData((c) => [...c, e]);
+  };
+
+  useGSAP(() => {
+      gsapAnimate(
+        '#form',
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.8,
+          stagger: .2,
+        },
+        {
+          toggleActions: 'restart reverse none reverse',
+        }
+      );
+    }, []);
 
   return (
     <footer
@@ -37,11 +69,11 @@ const Footer: React.FC = () => {
           />
         </div>
         <div className="lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3">
-          <p className="max-w-[545px] text-[24px] max-md:text-[16px] font-light font-dmSans">
+          <p className="max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
-          <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px]">
-            <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px] max-md:hidden">
+          <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">
+            <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px] ">
               {solutionSlides.map((s, i) => (
                 <div
                   className="bg-black bg-opacity-15 rounded-[19.51px]"
@@ -54,6 +86,7 @@ const Footer: React.FC = () => {
                     muted
                     playsInline={true}
                     key={s.title}
+                    onLoadedMetadata={(e) => handleLoadedData(e)}
                   >
                     <source src={s.video.path} type="video/mp4" />
                   </video>
@@ -61,12 +94,12 @@ const Footer: React.FC = () => {
               ))}
             </div>
           </div>
-          <div>
-            <div className="flex flex-col w-[132px] h-[171px] gap-[8px]">
+          <div className="max-md:flex-1 max-md:pt-[70px]">
+            <div className="flex flex-col w-[132px] h-[171px] gap-[8px] max-md:gap-[24px]">
               <FooterBtn text="Get in Touch" href="#Form" />
               <FooterBtn text="What We do" href="#Solutions" />
 
-              <div className="flex flex-col gap-[15px] font-diatype font-medium leading-100 tracking-m3p mt-[20px]">
+              <div className="flex flex-col gap-[15px] max-md:gap-[24px] font-diatype font-medium leading-100 tracking-m3p mt-[20px] max-md:pt-[70px]">
                 <SocialMedia
                   text="Instagram"
                   path={icons.arrow.path}
@@ -82,7 +115,7 @@ const Footer: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-[5px]">
+          <div className="flex flex-col gap-[5px] max-md:gap-[24px] max-md:pb-[50px] max-md:max-w-[175px]">
             <div>
               <a
                 href="#Footer"
@@ -107,7 +140,7 @@ const Footer: React.FC = () => {
             <div>
               <a
                 href="#Footer"
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack"
+                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack ]"
               >
                 {' '}
                 © 2024 Mirror Progress LLC All Rights Reserved{' '}

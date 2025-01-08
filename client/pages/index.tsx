@@ -1,7 +1,7 @@
 // client/pages/index.tsx
 
 import type { NextPage } from 'next';
-import { Header, Hero, Solutions, Process, Form, Footer, Privacy } from '../components';
+import { Hero, Solutions, Process, Form, Footer, Privacy } from '../components';
 
 const Home: NextPage = () => {
   return (

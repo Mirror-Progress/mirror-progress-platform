@@ -1,10 +1,51 @@
 import React from 'react';
 import { heroMP, paragraphs, solutionSlides } from '../constants';
 import { Header } from './';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 
 const Hero: React.FC = () => {
+  useGSAP(() => {
+    const tlLeft = gsap.timeline();
+    const tlRight = gsap.timeline();
+    tlLeft
+      .to('#leftImg', {
+        top: '50%',
+        duration: 1,
+      })
+      .to('#leftImg', {
+        left: '-100%',
+        duration: 0.5,
+        delay: 0.5,
+      })
+      .to('#left', {
+        left: '-100%',
+        duration: 0.5,
+      });
+      tlRight
+        .to('#rightImg', {
+          top: '50%',
+          duration: 1,
+        })
+        .to('#rightImg', {
+          right: '-100%',
+          duration: 0.5,
+          delay: 0.5,
+        })
+        .to('#right', {
+          right: '-100%',
+          duration: 0.5,
+        });
+
+      gsap.to("#wait", { 
+        opacity:1, 
+        delay: 3.2
+      })
+      
+  }, []);
+
   return (
-    <div className="relative h-screen bg-primary max-w-full">
+    <div className="relative h-screen bg-primary max-w-full overflow-hidden">
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
@@ -13,38 +54,52 @@ const Hero: React.FC = () => {
           </p>
         </div>
       </section>
-      <div className=" max-md:hidden h-full flex flex-wrap justify-center items-center gap-[100px] grid-rows-3 absolute z-[1]">
+      <div className="max-md:hidden h-full flex flex-wrap justify-center items-center gap-[100px] absolute z-[1]">
         {solutionSlides.map((s) => (
-          <div key={s.id} className="w-[264px] h-[248px] relative">
-            <div className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 left-[-8px]"></div>
-            <div className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 right-[8px]"></div>
-            <div className="w-[249px] h-[249px] bg-[#023333] bg-opacity-50 rounded-[69px] flex justify-center items-center">
-              <div className="w-[175px] h-[113px]">
+          <div
+            key={s.id}
+            className="w-[264px] max-md:h-[124px] h-[248px] relative "
+          >
+            <div
+              id="wait"
+              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 left-[-8px] opacity-0"
+            ></div>
+            <div
+              id="wait"
+              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 right-[8px] opacity-0"
+            ></div>
+            <div className="w-[249px] max-md:h-[120px] h-[249px] bg-[#023333] bg-opacity-50 rounded-[69px] flex justify-center items-center">
+              <div id="wait" className="w-[175px] h-[113px] opacity-0">
                 <img src={s.image.path} alt={s.title} />
               </div>
             </div>
           </div>
         ))}
       </div>
+      <div className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0"></div>
       <div
-        id="left"
-        className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0"
-      ></div>
-      <div
-        id="right"
         className="w-[237px] h-full absolute
         bg-gradient-to-l to-[#1D222200] from-[#1D2222FF] top-0 right-0 z-0"
       ></div>
-      {/* <div className="h-full w-1/2 absolute top-0 left-0 bg-black z-[4] flex justify-end items-center ">
-        <div className="absolute">
+      <div
+        id="left"
+        className="h-full w-1/2 absolute top-0 left-0 bg-[#1D2222] z-[4]"
+      >
+        <div
+          id="leftImg"
+          className="absolute w-full top-[100%] lg:left-[83%] max-md:left-[40%]"
+        >
           <img src={heroMP.mirror.path} alt={heroMP.mirror.alt} />
         </div>
       </div>
-      <div className="h-full w-1/2 absolute top-0 right-0 bg-black z-[4] flex justify-start items-center">
-        <div className="absolute pt-[8px]">
+      <div
+        id="right"
+        className="h-full w-1/2 absolute top-0 right-0 bg-[#1D2222] z-[4]"
+      >
+        <div id="rightImg" className="absolute w-full top-[100%]">
           <img src={heroMP.progress.path} alt={heroMP.progress.alt} />
         </div>
-      </div> */}
+      </div>
     </div>
   );
 };

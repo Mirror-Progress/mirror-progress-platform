@@ -10,6 +10,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@gsap/react": "^2.1.1",
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
     "@lottiefiles/dotlottie-react": "^0.12.1",

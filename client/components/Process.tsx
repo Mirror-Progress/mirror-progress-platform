@@ -13,8 +13,8 @@ const Process: React.FC = () => {
             autoplay={true}
           />
         </div>
-        <p className="max-w-[900px] text-[32px] font-light text-center font-dmSans">
-          {paragraphs.process[2]}
+        <p className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans">
+          {paragraphs.process[0]}
         </p>
       </div>
     </section>
