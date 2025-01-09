@@ -9,4 +9,10 @@ const nextConfig: NextConfig = {
   },
 };
 
+module.exports = {
+  reactStrictMode: true,
+  transpilePackages: ['gsap'],
+};
+
+
 export default nextConfig;

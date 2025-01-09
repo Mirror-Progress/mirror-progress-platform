@@ -41,27 +41,31 @@ const Footer: React.FC = () => {
   };
 
   useGSAP(() => {
-      gsapAnimate(
-        '#form',
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.8,
-          stagger: .2,
-        },
-        {
-          toggleActions: 'restart reverse none reverse',
-        }
-      );
-    }, []);
+    gsapAnimate(
+      '#wait_footer',
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        stagger: 0.15,
+      },
+      {
+        toggleActions: 'restart reverse restart none',
+        start: 'top 85%',
+      }
+    );
+  }, []);
 
   return (
     <footer
-      id="Footer"
-      className="h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] pb-[10px] relative"
+      id="footer"
+      className="h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] pb-[10px] relative overflow-hidden"
     >
       <div className="grid grid-cols-2 max-md:grid-cols-5 h-full">
-        <div className="h-full max-md:col-span-1">
+        <div
+          id="wait_footer"
+          className="opacity-0 translate-y-8 h-full max-md:col-span-1"
+        >
           <img
             src={icons.white.path}
             alt={icons.white.name}
@@ -69,14 +73,18 @@ const Footer: React.FC = () => {
           />
         </div>
         <div className="lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3">
-          <p className="max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans">
+          <p
+            id="wait_footer"
+            className="opacity-0 translate-y-8 max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans"
+          >
             {paragraphs.footer}
           </p>
           <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">
             <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px] ">
               {solutionSlides.map((s, i) => (
                 <div
-                  className="bg-black bg-opacity-15 rounded-[19.51px]"
+                  id="wait_footer"
+                  className="opacity-0 translate-y-8 bg-black bg-opacity-15 rounded-[19.51px]"
                   key={s.id}
                 >
                   <video
@@ -95,7 +103,10 @@ const Footer: React.FC = () => {
             </div>
           </div>
           <div className="max-md:flex-1 max-md:pt-[70px]">
-            <div className="flex flex-col w-[132px] h-[171px] gap-[8px] max-md:gap-[24px]">
+            <div
+              id="wait_footer"
+              className="opacity-0 translate-y-8 flex flex-col w-[132px] h-[171px] gap-[8px] max-md:gap-[24px]"
+            >
               <FooterBtn text="Get in Touch" href="#Form" />
               <FooterBtn text="What We do" href="#Solutions" />
 
@@ -115,10 +126,13 @@ const Footer: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-[5px] max-md:gap-[24px] max-md:pb-[50px] max-md:max-w-[175px]">
+          <div
+            id="wait_footer"
+            className="opacity-0 translate-y-8 flex flex-col gap-[5px] max-md:gap-[24px] max-md:pb-[50px] max-md:max-w-[175px]"
+          >
             <div>
               <a
-                href="#Footer"
+                href="#footer"
                 className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack cursor-pointer"
                 onClick={() => {
                   show(termsRef);
@@ -130,7 +144,7 @@ const Footer: React.FC = () => {
             </div>
             <div>
               <a
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] "
+                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] cursor-pointer"
                 onClick={() => show(policyRef)}
               >
                 {' '}
@@ -139,8 +153,8 @@ const Footer: React.FC = () => {
             </div>
             <div>
               <a
-                href="#Footer"
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack ]"
+                href="#footer"
+                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack"
               >
                 {' '}
                 © 2024 Mirror Progress LLC All Rights Reserved{' '}
@@ -153,35 +167,36 @@ const Footer: React.FC = () => {
       {/* TERMS MODAL*/}
       <div
         ref={termsRef}
-        className="w-full h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0"
+        className="w-full h-screen overflow-y-scroll hidden bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0 md:justify-center"
       >
-        <div className="max-w-[464px]">
-          <h2 className="font-dmSans text-[80px] font-light leading-100 tracking-m2p pt-[180px] ">
-            {' '}
-            Terms & Conditions{' '}
-          </h2>
+        <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
+          <button
+            className={` h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 sticky top-[188px] max-md:top-[40px] right-[267px] max-md:right-[40px]`}
+            onClick={() => hide(termsRef)}
+          >
+            Close
+          </button>
+          <div>
+            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px] ">
+              {' '}
+              Terms & Conditions{' '}
+            </h2>
+          </div>
+
           <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
             {' '}
             Effective Date: Januarty 1st 2025
           </h3>
-          <div>
+          <div className="pb-[50px]">
             {termsConditions.map((t) => (
               <div
                 key={t.id}
-                className="font-dmSans text-[17px] leading-120 font-normal mb-[30px]"
+                className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
               >
                 <h4>{t.title}</h4>
                 <p>{t.text}</p>
               </div>
             ))}
-          </div>
-          <div>
-            <button
-              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 fixed top-[200px] right-[300px]`}
-              onClick={() => hide(termsRef)}
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>
@@ -190,22 +205,30 @@ const Footer: React.FC = () => {
 
       <div
         ref={policyRef}
-        className="w-full h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0 "
+        className="w-full h-screen overflow-y-scroll hidden bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0 md:justify-center"
       >
-        <div className="max-w-[464px]">
-          <h2 className="font-dmSans text-[80px] font-light leading-100 tracking-m2p pt-[180px]">
-            {' '}
-            Privacy Policy{' '}
-          </h2>
+        <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
+          <div>
+            <button
+              className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 sticky top-[188px] max-md:top-[40px] right-[267px] max-md:right-[40px] `}
+              onClick={() => hide(policyRef)}
+            >
+              Close
+            </button>
+            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px]">
+              {' '}
+              Privacy Policy{' '}
+            </h2>
+          </div>
           <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
             {' '}
             Effective Date: Januarty 1st 2025
           </h3>
-          <div>
+          <div className="max-md:pb-[50px]">
             {policyText.map((t) => (
               <div
                 key={t.id}
-                className="font-dmSans text-[17px] leading-120 font-normal mb-[30px]"
+                className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
               >
                 <h4>{t.title}</h4>
                 <p>{t.text}</p>
@@ -218,14 +241,6 @@ const Footer: React.FC = () => {
                 </ul>
               </div>
             ))}
-          </div>
-          <div>
-            <button
-              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 fixed top-[200px] right-[300px] `}
-              onClick={() => hide(policyRef)}
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>

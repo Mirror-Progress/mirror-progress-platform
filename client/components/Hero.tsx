@@ -8,6 +8,7 @@ const Hero: React.FC = () => {
   useGSAP(() => {
     const tlLeft = gsap.timeline();
     const tlRight = gsap.timeline();
+    const tl = gsap.timeline();
     tlLeft
       .to('#leftImg', {
         top: '50%',
@@ -22,26 +23,30 @@ const Hero: React.FC = () => {
         left: '-100%',
         duration: 0.5,
       });
-      tlRight
-        .to('#rightImg', {
-          top: '50%',
-          duration: 1,
-        })
-        .to('#rightImg', {
-          right: '-100%',
-          duration: 0.5,
-          delay: 0.5,
-        })
-        .to('#right', {
-          right: '-100%',
-          duration: 0.5,
-        });
-
-      gsap.to("#wait", { 
-        opacity:1, 
-        delay: 3.2
+    tlRight
+      .to('#rightImg', {
+        top: '50%',
+        duration: 1,
       })
-      
+      .to('#rightImg', {
+        right: '-100%',
+        duration: 0.5,
+        delay: 0.5,
+      })
+      .to('#right', {
+        right: '-100%',
+        duration: 0.5,
+      });
+
+    tl.from('#solution', {
+      position: 'absolute',
+      duration: 0.15,
+      delay: 2.3,
+    }).to('#wait', {
+      opacity: 1,
+      delay: 0.3,
+      duration: 0.5,
+    });
   }, []);
 
   return (
@@ -54,9 +59,10 @@ const Hero: React.FC = () => {
           </p>
         </div>
       </section>
-      <div className="max-md:hidden h-full flex flex-wrap justify-center items-center gap-[100px] absolute z-[1]">
+      <div className=" w-full h-full absolute z-[1] flex items-center justify-center gap-[200px] flex-wrap ">
         {solutionSlides.map((s) => (
           <div
+            id="solution"
             key={s.id}
             className="w-[264px] max-md:h-[124px] h-[248px] relative "
           >

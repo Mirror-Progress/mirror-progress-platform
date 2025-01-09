@@ -37,10 +37,11 @@ const Form: React.FC = () => {
         opacity: 1,
         y: 0,
         duration: 0.8,
-        stagger: .2,
+        stagger: 0.15,
       },
       {
-        toggleActions: 'restart reverse none reverse',
+        toggleActions: 'restart reverse restart reverse',
+        start: 'top 85%',
       }
     );
   }, []);
@@ -155,22 +156,33 @@ const Form: React.FC = () => {
       {/* POLICY */}
       <div
         ref={policyRef}
-        className="w-full h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
+        className="w-full basic-pd h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
       >
-        <div className="max-w-[464px]">
-          <h2 className="font-dmSans text-[80px] font-light leading-100 tracking-m2p pt-[180px]">
-            {' '}
-            Privacy Policy{' '}
-          </h2>
+        <div className="md:max-w-[464px] max-md:max-w-[313px] ">
+          <div>
+            <button
+              className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 sticky top-[188px] max-md:top-[40px] right-[267px] max-md:right-[0px] `}
+              onClick={() => {
+                if (policyRef.current) policyRef.current.style.display = '';
+                document.body.style.overflow = '';
+              }}
+            >
+              Close
+            </button>
+            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px]">
+              {' '}
+              Privacy Policy{' '}
+            </h2>
+          </div>
           <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
             {' '}
             Effective Date: Januarty 1st 2025
           </h3>
-          <div>
+          <div className="max-md:pb-[50px]">
             {policyText.map((t) => (
               <div
                 key={t.id}
-                className="font-dmSans text-[17px] leading-120 font-normal mb-[30px]"
+                className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
               >
                 <h4>{t.title}</h4>
                 <p>{t.text}</p>
@@ -183,17 +195,6 @@ const Form: React.FC = () => {
                 </ul>
               </div>
             ))}
-          </div>
-          <div>
-            <button
-              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 fixed top-[200px] right-[300px] `}
-              onClick={() => {
-                if (policyRef.current) policyRef.current.style.display = '';
-                document.body.style.overflow = '';
-              }}
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>
