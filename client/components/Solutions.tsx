@@ -5,21 +5,23 @@ const Solutions: React.FC = () => {
   return (
     <section
       id="Solutions"
-      className="h-screen w-full basic-pd  my-[60px] max-md:my-0 max-md:mt-[10px] "
+      className="h-screen w-full basic-pd  my-[20px] max-md:my-0 max-md:mt-[10px] "
     >
       <div className="h-full w-full flex flex-col justify-around">
-        <h2 className="uppercase my-[20px] max-md:my-0 max-md:mb-[30px]  font-diatype font-normal text-[24px]">
+        <h2 className="uppercase max-md:my-0 max-md:mb-[30px]  font-diatype font-normal text-[24px]">
           [ Solutions ]
         </h2>
-        <div className="min-h-[90%] w-full flex lg:flex-row md:flex-col  max-lg:flex-col overflow-hidden ">
+        <div className="min-h-[80%] w-full flex flex-row   max-lg:flex-col overflow-hidden my-[20px] ">
           {solutionSlides.map((s) => (
             <div
-              className={`flex flex-1 max-md:h-[450px]  max-md:flex-col`}
+              className={`flex flex-1 max-lg:h-[450px]  max-lg:flex-col `}
               key={s.id}
             >
-              <div className="lg:w-[1px] max-md:w-full max-md:h-[1px] bg-white"></div>
               <div
-                className={`${s.id !== 0 ? 'w-[164px] max-md:h-[60px] mt-[15px]' : ' max-md:h-[361px]'} max-md:flex max-md:flex-col max-md:justify-around`}
+                className={`lg:w-[1px] max-lg:w-full max-lg:h-[1px]  ${s.id !== 0 && s.id !== 1 ? 'bg-[#126363]' : 'bg-white'}`}
+              ></div>
+              <div
+                className={`${s.id !== 0 ? 'w-[164px] max-lg:h-[60px] mt-[15px] z-[1]' : ' max-lg:h-[361px] z-[-1]'} max-lg:flex max-lg:flex-col max-lg:justify-around `}
               >
                 <h4
                   className={`font-diatype uppercase pl-[12px] leading-100 font-normal max-w-[150px] h-[32px] ${s.id !== 0 ? 'text-[#126363]' : ''} `}
@@ -27,11 +29,11 @@ const Solutions: React.FC = () => {
                   {s.title}
                 </h4>
                 <div
-                  className={`w-[485px] max-md:w-full h-[455px]  max-md:h-[250px] flex flex-col items-center max-md:items-start justify-around my-[30px] max-md:my-0 ${s.id !== 0 ? 'opacity-0' : ''}`}
+                  className={`md:relative lg:flex-1 w-[485px] max-lg:w-full h-[455px] max-lg:h-[250px] flex flex-col items-center max-lg:items-start justify-around lg:mt-[68px] max-lg:my-0  ${s.id !== 0 ? 'opacity-0' : ''}`}
                 >
-                  <div className="max-w-[369px]  h-[209px] max-md:h-[115px] self-center ">
+                  <div className=" max-w-[369px]  h-[120px] lg:h-[250px] md:h-[300px] self-center md:absolute lg:static md:top-[-20%] md:right-0 ">
                     <video
-                      className="pointer-events-none w-full h-full "
+                      className="pointer-events-none h-full"
                       autoPlay
                       loop
                       muted
@@ -41,7 +43,7 @@ const Solutions: React.FC = () => {
                       <source src={s.video.path} type="video/mp4" />
                     </video>
                   </div>
-                  <p className="max-w-[419px] max-md:max-w-[299px] font-dmSans text-[18px] max-md:text-[14px] leading-120 font-normal text-[#A2A2A2]">
+                  <p className="max-w-[419px] max-lg:max-w-[299px] font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2]">
                     {solutionSlides[0].text}
                   </p>
                 </div>

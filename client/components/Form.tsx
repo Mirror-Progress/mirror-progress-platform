@@ -36,8 +36,8 @@ const Form: React.FC = () => {
       {
         opacity: 1,
         y: 0,
-        duration: 0.8,
-        stagger: 0.15,
+        duration: 0.5,
+        stagger: 0.1,
       },
       {
         toggleActions: 'restart reverse restart reverse',
@@ -102,9 +102,10 @@ const Form: React.FC = () => {
                 />
               ))}
             </div>
+
             <button
               id="form"
-              className={` opacity-0 translate-y-12 block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  ${emailValue !== '' && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15'} max-md:w-full max-md:h-[64px] max-md:bg-[#616161] max-md:text-[#1D2222]`}
+              className={` opacity-0 translate-y-12 block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${emailValue !== '' && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
               onClick={(e) => handleForm(e)}
             >
               Send
@@ -127,13 +128,13 @@ const Form: React.FC = () => {
         </form>
         <div
           ref={popup}
-          className="h-[95%] w-[564px] absolute bg-black bg-opacity-30 mx-auto top-[15%] flex-col items-center justify-center  backdrop-blur-lg hidden rounded-[80px]"
+          className="h-[95%] w-[564px] max-md:w-[90%] absolute bg-black bg-opacity-30 mx-auto top-[15%] flex-col items-center justify-center  backdrop-blur-lg hidden rounded-[80px]"
         >
           <div className="w-[340px] mb-[84px]">
-            <h2 className="font-dmSans text-[80px] leading-100 tracking-m3p font-light text-center">
+            <h2 className="font-dmSans text-[80px] max-md:text-[60px] leading-100 tracking-m3p font-light text-center">
               Received
             </h2>
-            <p className="font-diatype text-[18px] leading-120 text-center mt-[64px]">
+            <p className="font-diatype text-[18px] max-md:text-[16px] leading-120 text-center mt-[64px]">
               Thank you for your message. We’ve received it and will get back to
               you as soon as we can.
             </p>
@@ -156,47 +157,47 @@ const Form: React.FC = () => {
       {/* POLICY */}
       <div
         ref={policyRef}
-        className="w-full basic-pd h-screen overflow-y-scroll hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
+        className="w-full basic-pd h-screen hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
       >
-        <div className="md:max-w-[464px] max-md:max-w-[313px] ">
-          <div>
-            <button
-              className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 sticky top-[188px] max-md:top-[40px] right-[267px] max-md:right-[0px] `}
-              onClick={() => {
-                if (policyRef.current) policyRef.current.style.display = '';
-                document.body.style.overflow = '';
-              }}
-            >
-              Close
-            </button>
+        <div className="w-full overflow-y-scroll flex justify-center">
+          <div className="md:max-w-[464px] max-md:max-w-[313px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px]">
               {' '}
               Privacy Policy{' '}
             </h2>
-          </div>
-          <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
-            {' '}
-            Effective Date: Januarty 1st 2025
-          </h3>
-          <div className="max-md:pb-[50px]">
-            {policyText.map((t) => (
-              <div
-                key={t.id}
-                className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
-              >
-                <h4>{t.title}</h4>
-                <p>{t.text}</p>
-                <ul className=" pl-[35px]">
-                  {t.items.map((i) => (
-                    <li key={i.id} className="list-disc">
-                      {i.text}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
+              {' '}
+              Effective Date: Januarty 1st 2025
+            </h3>
+            <div className="max-md:pb-[50px]">
+              {policyText.map((t) => (
+                <div
+                  key={t.id}
+                  className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
+                >
+                  <h4>{t.title}</h4>
+                  <p>{t.text}</p>
+                  <ul className=" pl-[35px]">
+                    {t.items.map((i) => (
+                      <li key={i.id} className="list-disc">
+                        {i.text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+        <button
+          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[357px] max-md:right-[40px]`}
+          onClick={() => {
+            if (policyRef.current) policyRef.current.style.display = '';
+            document.body.style.overflow = '';
+          }}
+        >
+          Close
+        </button>
       </div>
     </section>
   );

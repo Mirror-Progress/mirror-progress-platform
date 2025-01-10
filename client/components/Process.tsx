@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { paragraphs } from '../constants';
-import { LottieAnimation } from './';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/all';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 gsap.registerPlugin(ScrollTrigger);
 
 const Process: React.FC = () => {
@@ -12,7 +12,7 @@ const Process: React.FC = () => {
       scrollTrigger: {
         trigger: '#paragraphs',
         toggleActions: 'restart none restart none',
-        start: 'top 80%',
+        start: 'top 90%',
       },
     });
     tl.to('#p1', {
@@ -40,14 +40,54 @@ const Process: React.FC = () => {
         opacity: 1,
       });
   }, []);
+
+  const lottieContainerRef = useRef<HTMLDivElement | null>(null);
+  const animationRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Initialize the Lottie animation using the DotLottieReact component's API
+    if (lottieContainerRef.current) {
+      const lottieInstance = lottieContainerRef.current.querySelector(
+        'dot-lottie'
+      ) as any;
+
+      if (lottieInstance) {
+        animationRef.current = lottieInstance.lottie;
+      }
+      if (lottieInstance) {
+        animationRef.current = lottieInstance;
+      }
+    }
+
+    ScrollTrigger.create({
+      trigger: lottieContainerRef.current,
+      start: 'top 80%',
+      // end: 'bottom bottom',
+      scrub: true,
+      onUpdate: (self) => {
+        // Map scroll progress to the Lottie animation's progress
+        const progress = self.progress; // 0 to 1
+        if (animationRef.current) {
+          animationRef.current.goToAndStop(
+            progress * animationRef.current.totalFrames,
+            true
+          );
+        }
+      },
+    });
+  }, []);
   return (
     <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
       <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
-        <div className="lg:h-[600px] lg:w-[600px] max-md:w-[90%] flex justify-center items-center ">
-          <LottieAnimation
-            src="https://lottie.host/8f32ce3c-628c-44fa-b860-8c6bb1afec27/3ado51lgMu.lottie"
-            loop={true}
-            autoplay={true}
+        <div
+          ref={lottieContainerRef}
+          className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center "
+        >
+          <DotLottieReact
+            src="/animation/process.lottie"
+            loop
+            autoplay
+            className="lg:h-[400px] lg:w-[400px] max-md:h-[40vh]"
           />
         </div>
         <div id="paragraphs">
