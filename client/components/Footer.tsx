@@ -167,38 +167,38 @@ const Footer: React.FC = () => {
       {/* TERMS MODAL*/}
       <div
         ref={termsRef}
-        className="w-full h-screen overflow-y-scroll hidden bg-black bg-opacity-20 backdrop-blur-lg absolute top-0 left-0 md:justify-center"
+        className="w-full basic-pd h-screen hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
       >
-        <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
-          <button
-            className={` h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 sticky top-[188px] max-md:top-[40px] right-[267px] max-md:right-[40px]`}
-            onClick={() => hide(termsRef)}
-          >
-            Close
-          </button>
-          <div>
+        <div className="w-full overflow-y-scroll flex justify-center">
+          <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px] ">
               {' '}
               Terms & Conditions{' '}
             </h2>
-          </div>
 
-          <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
-            {' '}
-            Effective Date: Januarty 1st 2025
-          </h3>
-          <div className="pb-[50px]">
-            {termsConditions.map((t) => (
-              <div
-                key={t.id}
-                className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
-              >
-                <h4>{t.title}</h4>
-                <p>{t.text}</p>
-              </div>
-            ))}
+            <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
+              {' '}
+              Effective Date: Januarty 1st 2025
+            </h3>
+            <div className="pb-[30px]">
+              {termsConditions.map((t) => (
+                <div
+                  key={t.id}
+                  className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
+                >
+                  <h4>{t.title}</h4>
+                  <p>{t.text}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+        <button
+          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[357px] max-md:right-[40px]`}
+          onClick={() => hide(termsRef)}
+        >
+          Close
+        </button>
       </div>
 
       {/* POLICY MODAL */}
@@ -217,7 +217,7 @@ const Footer: React.FC = () => {
               {' '}
               Effective Date: Januarty 1st 2025
             </h3>
-            <div className="max-md:pb-[50px]">
+            <div className="pb-[30px]">
               {policyText.map((t) => (
                 <div
                   key={t.id}

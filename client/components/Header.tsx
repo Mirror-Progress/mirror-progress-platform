@@ -20,13 +20,8 @@ const Header: React.FC = () => {
         <img
           src={icons.white.path}
           alt={icons.white.name}
-          width={28.85}
-          height={26.93}
-          className="max-md:hidden"
+          className="h-[26.93px] max-md:h-[22.4px] w-[28.85px] max-md:w-[24px]"
         />
-        <div className="hidden max-md:flex font-dmSans text-[18px] leading-100 tracking-m6p font-medium">
-          Mirror Progress
-        </div>
       </a>
       <nav className="flex items-center gap-[32px]">
         <div>

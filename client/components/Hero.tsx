@@ -59,33 +59,36 @@ const Hero: React.FC = () => {
           </p>
         </div>
       </section>
-      <div className=" w-full h-full absolute z-[1] flex items-center justify-center gap-[200px] flex-wrap ">
+      <div className=" w-full h-full absolute z-[1] flex items-center justify-center gap-[200px] max-md:gap-[50px] flex-wrap ">
         {solutionSlides.map((s) => (
           <div
             id="solution"
             key={s.id}
-            className="w-[264px] max-md:h-[124px] h-[248px] relative "
+            className="w-[264px] h-[248px] relative max-md:w-[124.95px] max-md:h-[117.45px]"
           >
             <div
               id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 left-[-8px] opacity-0"
+              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
             ></div>
             <div
               id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 right-[8px] opacity-0"
+              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
             ></div>
-            <div className="w-[249px] max-md:h-[120px] h-[249px] bg-[#023333] bg-opacity-50 rounded-[69px] flex justify-center items-center">
-              <div id="wait" className="w-[175px] h-[113px] opacity-0">
+            <div className="w-[249px] h-[249px] max-md:w-[117.4px] max-md:h-[117.45px] bg-[#023333] bg-opacity-50 rounded-[69px] flex justify-center items-center ">
+              <div
+                id="wait"
+                className="w-[175px] h-[113px] max-md:w-[75.92px] max-md:h-[69.08px] opacity-0 flex items-center"
+              >
                 <img src={s.image.path} alt={s.title} />
               </div>
             </div>
           </div>
         ))}
       </div>
-      <div className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0"></div>
+      <div className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0 max-md:w-full max-md:h-[533px] max-md:right-0 max-md:bg-gradient-to-t"></div>
       <div
         className="w-[237px] h-full absolute
-        bg-gradient-to-l to-[#1D222200] from-[#1D2222FF] top-0 right-0 z-0"
+        bg-gradient-to-l to-[#1D222200] from-[#1D2222FF] top-0 right-0 z-0 max-md:hidden"
       ></div>
       <div
         id="left"
@@ -93,7 +96,7 @@ const Hero: React.FC = () => {
       >
         <div
           id="leftImg"
-          className="absolute w-full top-[100%] lg:left-[83%] max-md:left-[40%]"
+          className="absolute w-full top-[100%] flex justify-end"
         >
           <img src={heroMP.mirror.path} alt={heroMP.mirror.alt} />
         </div>

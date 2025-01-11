@@ -30,7 +30,7 @@ const Process: React.FC = () => {
         opacity: 0,
       })
       .to('#p2', {
-        y: -72,
+        y: -72 * 2,
         opacity: 0,
         duration: 0.5,
         delay: 1.2,

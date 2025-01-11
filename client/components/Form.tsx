@@ -169,7 +169,7 @@ const Form: React.FC = () => {
               {' '}
               Effective Date: Januarty 1st 2025
             </h3>
-            <div className="max-md:pb-[50px]">
+            <div className="pb-[30px]">
               {policyText.map((t) => (
                 <div
                   key={t.id}
