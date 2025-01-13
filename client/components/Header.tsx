@@ -1,43 +1,43 @@
-// components/Header.tsx
-
-import React, { useState } from 'react';
-import ContactFormModal from './ContactFormModal';
+import React from 'react';
+import { icons } from '../constants';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
 
 const Header: React.FC = () => {
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-
-  const openContactModal = () => {
-    setIsContactModalOpen(true);
-  };
-
-  const closeContactModal = () => {
-    setIsContactModalOpen(false);
-  };
-
+  useGSAP(() => {
+    gsap.to('#header', {
+      opacity: 1,
+      delay: 4,
+      duration: 0.5,
+    });
+  }, []);
   return (
-    <header className="bg-white shadow-md py-4">
-      <div className="container mx-auto flex justify-between items-center px-4">
-        {/* Logo or Site Title */}
-        <div className="text-xl font-bold">
-          <a href="/">Mirror Progress</a>
+    <header
+      id="header"
+      className="flex justify-between items-center h-[84px] max-w-full basic-pd absolute top-0 left-0 right-0 z-[2] opacity-0"
+    >
+      <a href="/">
+        <img
+          src={icons.white.path}
+          alt={icons.white.name}
+          className="h-[26.93px] max-md:h-[22.4px] w-[28.85px] max-md:w-[24px]"
+        />
+      </a>
+      <nav className="flex items-center gap-[32px]">
+        <div>
+          <a href="#Solutions" className="font-dmSans max-md:hidden">
+            {' '}
+            What We do{' '}
+          </a>
         </div>
-
-        {/* Navigation and Contact Button */}
-        <nav className="flex items-center space-x-4">
-          {/* Add other navigation links here */}
-          
-          {/* Contact Us Button */}
-          <button
-            onClick={openContactModal}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-          >
-            Get In Touch
-          </button>
-        </nav>
-      </div>
-
-      {/* Contact Form Modal */}
-      <ContactFormModal isOpen={isContactModalOpen} onClose={closeContactModal} />
+        <a
+          href="#Form"
+          className="inline-block text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
+        >
+          {' '}
+          Get In Touch
+        </a>
+      </nav>
     </header>
   );
 };
