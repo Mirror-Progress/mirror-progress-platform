@@ -7,7 +7,7 @@ const Header: React.FC = () => {
   useGSAP(() => {
     gsap.to('#header', {
       opacity: 1,
-      delay: 2.5,
+      delay: 4,
       duration: 0.5,
     });
   }, []);

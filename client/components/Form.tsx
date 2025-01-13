@@ -40,7 +40,7 @@ const Form: React.FC = () => {
         stagger: 0.1,
       },
       {
-        toggleActions: 'restart reverse restart reverse',
+        toggleActions: 'play reverse play reverse',
         start: 'top 85%',
       }
     );
@@ -159,7 +159,7 @@ const Form: React.FC = () => {
         ref={policyRef}
         className="w-full basic-pd h-screen hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
       >
-        <div className="w-full overflow-y-scroll flex justify-center">
+        <div className="w-full overflow-y-scroll scrollbar-hide flex justify-center">
           <div className="md:max-w-[464px] max-md:max-w-[313px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px]">
               {' '}

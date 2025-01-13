@@ -45,4 +45,11 @@ html {
   .input {
     @apply block text-[16px] bg-[#284C4C] bg-opacity-[53] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50;
   }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { heroMP, paragraphs, solutionSlides } from '../constants';
 import { Header } from './';
 import gsap from 'gsap';
@@ -6,47 +6,79 @@ import { useGSAP } from '@gsap/react';
 
 const Hero: React.FC = () => {
   useGSAP(() => {
-    const tlLeft = gsap.timeline();
-    const tlRight = gsap.timeline();
-    const tl = gsap.timeline();
-    tlLeft
-      .to('#leftImg', {
-        top: '50%',
-        duration: 1,
-      })
-      .to('#leftImg', {
-        left: '-100%',
-        duration: 0.5,
-        delay: 0.5,
-      })
-      .to('#left', {
-        left: '-100%',
-        duration: 0.5,
-      });
-    tlRight
-      .to('#rightImg', {
-        top: '50%',
-        duration: 1,
-      })
-      .to('#rightImg', {
-        right: '-100%',
-        duration: 0.5,
-        delay: 0.5,
-      })
-      .to('#right', {
-        right: '-100%',
-        duration: 0.5,
-      });
+    
+      const tlLeft = gsap.timeline();
+      const tlRight = gsap.timeline();
+      const tl = gsap.timeline();
+      if (window.innerWidth > 768) {
+        tlLeft
+          .to('#leftImg', {
+            top: '50%',
+            duration: 1,
+          })
+          .to('#leftImg', {
+            left: '-100%',
+            duration: 0.5,
+          })
+          .to('#left', {
+            left: '-100%',
+            duration: 0.25,
+          });
+        tlRight
+          .to('#rightImg', {
+            top: '50%',
+            duration: 1,
+          })
+          .to('#rightImg', {
+            right: '-100%',
+            duration: 0.5,
+          })
+          .to('#right', {
+            right: '-100%',
+            duration: 0.25,
+          });
+      } else {
+        tlLeft
+          .to('#leftImg', {
+            top: '50%',
+            duration: 1,
+          })
+          .to('#leftImg', {
+            opacity: 0,
+            duration: 0.5,
+          })
+          .to('#left', {
+            top: '-100%',
+            duration: 0.25,
+          });
+        tlRight
+          .to('#rightImg', {
+            top: '50%',
+            duration: 1,
+          })
+          .to('#rightImg', {
+            opacity: 0,
+            duration: 0.5,
+          })
+          .to('#right', {
+            top: '-100%',
+            duration: 0.25,
+          });
+      }
 
-    tl.from('#solution', {
-      position: 'absolute',
-      duration: 0.15,
-      delay: 2.3,
-    }).to('#wait', {
-      opacity: 1,
-      delay: 0.3,
-      duration: 0.5,
-    });
+      tl.from('#solution', {
+        top: '50%',
+        left: '50%',
+        xPercent: -50,
+        yPercent: -50,
+        duration: 1.5,
+        delay: 1.5,
+        ease: 'power2.inOut',
+      }).to('#wait', {
+        opacity: 1,
+        duration: 1,
+        delay: 0.75,
+      });
   }, []);
 
   return (
@@ -59,12 +91,12 @@ const Hero: React.FC = () => {
           </p>
         </div>
       </section>
-      <div className=" w-full h-full absolute z-[1] flex items-center justify-center gap-[200px] max-md:gap-[50px] flex-wrap ">
+      <div className="w-full h-full sticky z-[1] flex items-center justify-center gap-[200px] max-md:gap-[50px] flex-wrap ">
         {solutionSlides.map((s) => (
           <div
             id="solution"
             key={s.id}
-            className="w-[264px] h-[248px] relative max-md:w-[124.95px] max-md:h-[117.45px]"
+            className={`w-[264px] h-[248px] max-md:w-[124.95px] max-md:h-[117.45px] absolute ${s.id === 0 ? 'bottom-[90px] max-md:bottom-[47px] right-[50px] max-md:right-[40px]' : s.id === 1 ? 'bottom-[-50px] max-md:bottom-[190px] right-[358px]  max-md:right-[231px]' : s.id === 2 ? 'top-[-50px] max-md:top-[102px] left-[350px] max-md:left-[70px]' : s.id === 3 ? 'top-[20px] max-md:top-[282px] right-[250px] max-md:right-[304px]' : s.id === 4 ? 'top-[157px] max-md:top-[209px]  left-[30px] max-md:left-[238px]  ' : s.id === 5 ? 'bottom-[15px] max-md:bottom-[264px] left-[295px] max-md:left-[280px]' : ''}`}
           >
             <div
               id="wait"

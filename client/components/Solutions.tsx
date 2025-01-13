@@ -11,27 +11,27 @@ const Solutions: React.FC = () => {
         <h2 className="uppercase max-md:my-0 max-md:mb-[30px]  font-diatype font-normal text-[24px]">
           [ Solutions ]
         </h2>
-        <div className="min-h-[80%] w-full flex flex-row   max-lg:flex-col overflow-hidden my-[20px] ">
+        <div className="min-h-[80%] w-full flex flex-row   max-lg:flex-col overflow-hidden my-[20px] relative">
           {solutionSlides.map((s) => (
             <div
-              className={`flex flex-1 max-lg:h-[450px]  max-lg:flex-col `}
+              className={`flex bg-[#012727]  flex-1 max-lg:h-[450px]  max-lg:flex-col ${s.id === 1 ? 'translate-x-[-300px]' : ''}`}
               key={s.id}
             >
               <div
                 className={`lg:w-[1px] max-lg:w-full max-lg:h-[1px]  ${s.id !== 0 && s.id !== 1 ? 'bg-[#126363]' : 'bg-white'}`}
               ></div>
               <div
-                className={`${s.id !== 0 ? 'w-[164px] max-lg:h-[60px] mt-[15px] z-[1]' : ' max-lg:h-[361px] z-[-1]'} max-lg:flex max-lg:flex-col max-lg:justify-around `}
+                className={`${s.id !== 0 ? 'w-[164px] max-lg:h-[60px] mt-[15px] ' : ' max-lg:h-[361px] '} max-lg:flex max-lg:flex-col max-lg:justify-around `}
               >
                 <h4
-                  className={`font-diatype uppercase pl-[12px] leading-100 font-normal max-w-[150px] h-[32px] ${s.id !== 0 ? 'text-[#126363]' : ''} `}
+                  className={`font-diatype uppercase pl-[12px] leading-100 font-normal max-w-[150px] h-[32px] ${s.id !== 0 ? 'text-[#126363]' : 'text-white'} `}
                 >
                   {s.title}
                 </h4>
                 <div
                   className={`md:relative lg:flex-1 w-[485px] max-lg:w-full h-[455px] max-lg:h-[250px] flex flex-col items-center max-lg:items-start justify-around lg:mt-[68px] max-lg:my-0  ${s.id !== 0 ? 'opacity-0' : ''}`}
                 >
-                  <div className=" max-w-[369px]  h-[120px] lg:h-[250px] md:h-[300px] self-center md:absolute lg:static md:top-[-20%] md:right-0 ">
+                  <div className=" max-w-[369px]  h-[120px] lg:h-[250px] md:h-[300px] self-center md:absolute lg:static md:top-[-20%] md:right-[20px] ">
                     <video
                       className="pointer-events-none h-full"
                       autoPlay

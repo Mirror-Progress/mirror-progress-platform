@@ -1,5 +1,3 @@
-// client/pages/index.tsx
-
 import type { NextPage } from 'next';
 import { Hero, Solutions, Process, Form, Footer } from '../components';
 

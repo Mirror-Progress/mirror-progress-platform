@@ -8,7 +8,7 @@ export const gsapAnimate = (target, animationsProps, scrollProps) => {
     scrollTrigger: {
       ...scrollProps,
       trigger: target,
+      scrub: false,
     },
   });
 };
-

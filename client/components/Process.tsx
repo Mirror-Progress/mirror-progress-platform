@@ -40,54 +40,22 @@ const Process: React.FC = () => {
         opacity: 1,
       });
   }, []);
+  const lottieRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const lottieContainerRef = useRef<HTMLDivElement | null>(null);
-  const animationRef = useRef<any>(null);
-
-  useEffect(() => {
-    // Initialize the Lottie animation using the DotLottieReact component's API
-    if (lottieContainerRef.current) {
-      const lottieInstance = lottieContainerRef.current.querySelector(
-        'dot-lottie'
-      ) as any;
-
-      if (lottieInstance) {
-        animationRef.current = lottieInstance.lottie;
-      }
-      if (lottieInstance) {
-        animationRef.current = lottieInstance;
-      }
-    }
-
-    ScrollTrigger.create({
-      trigger: lottieContainerRef.current,
-      start: 'top 80%',
-      // end: 'bottom bottom',
-      scrub: true,
-      onUpdate: (self) => {
-        // Map scroll progress to the Lottie animation's progress
-        const progress = self.progress; // 0 to 1
-        if (animationRef.current) {
-          animationRef.current.goToAndStop(
-            progress * animationRef.current.totalFrames,
-            true
-          );
-        }
-      },
-    });
-  }, []);
   return (
     <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
-      <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
-        <div
-          ref={lottieContainerRef}
-          className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center "
-        >
+      <div
+        ref={containerRef}
+        className="h-screen flex flex-col justify-center items-center gap-[80px]"
+      >
+        <div className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center ">
           <DotLottieReact
+            ref={lottieRef}
             src="/animation/process.lottie"
-            loop
-            autoplay
             className="lg:h-[400px] lg:w-[400px] max-md:h-[40vh]"
+            autoplay={false}
+            loop={false}
           />
         </div>
         <div id="paragraphs">
