@@ -42,6 +42,9 @@ const Process: React.FC = () => {
   }, []);
   const lottieRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (lottieRef.current) console.log(lottieRef.current);
+  }, []);
 
   return (
     <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
@@ -54,8 +57,8 @@ const Process: React.FC = () => {
             ref={lottieRef}
             src="/animation/process.lottie"
             className="lg:h-[400px] lg:w-[400px] max-md:h-[40vh]"
-            autoplay={false}
-            loop={false}
+            autoplay={true}
+            loop={true}
           />
         </div>
         <div id="paragraphs">
