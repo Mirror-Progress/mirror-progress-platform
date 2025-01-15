@@ -8,61 +8,66 @@ const Solutions: React.FC = () => {
 
   useGSAP(() => {
     if (solutionId < 6 && window.innerWidth > 768) {
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: `#solution_${solutionId}`,
-          start: 'top 25%',
-          end: 'bottom 80%',
-          toggleActions: 'play none none none',
-        },
-      });
-      tl.to(`#solution_${solutionId}`, {
-        zIndex: solutionId,
-        width: 370,
-        left: solutionId * 185,
-        duration: 0.9,
-        delay: 0.5,
-      }).to(`#solution_${solutionId}_content`, {
-        opacity: 1,
-        duration: 0.5,
-        onStart: () => {
-          gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
-            opacity: 0,
-            duration: 0.01,
-          });
-        },
-        onComplete: () => {
-          setSolutionId((prev) => prev + 1);
-        },
-      });
+      gsap
+        .timeline({
+          scrollTrigger: {
+            trigger: `#solution_${solutionId}`,
+            start: 'top 25%',
+            end: 'bottom 80%',
+            toggleActions: 'play stop resume none',
+          },
+        })
+        .to(`#solution_${solutionId}`, {
+          zIndex: solutionId,
+          width: 370,
+          left: solutionId * 185,
+          duration: 0.5,
+          delay: 2,
+        })
+        .to(`#solution_${solutionId}_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
+              xPercent: -85,
+              opacity: 0,
+              duration: 0.2,
+            });
+          },
+          onComplete: () => {
+            setSolutionId((prev) => prev + 1);
+          },
+        });
     } else if (solutionId < 6 && window.innerWidth <= 768) {
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: `#solution_${solutionId}`,
-          start: 'top 80%',
-          end: 'bottom 10%',
-          toggleActions: 'play none none none ',
-        },
-      });
-      tl.to(`#solution_${solutionId}`, {
-        zIndex: solutionId,
-        height: 350,
-        top: solutionId * 75,
-        duration: 0.9,
-        delay: 0.5,
-      }).to(`#solution_${solutionId}_content`, {
-        opacity: 1,
-        duration: 0.5,
-        onStart: () => {
-          gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
-            opacity: 0,
-            duration: 0.02,
-          });
-        },
-        onComplete: () => {
-          setSolutionId((prev) => prev + 1);
-        },
-      });
+      gsap
+        .timeline({
+          scrollTrigger: {
+            trigger: `#solution_${solutionId}`,
+            start: 'top 80%',
+            end: 'bottom 10%',
+            toggleActions: 'play stop resume none',
+          },
+        })
+        .to(`#solution_${solutionId}`, {
+          zIndex: solutionId,
+          height: 350,
+          top: solutionId * 75,
+          duration: 0.9,
+          delay: 0.5,
+        })
+        .to(`#solution_${solutionId}_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
+              opacity: 0,
+              duration: 0.02,
+            });
+          },
+          onComplete: () => {
+            setSolutionId((prev) => prev + 1);
+          },
+        });
     } else {
       return;
     }
@@ -115,8 +120,8 @@ const Solutions: React.FC = () => {
                       <source src={s.video.path} type="video/mp4" />
                     </video>
                   </div>
-                  <p className="max-w-[419px] max-lg:max-w-[299px] font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:px-[20px]">
-                    {solutionSlides[0].text}
+                  <p className="max-w-[419px] max-lg:max-w-full font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:px-[10px]">
+                    {s.text}
                   </p>
                 </div>
               </div>

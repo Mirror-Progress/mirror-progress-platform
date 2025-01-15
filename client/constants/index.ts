@@ -69,7 +69,7 @@ export const solutionSlides = [
       path: '/videos/solution1.mp4',
     },
     // path: '/videos/solution1.mp4',
-    text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+    text: 'We harness the power of data and advanced AI technologies to drive intelligent decision-making and automation, transforming raw data into actionable insights. Our tailored solutions empower businesses to optimize operations, enhance customer experiences, and gain a competitive edge in an increasingly data-driven landscape.',
   },
   {
     id: 2,
@@ -80,7 +80,7 @@ export const solutionSlides = [
     video: {
       path: '/videos/solution1.mp4',
     },
-    text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+    text: 'Our team delivers precision-engineered solutions tailored to meet your unique needs, combining innovation with technical rigor across all stages of product and system development. From concept to execution, we ensure functionality, reliability, and performance in every design.',
   },
   {
     id: 3,
@@ -92,7 +92,7 @@ export const solutionSlides = [
       path: '/videos/solution1.mp4',
     },
     // path: '/videos/solution1.mp4',
-    text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+    text: "We craft engaging, innovative designs and user experiences that elevate brand interaction, ensuring a seamless alignment between aesthetics and functionality. By combining strategic thinking with creative execution, we bring your brand's vision to life in ways that captivate and convert audiences.",
   },
   {
     id: 4,
@@ -104,7 +104,7 @@ export const solutionSlides = [
       path: '/videos/solution1.mp4',
     },
     // path: '/videos/solution1.mp4',
-    text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+    text: 'We help build future-ready infrastructure by integrating smart technology and data-driven insights, creating efficient, adaptable, and connected environments. Our approach to smart infrastructure drives operational excellence and enhances the quality of life in urban and industrial spaces alike.',
   },
   {
     id: 5,
@@ -115,8 +115,7 @@ export const solutionSlides = [
     video: {
       path: '/videos/solution1.mp4',
     },
-    // path: '/videos/solution1.mp4',
-    text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+    text: 'We guide organizations in building sustainable strategies that drive environmental, social, and economic impact, ensuring long-term resilience and regulatory compliance. Our solutions integrate sustainability into the core of your business to help you thrive in a rapidly changing world.',
   },
 ];
 

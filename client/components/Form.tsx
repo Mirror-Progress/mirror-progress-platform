@@ -1,4 +1,3 @@
-import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import React, { MutableRefObject, useRef, useState } from 'react';
 import { offices, policyText } from '../constants';
@@ -7,19 +6,27 @@ import { gsapAnimate } from '../utils/animations';
 
 const Form: React.FC = () => {
   /* State and Refs */
-  const [officeChos, setOfficeChos] = useState(offices[0]);
   const email = useRef<HTMLInputElement>(null);
   const message = useRef<HTMLInputElement>(null);
+  const popup = useRef<HTMLDivElement | null>(null);
+  const [officeChos, setOfficeChos] = useState(offices[0]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
-
-  const popup = useRef<HTMLDivElement | null>(null);
+  const [formData, setFormData] = useState({});
 
   /* Functionalities  */
   const handleForm = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-    e.preventDefault();
-    if (popup.current && emailValue !== '' && messageValue !== '')
+    if (popup.current && emailValue !== '' && messageValue !== '') {
+      setFormData((prev) => ({
+        ...prev,
+        mail: emailValue,
+        message: messageValue,
+        office: officeChos.text,
+      }));
+      console.log(formData);
       popup.current.style.display = 'flex';
+    }
+    e.preventDefault();
   };
 
   const policyRef = useRef<HTMLDivElement | null>(null);
@@ -32,15 +39,15 @@ const Form: React.FC = () => {
 
   useGSAP(() => {
     gsapAnimate(
-      '#form',
+      '#waitForm',
       {
         opacity: 1,
         y: 0,
-        duration: 0.5,
+        duration: 0.8,
         stagger: 0.1,
       },
       {
-        toggleActions: 'play reverse play reverse',
+        toggleActions: 'play none play none',
         start: 'top 85%',
       }
     );
@@ -53,46 +60,41 @@ const Form: React.FC = () => {
       ref={sectionRef}
     >
       <div className="h-full w-full relative flex justify-center items-center">
-        <form id="form" action="" className="w-full  opacity-0 translate-y-12">
+        <form action="" className="w-full">
           <h1
-            id="form"
+            id="waitForm"
             className="opacity-0 translate-y-12 text-center mx-auto text-[40px] font-dmSans mt-[20px] "
           >
             Get in Touch
           </h1>
-          <div className="w-full flex flex-col items-center ">
+          <div
+            id="waitForm"
+            className=" opacity-0 translate-y-12 w-full flex flex-col items-center "
+          >
             <input
-              id="form"
               ref={email}
               type="email"
               placeholder="Your email"
               name="mail"
-              className="opacity-0 translate-y-12 input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px]"
+              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px]"
               value={emailValue}
               onChange={(ev) => setEmailValue(ev.target.value)}
             />
             <input
-              id="form"
               ref={message}
               type="text"
               placeholder="Write your message here..."
               name="mail"
-              className="opacity-0 translate-y-12 input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] mt-[12px] rounded-[51px]"
+              className="input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] mt-[12px] rounded-[51px]"
               value={messageValue}
               onChange={(ev) => setMessageValue(ev.target.value)}
             />
           </div>
-          <div className="w-full">
-            <div
-              id="form"
-              className=" opacity-0 translate-y-12 uppercase w-full mx-auto text-center text-[14px] font-normal text-white mt-[24px] font-diatype leading-normal tracking-m3p "
-            >
+          <div id="waitForm" className="w-full opacity-0 translate-y-12">
+            <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white mt-[24px] font-diatype leading-normal tracking-m3p ">
               Choose an office
             </div>
-            <div
-              id="form"
-              className=" opacity-0 translate-y-12 lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[40px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col"
-            >
+            <div className="lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[40px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
               {offices.map((o) => (
                 <Office
                   text={o.text}
@@ -104,16 +106,12 @@ const Form: React.FC = () => {
             </div>
 
             <button
-              id="form"
-              className={` opacity-0 translate-y-12 block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${emailValue !== '' && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
+              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${emailValue !== '' && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
               onClick={(e) => handleForm(e)}
             >
               Send
             </button>
-            <p
-              id="form"
-              className=" opacity-0 translate-y-12 uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-secondaryGrey"
-            >
+            <p className="uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-secondaryGrey">
               By providing your email address, you consent to OUR{' '}
               <a
                 href="#Form"

@@ -6,11 +6,9 @@ import { useGSAP } from '@gsap/react';
 
 const Hero: React.FC = () => {
   useGSAP(() => {
-    const tlLeft = gsap.timeline();
-    const tlRight = gsap.timeline();
-    const tl = gsap.timeline();
     if (window.innerWidth > 768) {
-      tlLeft
+      gsap
+        .timeline()
         .to('#leftImg', {
           top: '50%',
           duration: 1,
@@ -23,7 +21,8 @@ const Hero: React.FC = () => {
           left: '-100%',
           duration: 0.25,
         });
-      tlRight
+      gsap
+        .timeline()
         .to('#rightImg', {
           top: '50%',
           duration: 1,
@@ -37,7 +36,8 @@ const Hero: React.FC = () => {
           duration: 0.25,
         });
     } else {
-      tlLeft
+      gsap
+        .timeline()
         .to('#leftImg', {
           top: '50%',
           duration: 1,
@@ -50,7 +50,8 @@ const Hero: React.FC = () => {
           top: '-100%',
           duration: 0.25,
         });
-      tlRight
+      gsap
+        .timeline()
         .to('#rightImg', {
           top: '50%',
           duration: 1,
@@ -65,19 +66,22 @@ const Hero: React.FC = () => {
         });
     }
 
-    tl.from('#solution', {
-      top: '50%',
-      left: '50%',
-      xPercent: -50,
-      yPercent: -50,
-      duration: 1.5,
-      delay: 1.5,
-      ease: 'power2.inOut',
-    }).to('#wait', {
-      opacity: 1,
-      duration: 1,
-      delay: 0.75,
-    });
+    gsap
+      .timeline()
+      .from('#solution', {
+        top: '50%',
+        left: '50%',
+        xPercent: -50,
+        yPercent: -50,
+        duration: 1.5,
+        delay: 1.5,
+        ease: 'power2.inOut',
+      })
+      .to('#wait', {
+        opacity: 1,
+        duration: 1,
+        delay: 0.75,
+      });
     const random = (min: number, max: number) =>
       Math.random() * (max - min) + min;
     gsap

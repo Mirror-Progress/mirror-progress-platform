@@ -1,64 +1,129 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { paragraphs } from '../constants';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/all';
-import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import { DotLottie, DotLottieReact } from '@lottiefiles/dotlottie-react';
 gsap.registerPlugin(ScrollTrigger);
 
 const Process: React.FC = () => {
+  const [dotLottie, setDotLottie] = useState<DotLottie | null>();
+
   useGSAP(() => {
-    const tl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#paragraphs',
-        toggleActions: 'restart none restart none',
-        start: 'top 90%',
-      },
-    });
-    tl.to('#p1', {
-      y: -72,
-      opacity: 0,
-      duration: 0.5,
-      delay: 1.2,
-    })
-      .to('#p2', {
-        y: -72,
-        opacity: 1,
-      })
-      .to('#p3', {
-        y: -72,
-        opacity: 0,
-      })
-      .to('#p2', {
-        y: -72 * 2,
-        opacity: 0,
-        duration: 0.5,
-        delay: 1.2,
-      })
-      .to('#p3', {
-        y: -72 * 2,
-        opacity: 1,
-      });
-  }, []);
-  const lottieRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (lottieRef.current) console.log(lottieRef.current);
+    if (window.innerWidth > 768) {
+      if (dotLottie) {
+        gsap.to(dotLottie, {
+          scrollTrigger: {
+            trigger: '#lottie',
+            start: 'top 16%',
+            end: 'bottom top',
+            onEnter: () => dotLottie.play(),
+            onLeave: () => dotLottie.pause(),
+            onEnterBack: () => dotLottie.play(),
+          },
+        });
+      }
+    } else {
+      if (dotLottie) {
+        gsap.to(dotLottie, {
+          scrollTrigger: {
+            trigger: '#lottie',
+            start: 'top 41%',
+            end: 'bottom top',
+            onEnter: () => dotLottie.play(),
+            onLeave: () => dotLottie.pause(),
+            onEnterBack: () => dotLottie.play(),
+          },
+        });
+      }
+    }
+  }, [dotLottie]);
+
+  useGSAP(() => {
+    if (window.innerWidth > 768) {
+      gsap
+        .timeline({
+          scrollTrigger: {
+            trigger: '#lottie',
+            toggleActions: 'restart none restart none',
+            start: 'top 15%',
+          },
+        })
+        .to('#p1', {
+          y: -72,
+          opacity: 0,
+          duration: 0.5,
+          delay: 3.3371703475460213,
+        })
+        .to('#p2', {
+          y: -72,
+          duration: 0.5,
+          opacity: 1,
+        })
+        .to('#p3', {
+          y: -72,
+          duration: 0.5,
+          opacity: 0,
+        })
+        .to('#p2', {
+          y: -72 * 2,
+          opacity: 0,
+          duration: 0.5,
+          delay: 1.5025024005734924,
+        })
+        .to('#p3', {
+          y: -72 * 2,
+          opacity: 1,
+        });
+    } else {
+      gsap
+        .timeline({
+          scrollTrigger: {
+            trigger: '#lottie',
+            toggleActions: 'restart none restart none',
+            start: 'top 40%',
+          },
+        })
+        .to('#p1', {
+          y: -72,
+          opacity: 0,
+          duration: 0.5,
+          delay: 3.3371703475460213,
+        })
+        .to('#p2', {
+          y: -72,
+          duration: 0.5,
+          opacity: 1,
+        })
+        .to('#p3', {
+          y: -72,
+          duration: 0.5,
+          opacity: 0,
+        })
+        .to('#p2', {
+          y: -72 * 2,
+          opacity: 0,
+          duration: 0.5,
+          delay: 1.5025024005734924,
+        })
+        .to('#p3', {
+          y: -72 * 2,
+          opacity: 1,
+        });
+    }
   }, []);
 
   return (
     <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
-      <div
-        ref={containerRef}
-        className="h-screen flex flex-col justify-center items-center gap-[80px]"
-      >
+      <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
         <div className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center ">
           <DotLottieReact
-            ref={lottieRef}
+            id="lottie"
             src="/animation/process.lottie"
             className="lg:h-[400px] lg:w-[400px] max-md:h-[40vh]"
-            autoplay={true}
-            loop={true}
+            dotLottieRefCallback={(instancePlayer) =>
+              setDotLottie(instancePlayer)
+            }
           />
         </div>
         <div id="paragraphs">
