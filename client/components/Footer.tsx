@@ -14,7 +14,7 @@ import {
 import { FooterBtn, SocialMedia } from './';
 import { Metadata } from 'next';
 import { useGSAP } from '@gsap/react';
-import { gsapAnimate } from '../utils/animations';
+import gsap from 'gsap';
 
 const Footer: React.FC = () => {
   const termsRef = useRef<HTMLDivElement | null>(null);
@@ -41,50 +41,46 @@ const Footer: React.FC = () => {
   };
 
   useGSAP(() => {
-    gsapAnimate(
-      '#wait_footer',
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.5,
-        stagger: 0.1,
+    gsap.to('#wait_footer', {
+      opacity: 1,
+      y: 0,
+      duration: 0.8,
+      stagger: 0.1,
+      scrollTrigger: {
+        toggleActions: 'play none none reverse',
+        start: 'bottom 40%',
       },
-      {
-        toggleActions: 'restart none restart none',
-        start: 'top 85%',
-      }
-    );
+    });
   }, []);
 
   return (
     <footer
-      id="footer"
+      id="Footer"
       className="h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] pb-[10px] relative overflow-hidden "
     >
-      <div className="grid grid-cols-2 max-md:grid-cols-5 h-full">
-        <div
-          id="wait_footer"
-          className="opacity-0 translate-y-8 h-full max-md:col-span-1"
-        >
+      <div
+        id="wait_footer"
+        className=" opacity-0 translate-y-8 grid grid-cols-2 max-md:grid-cols-5 h-full"
+      >
+        <div className=" h-full max-md:col-span-1">
           <img
             src={icons.white.path}
             alt={icons.white.name}
             className="w-[46px]"
           />
         </div>
-        <div className="lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3">
-          <p
-            id="wait_footer"
-            className="opacity-0 translate-y-8 max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans"
-          >
+        <div
+          id="wait_footer"
+          className="opacity-0 translate-y-8 lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3"
+        >
+          <p className=" max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
           <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">
             <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px] ">
               {solutionSlides.map((s, i) => (
                 <div
-                  id="wait_footer"
-                  className="opacity-0 translate-y-8 bg-black bg-opacity-15 rounded-[19.51px]"
+                  className=" bg-black bg-opacity-15 rounded-[19.51px]"
                   key={s.id}
                 >
                   <video
@@ -103,10 +99,7 @@ const Footer: React.FC = () => {
             </div>
           </div>
           <div className="max-md:flex-1 max-md:pt-[70px]">
-            <div
-              id="wait_footer"
-              className="opacity-0 translate-y-8 flex flex-col w-[132px] h-[171px] gap-[8px] max-md:gap-[24px]"
-            >
+            <div className="flex flex-col w-[132px] h-[171px] gap-[8px] max-md:gap-[24px]">
               <FooterBtn text="Get in Touch" href="#Form" />
               <FooterBtn text="What We do" href="#Solutions" />
 
@@ -126,10 +119,7 @@ const Footer: React.FC = () => {
               </div>
             </div>
           </div>
-          <div
-            id="wait_footer"
-            className="opacity-0 translate-y-8 flex flex-col gap-[5px] max-md:gap-[24px] max-lg:pb-[50px] max-md:max-w-[175px]"
-          >
+          <div className="flex flex-col gap-[5px] max-md:gap-[24px] max-lg:pb-[50px] max-md:max-w-[175px]">
             <div>
               <a
                 href="#footer"

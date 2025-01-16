@@ -6,67 +6,69 @@ import { useGSAP } from '@gsap/react';
 
 const Hero: React.FC = () => {
   useGSAP(() => {
-    
-      const tlLeft = gsap.timeline();
-      const tlRight = gsap.timeline();
-      const tl = gsap.timeline();
-      if (window.innerWidth > 768) {
-        tlLeft
-          .to('#leftImg', {
-            top: '50%',
-            duration: 1,
-          })
-          .to('#leftImg', {
-            left: '-100%',
-            duration: 0.5,
-          })
-          .to('#left', {
-            left: '-100%',
-            duration: 0.25,
-          });
-        tlRight
-          .to('#rightImg', {
-            top: '50%',
-            duration: 1,
-          })
-          .to('#rightImg', {
-            right: '-100%',
-            duration: 0.5,
-          })
-          .to('#right', {
-            right: '-100%',
-            duration: 0.25,
-          });
-      } else {
-        tlLeft
-          .to('#leftImg', {
-            top: '50%',
-            duration: 1,
-          })
-          .to('#leftImg', {
-            opacity: 0,
-            duration: 0.5,
-          })
-          .to('#left', {
-            top: '-100%',
-            duration: 0.25,
-          });
-        tlRight
-          .to('#rightImg', {
-            top: '50%',
-            duration: 1,
-          })
-          .to('#rightImg', {
-            opacity: 0,
-            duration: 0.5,
-          })
-          .to('#right', {
-            top: '-100%',
-            duration: 0.25,
-          });
-      }
+    if (window.innerWidth > 768) {
+      gsap
+        .timeline()
+        .to('#leftImg', {
+          top: '50%',
+          duration: 1,
+        })
+        .to('#leftImg', {
+          left: '-100%',
+          duration: 0.5,
+        })
+        .to('#left', {
+          left: '-100%',
+          duration: 0.25,
+        });
+      gsap
+        .timeline()
+        .to('#rightImg', {
+          top: '50%',
+          duration: 1,
+        })
+        .to('#rightImg', {
+          right: '-100%',
+          duration: 0.5,
+        })
+        .to('#right', {
+          right: '-100%',
+          duration: 0.25,
+        });
+    } else {
+      gsap
+        .timeline()
+        .to('#leftImg', {
+          top: '50%',
+          duration: 1,
+        })
+        .to('#leftImg', {
+          opacity: 0,
+          duration: 0.5,
+        })
+        .to('#left', {
+          top: '-100%',
+          duration: 0.25,
+        });
+      gsap
+        .timeline()
+        .to('#rightImg', {
+          top: '50%',
+          duration: 1,
+        })
+        .to('#rightImg', {
+          opacity: 0,
+          duration: 0.5,
+        })
+        .to('#right', {
+          top: '-100%',
+          duration: 0.25,
+        });
+    }
 
-      tl.from('#solution', {
+    gsap
+      .timeline()
+      .from('#solution', {
         top: '50%',
         left: '50%',
         xPercent: -50,
@@ -74,10 +76,33 @@ const Hero: React.FC = () => {
         duration: 1.5,
         delay: 1.5,
         ease: 'power2.inOut',
-      }).to('#wait', {
+      })
+      .to('#wait', {
         opacity: 1,
         duration: 1,
         delay: 0.75,
+      });
+    const random = (min: number, max: number) =>
+      Math.random() * (max - min) + min;
+    gsap
+      .timeline({ repeat: -1, yoyo: true })
+      .to('#solution', {
+        x: random(-20, 20),
+        y: random(-20, 20),
+        delay: 3,
+        duration: 3,
+      })
+      .to('#solution', {
+        x: random(-15, 15),
+        y: random(-20, 20),
+        delay: 3,
+        duration: 3,
+      })
+      .to('#solution', {
+        x: random(-10, 10),
+        y: random(-20, 20),
+        delay: 3,
+        duration: 3,
       });
   }, []);
 
