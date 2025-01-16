@@ -22,14 +22,13 @@ const Solutions: React.FC = () => {
           width: 370,
           left: solutionId * 185,
           duration: 0.5,
-          delay: 2,
+          delay: 1,
         })
         .to(`#solution_${solutionId}_content`, {
           opacity: 1,
           duration: 0.5,
           onStart: () => {
             gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
-              xPercent: -85,
               opacity: 0,
               duration: 0.2,
             });
@@ -38,6 +37,106 @@ const Solutions: React.FC = () => {
             setSolutionId((prev) => prev + 1);
           },
         });
+      // gsap
+      //   .timeline({
+      //     scrollTrigger: {
+      //       trigger: `#Solutions`,
+      //       start: 'top -10%',
+      //       scrub:true,
+      //       pin:true,
+      //       toggleActions: 'play none none resume',
+      //     },
+      //   })
+      //   .to(`#solution_0`, {
+      //     zIndex: 0,
+      //     width: 370,
+      //     left: 0,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_0_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_1`, {
+      //     zIndex: 1,
+      //     width: 370,
+      //     left: 1 * 185,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_1_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //     onStart: () => {
+      //       gsap.to(`#solution_0_content`, {
+      //         opacity: 0,
+      //         duration: 0.2,
+      //       });
+      //     },
+      //   })
+      //   .to(`#solution_2`, {
+      //     zIndex: 1,
+      //     width: 370,
+      //     left: 2 * 185,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_2_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //     onStart: () => {
+      //       gsap.to(`#solution_1_content`, {
+      //         opacity: 0,
+      //         duration: 0.2,
+      //       });
+      //     },
+      //   })
+      //   .to(`#solution_3`, {
+      //     zIndex: 1,
+      //     width: 370,
+      //     left: 3 * 185,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_3_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //     onStart: () => {
+      //       gsap.to(`#solution_2_content`, {
+      //         opacity: 0,
+      //         duration: 0.2,
+      //       });
+      //     },
+      //   })
+      //   .to(`#solution_4`, {
+      //     zIndex: 1,
+      //     width: 370,
+      //     left: 4 * 185,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_4_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //     onStart: () => {
+      //       gsap.to(`#solution_3_content`, {
+      //         opacity: 0,
+      //         duration: 0.2,
+      //       });
+      //     },
+      //   })
+      //   .to(`#solution_5`, {
+      //     zIndex: 1,
+      //     width: 370,
+      //     left: 5 * 185,
+      //     duration: 0.5,
+      //   })
+      //   .to(`#solution_5_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //     onStart: () => {
+      //       gsap.to(`#solution_4_content`, {
+      //         opacity: 0,
+      //         duration: 0.2,
+      //       });
+      //     },
+      //   });
     } else if (solutionId < 6 && window.innerWidth <= 768) {
       gsap
         .timeline({
@@ -76,20 +175,20 @@ const Solutions: React.FC = () => {
   return (
     <section
       id="Solutions"
-      className="h-screen max-w-full basic-pd  my-[20px] max-md:my-0 max-md:mt-[10px] "
+      className="h-screen max-w-full basic-pd   max-md:my-0 max-md:mt-[10px] "
     >
-      <div className="h-full w-full flex flex-col justify-around">
-        <h2 className="uppercase max-md:my-0 max-md:mb-[30px]  font-diatype font-normal text-[24px]">
+      <div className="h-full w-full flex flex-col">
+        <h2 className="uppercase max-md:my-0 max-md:mb-[10px]  lg:pt-[10px] font-diatype font-normal text-[24px]">
           [ Solutions ]
         </h2>
         <div
           id="solution_container"
-          className="min-h-[80%] max-w-full flex flex-row max-lg:flex max-lg:flex-col my-[20px] lg:relative max-lg:relative"
+          className="min-h-[80%] max-w-full flex flex-row max-lg:flex max-lg:flex-col lg:relative max-lg:relative py-[30px]"
         >
           {solutionSlides.map((s) => (
             <div
               id={`solution_${s.id}`}
-              className={`flex lg:w-[185px] bg-[#012727] max-lg:h-[300px] max-lg:w-full  max-lg:flex-col absolute ${s.id === 0 ? 'lg:left-[185px] max-lg:left-0 max-lg:top-[225px]' : ''} ${s.id === 1 ? 'lg:left-[370px]  max-lg:left-0 max-lg:top-[300px]' : s.id === 2 ? ' lg:left-[555px] max-lg:left-0 max-lg:top-[375px]' : s.id === 3 ? ' lg:left-[740px] max-lg:left-0 max-lg:top-[450px]' : s.id === 4 ? ' lg:left-[925px] max-lg:left-0 max-lg:top-[525px]' : s.id === 5 ? ' lg:left-[1110px] max-lg:left-0 max-lg:top-[600px]' : ''} `}
+              className={`flex lg:w-[185px] bg-[#012727] max-lg:h-full max-lg:w-full  max-lg:flex-col absolute ${s.id === 0 ? 'lg:left-[185px] max-lg:left-0 max-lg:top-[225px]' : ''} ${s.id === 1 ? 'lg:left-[370px]  max-lg:left-0 max-lg:top-[300px]' : s.id === 2 ? ' lg:left-[555px] max-lg:left-0 max-lg:top-[375px]' : s.id === 3 ? ' lg:left-[740px] max-lg:left-0 max-lg:top-[450px]' : s.id === 4 ? ' lg:left-[925px] max-lg:left-0 max-lg:top-[525px]' : s.id === 5 ? ' lg:left-[1110px] max-lg:left-0 max-lg:top-[600px]' : ''} `}
               /*  */
               key={s.id}
             >
@@ -97,7 +196,7 @@ const Solutions: React.FC = () => {
                 className={`lg:w-[1px] max-lg:w-full max-lg:h-[1px]  ${s.id !== solutionId && s.id !== solutionId + 1 ? 'bg-[#126363]' : 'bg-white'} ${s.id === 5 && solutionId === 6 ? 'bg-white' : ''} `}
               ></div>
               <div
-                className={`${s.id === solutionId ? 'max-lg:h-[60px]' : 'max-lg:h-[361px]'} max-lg:flex max-lg:flex-col ax-lg:justify-around max-lg:mt-[10px] `}
+                className={`${s.id === solutionId ? 'max-lg:h-[60px]' : 'max-lg:h-[361px]'} max-lg:flex max-lg:flex-col max-lg:justify-around max-lg:mt-[10px] `}
               >
                 <h4
                   className={`font-diatype uppercase pl-[12px] leading-100 font-normal max-w-[150px] h-[32px] ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}

@@ -14,12 +14,15 @@ const Process: React.FC = () => {
       if (dotLottie) {
         gsap.to(dotLottie, {
           scrollTrigger: {
-            trigger: '#lottie',
-            start: 'top 16%',
+            trigger: '#Process_Section',
+            start: 'top top',
             end: 'bottom top',
-            onEnter: () => dotLottie.play(),
-            onLeave: () => dotLottie.pause(),
-            onEnterBack: () => dotLottie.play(),
+            scrub: true,
+            pin: true,
+            onUpdate: ({ progress }) => {
+              const frame = Math.round(progress * dotLottie.totalFrames);
+              dotLottie.setFrame(frame);
+            },
           },
         });
       }
@@ -29,14 +32,17 @@ const Process: React.FC = () => {
           scrollTrigger: {
             trigger: '#lottie',
             start: 'top 41%',
-            end: 'bottom top',
-            onEnter: () => dotLottie.play(),
-            onLeave: () => dotLottie.pause(),
-            onEnterBack: () => dotLottie.play(),
+            scrub: true,
+            pin: true,
+            onUpdate: ({ progress }) => {
+              const frame = Math.round(progress * dotLottie.totalFrames);
+              dotLottie.setFrame(frame);
+            },
           },
         });
       }
     }
+
   }, [dotLottie]);
 
   useGSAP(() => {
@@ -114,7 +120,10 @@ const Process: React.FC = () => {
   }, []);
 
   return (
-    <section className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset ">
+    <section
+      id="Process_Section"
+      className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset "
+    >
       <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
         <div className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center ">
           <DotLottieReact

@@ -2,35 +2,71 @@ import { useGSAP } from '@gsap/react';
 import React, { MutableRefObject, useRef, useState } from 'react';
 import { offices, policyText } from '../constants';
 import { Office } from './';
-import { gsapAnimate } from '../utils/animations';
+import gsap from 'gsap';
 
 const Form: React.FC = () => {
   /* State and Refs */
   const email = useRef<HTMLInputElement>(null);
   const message = useRef<HTMLInputElement>(null);
   const popup = useRef<HTMLDivElement | null>(null);
-  const [officeChos, setOfficeChos] = useState(offices[0]);
+  const policyRef = useRef<HTMLDivElement | null>(null);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+
+  const [officeChos, setOfficeChos] = useState(offices[1]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
   const [formData, setFormData] = useState({});
 
   /* Functionalities  */
+
+  const animatePopup = () => {
+    if (popup.current) {
+      gsap.fromTo(
+        '#popup',
+        {
+          display: 'hidden',
+          top: '100%',
+        },
+        {
+          display: 'flex',
+          top: '5%',
+          ease: 'power3.inOut',
+        }
+      );
+    }
+  };
+  
+  const hidePopup = () => {
+    if (popup.current) {
+      gsap.fromTo(
+        '#popup',
+        {
+          display: 'flex',
+          top: '0%',
+        },
+        {
+          display: 'none',
+          top: '100%',
+          ease: 'power3.inOut',
+        }
+      );
+      setEmailValue('');
+      setMessageValue('');
+    }
+  };
+
   const handleForm = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-    if (popup.current && emailValue !== '' && messageValue !== '') {
-      setFormData((prev) => ({
-        ...prev,
-        mail: emailValue,
-        message: messageValue,
-        office: officeChos.text,
-      }));
-      console.log(formData);
-      popup.current.style.display = 'flex';
+    if (emailValue !== '' && messageValue !== '') {
+      // setFormData((prev) => ({
+      //   ...prev,
+      //   mail: emailValue,
+      //   message: messageValue,
+      //   office: officeChos.text,
+      // }));
+      animatePopup();
     }
     e.preventDefault();
   };
-
-  const policyRef = useRef<HTMLDivElement | null>(null);
-  const sectionRef = useRef<HTMLDivElement | null>(null);
 
   const show = (el: MutableRefObject<HTMLDivElement | null>) => {
     if (el.current) el.current.style.display = 'flex';
@@ -38,20 +74,18 @@ const Form: React.FC = () => {
   };
 
   useGSAP(() => {
-    gsapAnimate(
-      '#waitForm',
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        stagger: 0.1,
+    gsap.to('#waitForm', {
+      opacity: 1,
+      y: 0,
+      duration: 0.8,
+      stagger: 0.1,
+      scrollTrigger: {
+        trigger: '#Form',
+        start: 'bottom 40%',
+        toggleActions: 'play none none reverse',
       },
-      {
-        toggleActions: 'play none play none',
-        start: 'top 85%',
-      }
-    );
-  }, []);
+    });
+  });
 
   return (
     <section
@@ -124,9 +158,12 @@ const Form: React.FC = () => {
             </p>
           </div>
         </form>
+
+        {/* POPUP */}
         <div
+          id="popup"
           ref={popup}
-          className="h-[95%] w-[564px] max-md:w-[90%] absolute bg-black bg-opacity-30 mx-auto top-[15%] flex-col items-center justify-center  backdrop-blur-lg hidden rounded-[80px]"
+          className="absolute hidden top-[100%] h-[95%] w-[564px] max-md:w-[90%] bg-black bg-opacity-30 mx-auto flex-col items-center justify-center backdrop-blur-lg rounded-[80px] "
         >
           <div className="w-[340px] mb-[84px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[60px] leading-100 tracking-m3p font-light text-center">
@@ -140,11 +177,7 @@ const Form: React.FC = () => {
           <div>
             <button
               className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20`}
-              onClick={() => {
-                if (popup.current) popup.current.style.display = '';
-                setEmailValue('');
-                setMessageValue('');
-              }}
+              onClick={() => hidePopup()}
             >
               Close
             </button>
