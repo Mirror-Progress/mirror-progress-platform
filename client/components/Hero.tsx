@@ -111,7 +111,7 @@ const Hero: React.FC = () => {
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
-          <p className="font-dmSans max-w-[650px] h-[138px] text-center font-light text-[46px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
+          <p className="font-dmSans max-w-[650px] max-md:max-w-[300px] h-[138px] text-center font-light text-[46px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
             {paragraphs.hero}
           </p>
         </div>
@@ -125,18 +125,18 @@ const Hero: React.FC = () => {
           >
             <div
               id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
+              className="w-[16px] h-[16px] border-[1px] border-white bg-[#022D2D] border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
             ></div>
             <div
               id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
+              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 bg-[#022D2D] absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
             ></div>
             <div className="w-[249px] h-[249px] max-md:w-[117.4px] max-md:h-[117.45px] bg-[#023333] bg-opacity-50 rounded-[69px] max-md:rounded-[24px] flex justify-center items-center ">
               <div
                 id="wait"
                 className="w-[175px] h-[113px] max-md:w-[75.92px] max-md:h-[69.08px] opacity-0 flex items-center"
               >
-                <img src={s.image.path} alt={s.title} />
+                <img src={s.image.path} alt={s.title} className="opacity-30" />
               </div>
             </div>
           </div>

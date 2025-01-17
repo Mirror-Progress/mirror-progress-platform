@@ -8,42 +8,42 @@ const Solutions: React.FC = () => {
 
   useGSAP(() => {
     if (solutionId < 6 && window.innerWidth > 768) {
-      gsap
-        .timeline({
-          scrollTrigger: {
-            trigger: `#solution_${solutionId}`,
-            start: 'top 25%',
-            end: 'bottom 80%',
-            toggleActions: 'play stop resume none',
-          },
-        })
-        .to(`#solution_${solutionId}`, {
-          zIndex: solutionId,
-          width: 370,
-          left: solutionId * 185,
-          duration: 0.5,
-          delay: 1,
-        })
-        .to(`#solution_${solutionId}_content`, {
-          opacity: 1,
-          duration: 0.5,
-          onStart: () => {
-            gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
-              opacity: 0,
-              duration: 0.2,
-            });
-          },
-          onComplete: () => {
-            setSolutionId((prev) => prev + 1);
-          },
-        });
+      // gsap
+      //   .timeline({
+      //     scrollTrigger: {
+      //       trigger: `#solution_${solutionId}`,
+      //       start: 'top 25%',
+      //       end: 'bottom 80%',
+      //       toggleActions: 'play stop resume none',
+      //     },
+      //   })
+      //   .to(`#solution_${solutionId}`, {
+      //     zIndex: solutionId,
+      //     width: 370,
+      //     left: solutionId * 185,
+      //     duration: 0.5,
+      //     delay: 1,
+      //   })
+      //   .to(`#solution_${solutionId}_content`, {
+      //     opacity: 1,
+      //     duration: 0.5,
+      //     onStart: () => {
+      //       gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
+      //         opacity: 0,
+      //         duration: 0.2,
+      //       });
+      //     },
+      //     onComplete: () => {
+      //       setSolutionId((prev) => prev + 1);
+      //     },
+      //   });
       // gsap
       //   .timeline({
       //     scrollTrigger: {
       //       trigger: `#Solutions`,
       //       start: 'top -10%',
-      //       scrub:true,
-      //       pin:true,
+      //       scrub: true,
+      //       pin: true,
       //       toggleActions: 'play none none resume',
       //     },
       //   })
@@ -175,10 +175,10 @@ const Solutions: React.FC = () => {
   return (
     <section
       id="Solutions"
-      className="h-screen max-w-full basic-pd   max-md:my-0 max-md:mt-[10px] "
+      className="h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px] "
     >
       <div className="h-full w-full flex flex-col">
-        <h2 className="uppercase max-md:my-0 max-md:mb-[10px]  lg:pt-[10px] font-diatype font-normal text-[24px]">
+        <h2 className="uppercase max-md:my-0 max-md:mb-[10px]  lg:pt-[10px] font-diatype font-medium text-[24px]">
           [ Solutions ]
         </h2>
         <div
@@ -199,7 +199,7 @@ const Solutions: React.FC = () => {
                 className={`${s.id === solutionId ? 'max-lg:h-[60px]' : 'max-lg:h-[361px]'} max-lg:flex max-lg:flex-col max-lg:justify-around max-lg:mt-[10px] `}
               >
                 <h4
-                  className={`font-diatype uppercase pl-[12px] leading-100 font-normal max-w-[150px] h-[32px] ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}
+                  className={`font-diatype uppercase pl-[12px] tracking-normal font-medium leading-105 max-w-[150px] h-[32px] ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}
                 >
                   {s.title}
                 </h4>

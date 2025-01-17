@@ -73,7 +73,7 @@ const Footer: React.FC = () => {
           id="wait_footer"
           className="opacity-0 translate-y-8 lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3"
         >
-          <p className=" max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans">
+          <p className=" max-w-[545px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
           <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">

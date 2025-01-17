@@ -20,8 +20,35 @@ const Process: React.FC = () => {
             scrub: true,
             pin: true,
             onUpdate: ({ progress }) => {
+              const tl = gsap.timeline();
               const frame = Math.round(progress * dotLottie.totalFrames);
               dotLottie.setFrame(frame);
+              if (frame >= 150 && frame < 160) {
+                tl.to('#p1', {
+                  y: -72,
+                  opacity: 0,
+                  duration: 0.5,
+                }).to('#p2', {
+                  y: -72,
+                  duration: 0.5,
+                  opacity: 1,
+                });
+              } else if (frame >= 226 && frame < 284) {
+                tl.to('#p3', {
+                  y: -72,
+                  duration: 0.5,
+                  opacity: 0,
+                })
+                  .to('#p2', {
+                    y: -72 * 2,
+                    opacity: 0,
+                    duration: 0.5,
+                  })
+                  .to('#p3', {
+                    y: -72 * 2,
+                    opacity: 1,
+                  });
+              }
             },
           },
         });
@@ -30,8 +57,9 @@ const Process: React.FC = () => {
       if (dotLottie) {
         gsap.to(dotLottie, {
           scrollTrigger: {
-            trigger: '#lottie',
-            start: 'top 41%',
+            trigger: '#Process_Section',
+            start: 'top top',
+            end: 'bottom top',
             scrub: true,
             pin: true,
             onUpdate: ({ progress }) => {
@@ -42,45 +70,11 @@ const Process: React.FC = () => {
         });
       }
     }
-
   }, [dotLottie]);
 
   useGSAP(() => {
     if (window.innerWidth > 768) {
-      gsap
-        .timeline({
-          scrollTrigger: {
-            trigger: '#lottie',
-            toggleActions: 'restart none restart none',
-            start: 'top 15%',
-          },
-        })
-        .to('#p1', {
-          y: -72,
-          opacity: 0,
-          duration: 0.5,
-          delay: 3.3371703475460213,
-        })
-        .to('#p2', {
-          y: -72,
-          duration: 0.5,
-          opacity: 1,
-        })
-        .to('#p3', {
-          y: -72,
-          duration: 0.5,
-          opacity: 0,
-        })
-        .to('#p2', {
-          y: -72 * 2,
-          opacity: 0,
-          duration: 0.5,
-          delay: 1.5025024005734924,
-        })
-        .to('#p3', {
-          y: -72 * 2,
-          opacity: 1,
-        });
+
     } else {
       gsap
         .timeline({

@@ -7,7 +7,7 @@ import gsap from 'gsap';
 const Form: React.FC = () => {
   /* State and Refs */
   const email = useRef<HTMLInputElement>(null);
-  const message = useRef<HTMLInputElement>(null);
+  const message = useRef<HTMLTextAreaElement>(null);
   const popup = useRef<HTMLDivElement | null>(null);
   const policyRef = useRef<HTMLDivElement | null>(null);
   const sectionRef = useRef<HTMLDivElement | null>(null);
@@ -35,7 +35,7 @@ const Form: React.FC = () => {
       );
     }
   };
-  
+
   const hidePopup = () => {
     if (popup.current) {
       gsap.fromTo(
@@ -81,7 +81,7 @@ const Form: React.FC = () => {
       stagger: 0.1,
       scrollTrigger: {
         trigger: '#Form',
-        start: 'bottom 40%',
+        start: 'top 40%',
         toggleActions: 'play none none reverse',
       },
     });
@@ -110,16 +110,15 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px]"
+              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px] text-white "
               value={emailValue}
               onChange={(ev) => setEmailValue(ev.target.value)}
             />
-            <input
+            <textarea
               ref={message}
-              type="text"
               placeholder="Write your message here..."
               name="mail"
-              className="input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] mt-[12px] rounded-[51px]"
+              className="input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] mt-[12px] rounded-[24px] text-white font-medium px-[134px] resize-none"
               value={messageValue}
               onChange={(ev) => setMessageValue(ev.target.value)}
             />
@@ -128,7 +127,7 @@ const Form: React.FC = () => {
             <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white mt-[24px] font-diatype leading-normal tracking-m3p ">
               Choose an office
             </div>
-            <div className="lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[40px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
+            <div className="lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[24px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
               {offices.map((o) => (
                 <Office
                   text={o.text}
@@ -145,7 +144,7 @@ const Form: React.FC = () => {
             >
               Send
             </button>
-            <p className="uppercase max-w-[348px] mx-auto text-center text-[10px] font-normal text-secondaryGrey">
+            <p className="uppercase lg:max-w-[365px] mx-auto text-center text-[10px] font-medium text-secondaryGrey font-diatype tracking-m3p leading-100">
               By providing your email address, you consent to OUR{' '}
               <a
                 href="#Form"
