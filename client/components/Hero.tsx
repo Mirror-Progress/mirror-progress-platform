@@ -1,10 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { heroMP, paragraphs, solutionSlides } from '../constants';
 import { Header } from './';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 
 const Hero: React.FC = () => {
+  const [endHeroAnimation, setEndHeroAnimation] = useState(false);
+
+  useEffect(() => {
+    endHeroAnimation
+      ? (document.body.style.overflow = '')
+      : (document.body.style.overflow = 'hidden');
+  }, [endHeroAnimation]);
+
   useGSAP(() => {
     if (window.innerWidth > 768) {
       gsap
@@ -81,7 +89,11 @@ const Hero: React.FC = () => {
         opacity: 1,
         duration: 1,
         delay: 0.75,
+        onComplete: () => {
+          setEndHeroAnimation(true);
+        },
       });
+
     const random = (min: number, max: number) =>
       Math.random() * (max - min) + min;
     gsap

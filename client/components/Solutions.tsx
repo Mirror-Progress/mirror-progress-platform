@@ -175,7 +175,7 @@ const Solutions: React.FC = () => {
   return (
     <section
       id="Solutions"
-      className="h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px] "
+      className="h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px]"
     >
       <div className="h-full w-full flex flex-col">
         <h2 className="uppercase max-md:my-0 max-md:mb-[10px]  lg:pt-[10px] font-diatype font-medium text-[24px]">
@@ -188,7 +188,7 @@ const Solutions: React.FC = () => {
           {solutionSlides.map((s) => (
             <div
               id={`solution_${s.id}`}
-              className={`flex lg:w-[185px] bg-[#012727] max-lg:h-full max-lg:w-full  max-lg:flex-col absolute ${s.id === 0 ? 'lg:left-[185px] max-lg:left-0 max-lg:top-[225px]' : ''} ${s.id === 1 ? 'lg:left-[370px]  max-lg:left-0 max-lg:top-[300px]' : s.id === 2 ? ' lg:left-[555px] max-lg:left-0 max-lg:top-[375px]' : s.id === 3 ? ' lg:left-[740px] max-lg:left-0 max-lg:top-[450px]' : s.id === 4 ? ' lg:left-[925px] max-lg:left-0 max-lg:top-[525px]' : s.id === 5 ? ' lg:left-[1110px] max-lg:left-0 max-lg:top-[600px]' : ''} `}
+              className={`flex lg:max-w-[185px] bg-[#012727] max-lg:h-full max-lg:w-full  max-lg:flex-col absolute ${s.id === 0 ? 'lg:left-[185px] max-lg:left-0 max-lg:top-[225px]' : ''} ${s.id === 1 ? 'lg:left-[370px]  max-lg:left-0 max-lg:top-[300px]' : s.id === 2 ? ' lg:left-[555px] max-lg:left-0 max-lg:top-[375px]' : s.id === 3 ? ' lg:left-[740px] max-lg:left-0 max-lg:top-[450px]' : s.id === 4 ? ' lg:left-[925px] max-lg:left-0 max-lg:top-[525px]' : s.id === 5 ? ' lg:left-[1110px] max-lg:left-0 max-lg:top-[600px]' : ''} `}
               /*  */
               key={s.id}
             >
@@ -219,7 +219,7 @@ const Solutions: React.FC = () => {
                       <source src={s.video.path} type="video/mp4" />
                     </video>
                   </div>
-                  <p className="max-w-[419px] max-lg:max-w-full font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:px-[10px]">
+                  <p className="max-w-[359px] max-lg:max-w-full font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:px-[10px]">
                     {s.text}
                   </p>
                 </div>

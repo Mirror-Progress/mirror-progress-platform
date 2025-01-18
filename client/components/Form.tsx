@@ -93,7 +93,7 @@ const Form: React.FC = () => {
       className="h-[90vh] w-full basic-pd mb-[100px] "
       ref={sectionRef}
     >
-      <div className="h-full w-full relative flex justify-center items-center">
+      <div className="h-full mw-full relative flex justify-center items-center">
         <form action="" className="w-full">
           <h1
             id="waitForm"
