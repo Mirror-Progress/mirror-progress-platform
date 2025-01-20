@@ -3,45 +3,58 @@ import { heroMP, paragraphs, solutionSlides } from '../constants';
 import { Header } from './';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { CustomEase } from 'gsap/all';
+gsap.registerPlugin(CustomEase);
 
 const Hero: React.FC = () => {
   const [endHeroAnimation, setEndHeroAnimation] = useState(false);
 
   useEffect(() => {
-    endHeroAnimation
-      ? (document.body.style.overflow = '')
-      : (document.body.style.overflow = 'hidden');
+    if (endHeroAnimation) {
+      document.body.style.overflowY = 'auto';
+      document.body.style.overflowX = 'hidden';
+    } else {
+      document.body.style.overflowY = 'hidden';
+      document.body.style.overflowX = 'hidden';
+    }
   }, [endHeroAnimation]);
 
   useGSAP(() => {
+    CustomEase.create('bezier', '0, 0, 0, 0.99');
     if (window.innerWidth > 768) {
       gsap
         .timeline()
         .to('#leftImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#leftImg', {
           left: '-100%',
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#left', {
           left: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
       gsap
         .timeline()
         .to('#rightImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#rightImg', {
           right: '-100%',
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#right', {
           right: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
     } else {
       gsap
@@ -49,28 +62,34 @@ const Hero: React.FC = () => {
         .to('#leftImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#leftImg', {
           opacity: 0,
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#left', {
           top: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
       gsap
         .timeline()
         .to('#rightImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#rightImg', {
           opacity: 0,
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#right', {
           top: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
     }
 
@@ -83,12 +102,13 @@ const Hero: React.FC = () => {
         yPercent: -50,
         duration: 1.5,
         delay: 1.5,
-        ease: 'power2.inOut',
+        ease: 'bezier',
       })
       .to('#wait', {
         opacity: 1,
         duration: 1,
         delay: 0.75,
+        ease: 'bezier',
         onComplete: () => {
           setEndHeroAnimation(true);
         },
@@ -103,23 +123,39 @@ const Hero: React.FC = () => {
         y: random(-20, 20),
         delay: 3,
         duration: 3,
+        ease: 'bezier',
       })
       .to('#solution', {
         x: random(-15, 15),
         y: random(-20, 20),
         delay: 3,
         duration: 3,
+        ease: 'bezier',
       })
       .to('#solution', {
         x: random(-10, 10),
         y: random(-20, 20),
         delay: 3,
         duration: 3,
+        ease: 'bezier',
       });
+
+    gsap.to('#hero', {
+      opacity: 0,
+      ease: 'bezier',
+      scrollTrigger: {
+        trigger: '#hero',
+        scrub: true,
+        start: 'bottom 60%',
+      },
+    });
   }, []);
 
   return (
-    <div className="relative h-screen bg-primary max-w-full overflow-hidden">
+    <div
+      id="hero"
+      className="relative h-screen bg-primary max-w-full overflow-hidden"
+    >
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
@@ -153,6 +189,19 @@ const Hero: React.FC = () => {
             </div>
           </div>
         ))}
+
+        {/* {solutionSlides.slice(0).map((_, index) => (
+          <div
+            key={index}
+            className="absolute border-t-2 border-dashed border-[#ffffff4D]"
+            style={{
+              top: `${(index + 1) * 10}%`,
+              left: `${(index + 1) * 10}%`,
+              width: '100px',
+              transform: 'rotate(45deg)',
+            }}
+          ></div>
+        ))} */}
       </div>
       <div className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0 max-md:w-full max-md:h-[533px] max-md:right-0 max-md:bg-gradient-to-t"></div>
       <div

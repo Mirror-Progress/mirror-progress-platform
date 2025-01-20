@@ -47,7 +47,7 @@ html {
     @apply px-[24px] max-md:px-[16px];
   }
   .input {
-    @apply block text-[16px] bg-[#284C4C87] text-center font-diatype font-medium tracking-m3p leading-110 placeholder:font-diatype placeholder:font-medium;
+    @apply block text-[16px] bg-[#284C4C87] text-center font-diatype font-medium tracking-m3p  placeholder:font-diatype placeholder:font-medium;
   }
   .scrollbar-hide {
     -ms-overflow-style: none;

@@ -3,6 +3,9 @@ import React, { MutableRefObject, useRef, useState } from 'react';
 import { offices, policyText } from '../constants';
 import { Office } from './';
 import gsap from 'gsap';
+import { CustomEase } from 'gsap/all';
+gsap.registerPlugin(CustomEase);
+import validator from 'validator';
 
 const Form: React.FC = () => {
   /* State and Refs */
@@ -11,11 +14,15 @@ const Form: React.FC = () => {
   const popup = useRef<HTMLDivElement | null>(null);
   const policyRef = useRef<HTMLDivElement | null>(null);
   const sectionRef = useRef<HTMLDivElement | null>(null);
+  const office0 = useRef<HTMLDivElement | null>(null);
+  const office1 = useRef<HTMLDivElement | null>(null);
+  const office2 = useRef<HTMLDivElement | null>(null);
 
-  const [officeChos, setOfficeChos] = useState(offices[1]);
+  const [officeChos, setOfficeChos] = useState(offices[0]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
   const [formData, setFormData] = useState({});
+  const [emailStatus, setEmailStatus] = useState(false);
 
   /* Functionalities  */
 
@@ -53,6 +60,25 @@ const Form: React.FC = () => {
       setEmailValue('');
       setMessageValue('');
     }
+  };
+
+  const updateOffice = (off: any) => {
+    CustomEase.create('bezier', '0, 0, 0, 0.99');
+    if (window.innerWidth > 768) {
+      gsap.to('#bgOff', {
+        left: off.id * 282,
+        ease: 'bezier',
+        duration: 0.3,
+      });
+    } else if (window.innerWidth < 768) {
+      gsap.to('#bgOff', {
+        top: off.id * 80,
+        ease: 'bezier',
+        duration: 0.3,
+      });
+    }
+
+    setOfficeChos(off);
   };
 
   const handleForm = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
@@ -110,15 +136,23 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px] text-white "
+              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px] text-white leading-110"
               value={emailValue}
-              onChange={(ev) => setEmailValue(ev.target.value)}
+              onChange={(ev) => {
+                setEmailValue(ev.target.value);
+                validator.isEmail(emailValue) && setEmailStatus(true);
+              }}
             />
+            <p
+              className={`font-diatype uppercase text-[12px] text-[#FF9500] leading-100 tracking-m3p py-[12px] ${emailStatus === true ? 'opacity-1' : 'opacity-0'}`}
+            >
+              Please enter a valid email address.{' '}
+            </p>
             <textarea
               ref={message}
               placeholder="Write your message here..."
               name="mail"
-              className="input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] mt-[12px] rounded-[24px] text-white font-medium px-[134px] resize-none"
+              className={`input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] rounded-[24px] text-white font-medium px-[134px] max-md:px-[30px] ${messageValue === '' && 'leading-[150px] focus:leading-[150px] focus:py-[0px]'} focus:leading-normal focus:py-[20px] align-middle resize-none whitespace-pre-line scrollbar-hide `}
               value={messageValue}
               onChange={(ev) => setMessageValue(ev.target.value)}
             />
@@ -127,15 +161,20 @@ const Form: React.FC = () => {
             <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white mt-[24px] font-diatype leading-normal tracking-m3p ">
               Choose an office
             </div>
-            <div className="lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[24px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
+            <div className="relative lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[24px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
               {offices.map((o) => (
                 <Office
+                  ref={o.id === 0 ? office0 : o.id === 1 ? office1 : office2}
                   text={o.text}
                   office={officeChos}
                   key={o.id}
-                  onClick={() => setOfficeChos(o)}
+                  onClick={() => updateOffice(o)}
                 />
               ))}
+              <div
+                id="bgOff"
+                className={`bg-[#FFFFFF0D] absolute z-[-1] lg:w-[282px] lg:h-full  px-[44px] py-[28px] flex-1 rounded-[24px] max-lg:w-full h-1/3 `}
+              ></div>
             </div>
 
             <button

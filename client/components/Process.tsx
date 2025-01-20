@@ -74,7 +74,6 @@ const Process: React.FC = () => {
 
   useGSAP(() => {
     if (window.innerWidth > 768) {
-
     } else {
       gsap
         .timeline({
@@ -116,9 +115,9 @@ const Process: React.FC = () => {
   return (
     <section
       id="Process_Section"
-      className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset "
+      className="py-[50px] basic-pd bg-[#0B3839] shadow-process-inset "
     >
-      <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
+      <div className="h-screen w-full flex flex-col justify-center items-center gap-[80px]">
         <div className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center ">
           <DotLottieReact
             id="lottie"
@@ -144,7 +143,7 @@ const Process: React.FC = () => {
           </p>
           <p
             id="p3"
-            className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans opacity-0"
+            className="max-w-full text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans opacity-0"
           >
             {paragraphs.process[2]}
           </p>

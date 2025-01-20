@@ -19,8 +19,7 @@ const Solutions: React.FC = () => {
       //   })
       //   .to(`#solution_${solutionId}`, {
       //     zIndex: solutionId,
-      //     width: 370,
-      //     left: solutionId * 185,
+      //     left: `${solutionId * 12.5}%`,
       //     duration: 0.5,
       //     delay: 1,
       //   })
@@ -37,106 +36,100 @@ const Solutions: React.FC = () => {
       //       setSolutionId((prev) => prev + 1);
       //     },
       //   });
-      // gsap
-      //   .timeline({
-      //     scrollTrigger: {
-      //       trigger: `#Solutions`,
-      //       start: 'top -10%',
-      //       scrub: true,
-      //       pin: true,
-      //       toggleActions: 'play none none resume',
-      //     },
-      //   })
-      //   .to(`#solution_0`, {
-      //     zIndex: 0,
-      //     width: 370,
-      //     left: 0,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_0_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_1`, {
-      //     zIndex: 1,
-      //     width: 370,
-      //     left: 1 * 185,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_1_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //     onStart: () => {
-      //       gsap.to(`#solution_0_content`, {
-      //         opacity: 0,
-      //         duration: 0.2,
-      //       });
-      //     },
-      //   })
-      //   .to(`#solution_2`, {
-      //     zIndex: 1,
-      //     width: 370,
-      //     left: 2 * 185,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_2_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //     onStart: () => {
-      //       gsap.to(`#solution_1_content`, {
-      //         opacity: 0,
-      //         duration: 0.2,
-      //       });
-      //     },
-      //   })
-      //   .to(`#solution_3`, {
-      //     zIndex: 1,
-      //     width: 370,
-      //     left: 3 * 185,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_3_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //     onStart: () => {
-      //       gsap.to(`#solution_2_content`, {
-      //         opacity: 0,
-      //         duration: 0.2,
-      //       });
-      //     },
-      //   })
-      //   .to(`#solution_4`, {
-      //     zIndex: 1,
-      //     width: 370,
-      //     left: 4 * 185,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_4_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //     onStart: () => {
-      //       gsap.to(`#solution_3_content`, {
-      //         opacity: 0,
-      //         duration: 0.2,
-      //       });
-      //     },
-      //   })
-      //   .to(`#solution_5`, {
-      //     zIndex: 1,
-      //     width: 370,
-      //     left: 5 * 185,
-      //     duration: 0.5,
-      //   })
-      //   .to(`#solution_5_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //     onStart: () => {
-      //       gsap.to(`#solution_4_content`, {
-      //         opacity: 0,
-      //         duration: 0.2,
-      //       });
-      //     },
-      //   });
+      gsap
+        .timeline({
+          scrollTrigger: {
+            trigger: `#Solutions`,
+            start: 'top top',
+            scrub: true,
+            pin: true,
+            toggleActions: 'play none none reverse',
+          },
+        })
+        .to(`#solution_0`, {
+          zIndex: 0,
+          left: 0,
+          duration: 0.5,
+        })
+        .to(`#solution_0_content`, {
+          opacity: 1,
+          duration: 0.5,
+        })
+        .to(`#solution_1`, {
+          zIndex: 1,
+          left: `${1 * 13}%`,
+          duration: 0.5,
+        })
+        .to(`#solution_1_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_0_content`, {
+              opacity: 0,
+              duration: 0.2,
+            });
+          },
+        })
+        .to(`#solution_2`, {
+          zIndex: 2,
+          left: `${2 * 13}%`,
+          duration: 0.5,
+        })
+        .to(`#solution_2_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_1_content`, {
+              opacity: 0,
+              duration: 0.2,
+            });
+          },
+        })
+        .to(`#solution_3`, {
+          zIndex: 3,
+          left: `${3 * 13}%`,
+          duration: 0.5,
+        })
+        .to(`#solution_3_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_2_content`, {
+              opacity: 0,
+              duration: 0.2,
+            });
+          },
+        })
+        .to(`#solution_4`, {
+          zIndex: 4,
+          left: `${4 * 13}%`,
+          duration: 0.5,
+        })
+        .to(`#solution_4_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_3_content`, {
+              opacity: 0,
+              duration: 0.2,
+            });
+          },
+        })
+        .to(`#solution_5`, {
+          zIndex: 5,
+          left: `${5 * 13}%`,
+          duration: 0.5,
+        })
+        .to(`#solution_5_content`, {
+          opacity: 1,
+          duration: 0.5,
+          onStart: () => {
+            gsap.to(`#solution_4_content`, {
+              opacity: 0,
+              duration: 0.2,
+            });
+          },
+        });
     } else if (solutionId < 6 && window.innerWidth <= 768) {
       gsap
         .timeline({
@@ -183,33 +176,33 @@ const Solutions: React.FC = () => {
         </h2>
         <div
           id="solution_container"
-          className="min-h-[80%] max-w-full flex flex-row max-lg:flex max-lg:flex-col lg:relative max-lg:relative py-[30px]"
+          className="h-full w-full overflow-hidden flex flex-row justify-center items-center max-lg:flex max-lg:flex-col lg:relative max-lg:relative py-[30px] "
         >
           {solutionSlides.map((s) => (
             <div
+              //  bg-black
               id={`solution_${s.id}`}
-              className={`flex lg:max-w-[185px] bg-[#012727] max-lg:h-full max-lg:w-full  max-lg:flex-col absolute ${s.id === 0 ? 'lg:left-[185px] max-lg:left-0 max-lg:top-[225px]' : ''} ${s.id === 1 ? 'lg:left-[370px]  max-lg:left-0 max-lg:top-[300px]' : s.id === 2 ? ' lg:left-[555px] max-lg:left-0 max-lg:top-[375px]' : s.id === 3 ? ' lg:left-[740px] max-lg:left-0 max-lg:top-[450px]' : s.id === 4 ? ' lg:left-[925px] max-lg:left-0 max-lg:top-[525px]' : s.id === 5 ? ' lg:left-[1110px] max-lg:left-0 max-lg:top-[600px]' : ''} `}
-              /*  */
+              className={`lg:h-full flex lg:w-[28%] bg-[#012727] max-lg:h-full max-lg:w-full  max-lg:flex-col absolute ${s.id === 0 ? 'lg:left-[15%] max-lg:left-0 max-lg:top-[225px]' : ''} ${s.id === 1 ? 'lg:left-[30%]  max-lg:left-0 max-lg:top-[300px]' : s.id === 2 ? ' lg:left-[45%] max-lg:left-0 max-lg:top-[375px]' : s.id === 3 ? ' lg:left-[60%] max-lg:left-0 max-lg:top-[450px]' : s.id === 4 ? ' lg:left-[75%] max-lg:left-0 max-lg:top-[525px]' : s.id === 5 ? ' lg:left-[90%] max-lg:left-0 max-lg:top-[600px]' : ''} `}
               key={s.id}
             >
               <div
                 className={`lg:w-[1px] max-lg:w-full max-lg:h-[1px]  ${s.id !== solutionId && s.id !== solutionId + 1 ? 'bg-[#126363]' : 'bg-white'} ${s.id === 5 && solutionId === 6 ? 'bg-white' : ''} `}
               ></div>
               <div
-                className={`${s.id === solutionId ? 'max-lg:h-[60px]' : 'max-lg:h-[361px]'} max-lg:flex max-lg:flex-col max-lg:justify-around max-lg:mt-[10px] `}
+                className={`${s.id === solutionId ? 'max-lg:h-[60px] ' : 'max-lg:h-[361px]'} max-lg:flex max-lg:flex-col w-full max-lg:justify-around  lg: justify-start max-lg:mt-[10px] `}
               >
                 <h4
-                  className={`font-diatype uppercase pl-[12px] tracking-normal font-medium leading-105 max-w-[150px] h-[32px] ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}
+                  className={`font-diatype uppercase pl-[8px] tracking-normal font-medium leading-105 max-w-[150px]  ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}
                 >
                   {s.title}
                 </h4>
                 <div
                   id={`solution_${s.id}_content`}
-                  className={`md:relative lg:flex-1  max-lg:w-full h-[455px] max-lg:h-[250px] flex flex-col items-center max-lg:items-start justify-around lg:mt-[68px] max-lg:my-0 opacity-0`}
+                  className={`md:relative lg:flex-1  max-lg:max-w-full h-[455px] w-full max-lg:h-[250px] flex flex-col items-center max-lg:items-start justify-around max-lg:my-0 opacity-0 `}
                 >
-                  <div className=" max-w-[369px]  h-[120px] lg:h-[250px] md:h-[300px] self-center md:absolute lg:static md:top-[-20%] md:right-[20px]">
+                  <div className=" h-[120px] lg:h-[250px] md:h-[300px] self-center md:absolute lg:static md:top-[-20%] md:right-[20px] ">
                     <video
-                      className="pointer-events-none h-full"
+                      className="pointer-events-none h-full "
                       autoPlay
                       loop
                       muted
@@ -219,7 +212,7 @@ const Solutions: React.FC = () => {
                       <source src={s.video.path} type="video/mp4" />
                     </video>
                   </div>
-                  <p className="max-w-[359px] max-lg:max-w-full font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:px-[10px]">
+                  <p className="max-w-full  max-lg:max-w-full font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:px-[10px]">
                     {s.text}
                   </p>
                 </div>
