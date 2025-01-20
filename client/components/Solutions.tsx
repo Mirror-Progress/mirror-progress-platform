@@ -8,34 +8,6 @@ const Solutions: React.FC = () => {
 
   useGSAP(() => {
     if (solutionId < 6 && window.innerWidth > 768) {
-      // gsap
-      //   .timeline({
-      //     scrollTrigger: {
-      //       trigger: `#solution_${solutionId}`,
-      //       start: 'top 25%',
-      //       end: 'bottom 80%',
-      //       toggleActions: 'play stop resume none',
-      //     },
-      //   })
-      //   .to(`#solution_${solutionId}`, {
-      //     zIndex: solutionId,
-      //     left: `${solutionId * 12.5}%`,
-      //     duration: 0.5,
-      //     delay: 1,
-      //   })
-      //   .to(`#solution_${solutionId}_content`, {
-      //     opacity: 1,
-      //     duration: 0.5,
-      //     onStart: () => {
-      //       gsap.to(`#solution_${solutionId >= 1 && solutionId - 1}_content`, {
-      //         opacity: 0,
-      //         duration: 0.2,
-      //       });
-      //     },
-      //     onComplete: () => {
-      //       setSolutionId((prev) => prev + 1);
-      //     },
-      //   });
       gsap
         .timeline({
           scrollTrigger: {
@@ -47,7 +19,6 @@ const Solutions: React.FC = () => {
           },
         })
         .to(`#solution_0`, {
-          zIndex: 0,
           left: 0,
           duration: 0.5,
         })
@@ -56,7 +27,6 @@ const Solutions: React.FC = () => {
           duration: 0.5,
         })
         .to(`#solution_1`, {
-          zIndex: 1,
           left: `${1 * 13}%`,
           duration: 0.5,
         })
@@ -71,7 +41,6 @@ const Solutions: React.FC = () => {
           },
         })
         .to(`#solution_2`, {
-          zIndex: 2,
           left: `${2 * 13}%`,
           duration: 0.5,
         })
@@ -86,7 +55,6 @@ const Solutions: React.FC = () => {
           },
         })
         .to(`#solution_3`, {
-          zIndex: 3,
           left: `${3 * 13}%`,
           duration: 0.5,
         })
@@ -101,7 +69,6 @@ const Solutions: React.FC = () => {
           },
         })
         .to(`#solution_4`, {
-          zIndex: 4,
           left: `${4 * 13}%`,
           duration: 0.5,
         })
@@ -116,7 +83,6 @@ const Solutions: React.FC = () => {
           },
         })
         .to(`#solution_5`, {
-          zIndex: 5,
           left: `${5 * 13}%`,
           duration: 0.5,
         })
@@ -141,7 +107,6 @@ const Solutions: React.FC = () => {
           },
         })
         .to(`#solution_${solutionId}`, {
-          zIndex: solutionId,
           height: 350,
           top: solutionId * 75,
           duration: 0.9,
