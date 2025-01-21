@@ -13,6 +13,7 @@ const Form: React.FC = () => {
   const popup = useRef<HTMLDivElement | null>(null);
   const policyRef = useRef<HTMLDivElement | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  const buttonForm = useRef<HTMLButtonElement>(null);
   const office0 = useRef<HTMLDivElement | null>(null);
   const office1 = useRef<HTMLDivElement | null>(null);
   const office2 = useRef<HTMLDivElement | null>(null);
@@ -86,7 +87,13 @@ const Form: React.FC = () => {
 
   const handleEmailChange = (newValue: string) => {
     setEmailValue(newValue);
-    isValidEmail(newValue) ? setEmailStatus(true) : setEmailStatus(false);
+    if (isValidEmail(newValue) && messageValue !== '') {
+      if (buttonForm.current) buttonForm.current.disabled = false;
+      setEmailStatus(true);
+    } else {
+      if (buttonForm.current) buttonForm.current.disabled = true;
+      setEmailStatus(false);
+    }
   };
 
   const handleForm = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
@@ -200,7 +207,9 @@ const Form: React.FC = () => {
             </div>
 
             <button
-              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${isValidEmail(emailValue) === true && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
+              ref={buttonForm}
+              disabled={true}
+              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${isValidEmail(emailValue) === true && messageValue !== '' ? 'text-primary bg-white hover:cursor-pointer ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
               onClick={(e) => handleForm(e)}
             >
               Send
