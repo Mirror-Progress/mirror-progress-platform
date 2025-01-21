@@ -5,7 +5,6 @@ import { Office } from './';
 import gsap from 'gsap';
 import { CustomEase } from 'gsap/all';
 gsap.registerPlugin(CustomEase);
-import validator from 'validator';
 
 const Form: React.FC = () => {
   /* State and Refs */
@@ -13,7 +12,7 @@ const Form: React.FC = () => {
   const message = useRef<HTMLTextAreaElement>(null);
   const popup = useRef<HTMLDivElement | null>(null);
   const policyRef = useRef<HTMLDivElement | null>(null);
-  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const office0 = useRef<HTMLDivElement | null>(null);
   const office1 = useRef<HTMLDivElement | null>(null);
   const office2 = useRef<HTMLDivElement | null>(null);
@@ -21,7 +20,6 @@ const Form: React.FC = () => {
   const [officeChos, setOfficeChos] = useState(offices[0]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
-  const [formData, setFormData] = useState({});
   const [emailStatus, setEmailStatus] = useState(false);
 
   /* Functionalities  */
@@ -81,14 +79,23 @@ const Form: React.FC = () => {
     setOfficeChos(off);
   };
 
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (newValue: string) => {
+    setEmailValue(newValue);
+    isValidEmail(newValue) ? setEmailStatus(true) : setEmailStatus(false);
+  };
+
   const handleForm = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-    if (emailValue !== '' && messageValue !== '') {
-      // setFormData((prev) => ({
-      //   ...prev,
-      //   mail: emailValue,
-      //   message: messageValue,
-      //   office: officeChos.text,
-      // }));
+    if (isValidEmail(emailValue) && messageValue !== '') {
+      if (sectionRef.current)
+        sectionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
       animatePopup();
     }
     e.preventDefault();
@@ -100,23 +107,39 @@ const Form: React.FC = () => {
   };
 
   useGSAP(() => {
-    gsap.to('#waitForm', {
-      opacity: 1,
-      y: 0,
-      duration: 0.8,
-      stagger: 0.1,
-      scrollTrigger: {
-        trigger: '#Form',
-        start: 'top 40%',
-        toggleActions: 'play none none reverse',
-      },
-    });
+    if (window.innerWidth > 768) {
+      gsap.to('#waitForm', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        stagger: 0.1,
+        scrollTrigger: {
+          trigger: '#Form',
+          start: 'top 60%',
+          end: 'bottom top',
+          toggleActions: 'play none none reverse',
+        },
+      });
+    } else if (window.innerWidth < 768) {
+      gsap.to('#waitForm', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        stagger: 0.1,
+        scrollTrigger: {
+          trigger: '#Form',
+          start: 'top 60%',
+          end: 'bottom bottom',
+          toggleActions: 'play none none reverse',
+        },
+      });
+    }
   });
 
   return (
     <section
       id="Form"
-      className="h-[90vh] w-full basic-pd mb-[100px] "
+      className="h-screen w-full basic-pd  lg:mt-[100vh] max-md:mt-[100vh] lg:mb-[100px] max-md:mb-0"
       ref={sectionRef}
     >
       <div className="h-full mw-full relative flex justify-center items-center">
@@ -136,15 +159,14 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[64px] rounded-[24px] text-white leading-110"
+              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[25px] rounded-[24px] text-white leading-110"
               value={emailValue}
               onChange={(ev) => {
-                setEmailValue(ev.target.value);
-                validator.isEmail(emailValue) && setEmailStatus(true);
+                handleEmailChange(ev.target.value);
               }}
             />
             <p
-              className={`font-diatype uppercase text-[12px] text-[#FF9500] leading-100 tracking-m3p py-[12px] ${emailStatus === true ? 'opacity-1' : 'opacity-0'}`}
+              className={`font-diatype uppercase text-[12px] text-[#FF9500] leading-100 tracking-m3p py-[12px] ${isValidEmail(emailValue) === true || emailValue === '' ? 'opacity-0' : 'opacity-1'}`}
             >
               Please enter a valid email address.{' '}
             </p>
@@ -178,7 +200,7 @@ const Form: React.FC = () => {
             </div>
 
             <button
-              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${emailValue !== '' && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
+              className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${isValidEmail(emailValue) === true && messageValue !== '' ? 'text-primary bg-white ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
               onClick={(e) => handleForm(e)}
             >
               Send
@@ -201,7 +223,7 @@ const Form: React.FC = () => {
         <div
           id="popup"
           ref={popup}
-          className="absolute hidden top-[100%] h-[95%] w-[564px] max-md:w-[90%] bg-black bg-opacity-30 mx-auto flex-col items-center justify-center backdrop-blur-lg rounded-[80px] "
+          className="absolute hidden top-[100%] h-[90%] w-[564px] max-md:w-[90%] bg-black bg-opacity-30 mx-auto flex-col items-center justify-center backdrop-blur-lg rounded-[80px] "
         >
           <div className="w-[340px] mb-[84px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[60px] leading-100 tracking-m3p font-light text-center">
@@ -259,7 +281,7 @@ const Form: React.FC = () => {
           </div>
         </div>
         <button
-          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[357px] max-md:right-[40px]`}
+          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[22%] max-md:right-[40px]`}
           onClick={() => {
             if (policyRef.current) policyRef.current.style.display = '';
             document.body.style.overflow = '';

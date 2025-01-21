@@ -3,12 +3,14 @@ import { heroMP, paragraphs, solutionSlides } from '../constants';
 import { Header } from './';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { CustomEase } from 'gsap/all';
-gsap.registerPlugin(CustomEase);
+import { CustomEase, ScrollTrigger } from 'gsap/all';
+gsap.registerPlugin(CustomEase, ScrollTrigger);
 
 const Hero: React.FC = () => {
+  /* States and Ref */
   const [endHeroAnimation, setEndHeroAnimation] = useState(false);
 
+  /* useEffect and useGSAP */
   useEffect(() => {
     if (endHeroAnimation) {
       document.body.style.overflowY = 'auto';
