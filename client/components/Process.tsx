@@ -8,6 +8,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 const Process: React.FC = () => {
   const [dotLottie, setDotLottie] = useState<DotLottie | null>();
+  const [lottieProgess, setLottieProgess] = useState(0);
 
   useGSAP(() => {
     if (window.innerWidth > 768) {
@@ -19,9 +20,57 @@ const Process: React.FC = () => {
             end: 'bottom top',
             scrub: true,
             pin: true,
+            pinSpacing: false,
             onUpdate: ({ progress }) => {
+              const tl = gsap.timeline();
               const frame = Math.round(progress * dotLottie.totalFrames);
               dotLottie.setFrame(frame);
+              if (frame < 150) {
+                tl.to('#p1', {
+                  y: '0%',
+                  opacity: 1,
+                  duration: 0.5,
+                })
+                  .to('#p2', {
+                    y: '0%',
+                    opacity: 0,
+                  })
+                  .to('#p3', {
+                    y: '0%',
+                    opacity: 0,
+                  });
+              } else if (frame >= 150 && frame < 226) {
+                tl.to('#p1', {
+                  y: '-100%',
+                  opacity: 0,
+                  duration: 0.5,
+                })
+                  .to('#p2', {
+                    y: '-100%',
+                    opacity: 1,
+                    duration: 0.5,
+                  })
+                  .to('#p3', {
+                    y: '0%',
+                    opacity: 0,
+                  });
+              } else if (frame >= 226 && frame < 284) {
+                tl.to('#p1', {
+                  y: '-200%',
+                  opacity: 0,
+                  duration: 0.5,
+                })
+                  .to('#p2', {
+                    y: '-200%',
+                    duration: 0.5,
+                    opacity: 0,
+                  })
+                  .to('#p3', {
+                    y: '-150%',
+                    duration: 0.5,
+                    opacity: 1,
+                  });
+              }
             },
           },
         });
@@ -30,112 +79,89 @@ const Process: React.FC = () => {
       if (dotLottie) {
         gsap.to(dotLottie, {
           scrollTrigger: {
-            trigger: '#lottie',
-            start: 'top 41%',
+            trigger: '#Process_Section',
+            start: 'top top',
+            end: 'bottom top',
             scrub: true,
             pin: true,
+            pinSpacing: false,
             onUpdate: ({ progress }) => {
+              const tl = gsap.timeline();
               const frame = Math.round(progress * dotLottie.totalFrames);
               dotLottie.setFrame(frame);
+              if (frame < 150) {
+                tl.to('#p1', {
+                  y: '0%',
+                  opacity: 1,
+                  duration: 0.5,
+                })
+                  .to('#p2', {
+                    y: '0%',
+                    opacity: 0,
+                  })
+                  .to('#p3', {
+                    y: '0%',
+                    opacity: 0,
+                  });
+              } else if (frame >= 150 && frame < 226) {
+                tl.to('#p1', {
+                  y: '-100%',
+                  opacity: 0,
+                  duration: 0.5,
+                })
+                  .to('#p2', {
+                    y: '-100%',
+                    opacity: 1,
+                    duration: 0.5,
+                  })
+                  .to('#p3', {
+                    y: '0%',
+                    opacity: 0,
+                  });
+              } else if (frame >= 226 && frame < 284) {
+                tl.to('#p1', {
+                  y: '-200%',
+                  opacity: 0,
+                  duration: 0.5,
+                })
+                  .to('#p2', {
+                    y: '-200%',
+                    duration: 0.5,
+                    opacity: 0,
+                  })
+                  .to('#p3', {
+                    y: '-150%',
+                    duration: 0.5,
+                    opacity: 1,
+                  });
+              }
             },
           },
         });
       }
     }
-
   }, [dotLottie]);
-
-  useGSAP(() => {
-    if (window.innerWidth > 768) {
-      gsap
-        .timeline({
-          scrollTrigger: {
-            trigger: '#lottie',
-            toggleActions: 'restart none restart none',
-            start: 'top 15%',
-          },
-        })
-        .to('#p1', {
-          y: -72,
-          opacity: 0,
-          duration: 0.5,
-          delay: 3.3371703475460213,
-        })
-        .to('#p2', {
-          y: -72,
-          duration: 0.5,
-          opacity: 1,
-        })
-        .to('#p3', {
-          y: -72,
-          duration: 0.5,
-          opacity: 0,
-        })
-        .to('#p2', {
-          y: -72 * 2,
-          opacity: 0,
-          duration: 0.5,
-          delay: 1.5025024005734924,
-        })
-        .to('#p3', {
-          y: -72 * 2,
-          opacity: 1,
-        });
-    } else {
-      gsap
-        .timeline({
-          scrollTrigger: {
-            trigger: '#lottie',
-            toggleActions: 'restart none restart none',
-            start: 'top 40%',
-          },
-        })
-        .to('#p1', {
-          y: -72,
-          opacity: 0,
-          duration: 0.5,
-          delay: 3.3371703475460213,
-        })
-        .to('#p2', {
-          y: -72,
-          duration: 0.5,
-          opacity: 1,
-        })
-        .to('#p3', {
-          y: -72,
-          duration: 0.5,
-          opacity: 0,
-        })
-        .to('#p2', {
-          y: -72 * 2,
-          opacity: 0,
-          duration: 0.5,
-          delay: 1.5025024005734924,
-        })
-        .to('#p3', {
-          y: -72 * 2,
-          opacity: 1,
-        });
-    }
-  }, []);
 
   return (
     <section
       id="Process_Section"
-      className="pt-[50px] pb-[50px] basic-pd bg-[#0B3839] shadow-process-inset "
+      className="basic-pd bg-[#0B3839] shadow-process-inset h-screen lg:pt-[50px] max-md:flex max-md:items-center"
     >
-      <div className="h-screen flex flex-col justify-center items-center gap-[80px]">
-        <div className="md:h-[600px] md:w-[600px] max-md:w-[90%] flex justify-center items-center ">
+      <div className="w-full flex flex-col justify-center items-center max-md:gap-[100px] ">
+        <div className="md:h-[400px]  md:w-[400px] max-md:w-[90%] flex justify-center items-center ">
           <DotLottieReact
             id="lottie"
             src="/animation/process.lottie"
-            className="lg:h-[400px] lg:w-[400px] max-md:h-[40vh]"
+            className="md:h-[400px] md:w-[400px] max-md:h-[40vh]"
             dotLottieRefCallback={(instancePlayer) =>
               setDotLottie(instancePlayer)
             }
           />
         </div>
-        <div id="paragraphs">
+        <div
+          id="paragraphs"
+          className="lg:mt-[50px] max-md:mt-[50px] flex-1 flex flex-col"
+        >
           <p
             id="p1"
             className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans "
@@ -150,7 +176,7 @@ const Process: React.FC = () => {
           </p>
           <p
             id="p3"
-            className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans opacity-0"
+            className="max-w-full text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans opacity-0"
           >
             {paragraphs.process[2]}
           </p>

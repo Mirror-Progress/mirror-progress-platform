@@ -19,7 +19,7 @@
   src:
     url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff2') format('woff2'),
     url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff') format('woff');
-  font-weight: medium;
+  font-weight: 500;
 }
 
 * {
@@ -47,7 +47,7 @@ html {
     @apply px-[24px] max-md:px-[16px];
   }
   .input {
-    @apply block text-[16px] bg-[#284C4C] bg-opacity-[53] text-center font-diatype font-normal tracking-m3p leading-100 placeholder:font-diatype opacity-50;
+    @apply block text-[16px] bg-[#284C4C87] text-center font-diatype font-medium tracking-m3p  placeholder:font-diatype placeholder:font-medium;
   }
   .scrollbar-hide {
     -ms-overflow-style: none;

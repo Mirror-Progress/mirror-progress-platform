@@ -1,9 +1,25 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { icons } from '../constants';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/all';
+gsap.registerPlugin(ScrollTrigger);
 
 const Header: React.FC = () => {
+  /* State and Refs */
+  const linkSolRef = useRef<HTMLAnchorElement>(null);
+  const linkFormRef = useRef<HTMLAnchorElement>(null);
+
+  /* Functionnality */
+  // const navigateTo = (e:React.MouseEvent<HTMLElement>, section: string) => {
+  //   switch (section) {
+  //     case 'form':
+  //       ScrollTrigger.getAll().forEach((trigger) => trigger.disable());
+  //       e.target.href = "#Form"
+  //       break;
+  //   }
+  // };
+
   useGSAP(() => {
     gsap.to('#header', {
       opacity: 1,
@@ -25,14 +41,19 @@ const Header: React.FC = () => {
       </a>
       <nav className="flex items-center gap-[32px]">
         <div>
-          <a href="#Solutions" className="font-dmSans max-md:hidden">
+          <a
+            ref={linkSolRef}
+            className="font-dmSans max-md:hidden hover:cursor-pointer"
+            href="#Solutions"
+          >
             {' '}
             What We do{' '}
           </a>
         </div>
         <a
-          href="#Form"
-          className="inline-block text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
+          ref={linkFormRef}
+          className="inline-block hover:cursor-pointer text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
+          href="#Solutions"
         >
           {' '}
           Get In Touch

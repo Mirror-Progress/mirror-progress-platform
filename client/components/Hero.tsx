@@ -1,39 +1,62 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { heroMP, paragraphs, solutionSlides } from '../constants';
 import { Header } from './';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { CustomEase, ScrollTrigger } from 'gsap/all';
+gsap.registerPlugin(CustomEase, ScrollTrigger);
 
 const Hero: React.FC = () => {
+  /* States and Ref */
+  const [endHeroAnimation, setEndHeroAnimation] = useState(false);
+
+  /* useEffect and useGSAP */
+  useEffect(() => {
+    if (endHeroAnimation) {
+      document.body.style.overflowY = 'auto';
+      document.body.style.overflowX = 'hidden';
+    } else {
+      document.body.style.overflowY = 'hidden';
+      document.body.style.overflowX = 'hidden';
+    }
+  }, [endHeroAnimation]);
+
   useGSAP(() => {
+    CustomEase.create('bezier', '0, 0, 0, 0.99');
     if (window.innerWidth > 768) {
       gsap
         .timeline()
         .to('#leftImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#leftImg', {
           left: '-100%',
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#left', {
           left: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
       gsap
         .timeline()
         .to('#rightImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#rightImg', {
           right: '-100%',
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#right', {
           right: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
     } else {
       gsap
@@ -41,28 +64,34 @@ const Hero: React.FC = () => {
         .to('#leftImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#leftImg', {
           opacity: 0,
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#left', {
           top: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
       gsap
         .timeline()
         .to('#rightImg', {
           top: '50%',
           duration: 1,
+          ease: 'bezier',
         })
         .to('#rightImg', {
           opacity: 0,
           duration: 0.5,
+          ease: 'bezier',
         })
         .to('#right', {
           top: '-100%',
           duration: 0.25,
+          ease: 'bezier',
         });
     }
 
@@ -75,13 +104,18 @@ const Hero: React.FC = () => {
         yPercent: -50,
         duration: 1.5,
         delay: 1.5,
-        ease: 'power2.inOut',
+        ease: 'bezier',
       })
       .to('#wait', {
         opacity: 1,
         duration: 1,
         delay: 0.75,
+        ease: 'bezier',
+        onComplete: () => {
+          setEndHeroAnimation(true);
+        },
       });
+
     const random = (min: number, max: number) =>
       Math.random() * (max - min) + min;
     gsap
@@ -91,27 +125,43 @@ const Hero: React.FC = () => {
         y: random(-20, 20),
         delay: 3,
         duration: 3,
+        ease: 'bezier',
       })
       .to('#solution', {
         x: random(-15, 15),
         y: random(-20, 20),
         delay: 3,
         duration: 3,
+        ease: 'bezier',
       })
       .to('#solution', {
         x: random(-10, 10),
         y: random(-20, 20),
         delay: 3,
         duration: 3,
+        ease: 'bezier',
       });
+
+    gsap.to('#hero', {
+      opacity: 0,
+      ease: 'bezier',
+      scrollTrigger: {
+        trigger: '#hero',
+        scrub: true,
+        start: 'bottom 60%',
+      },
+    });
   }, []);
 
   return (
-    <div className="relative h-screen bg-primary max-w-full overflow-hidden">
+    <div
+      id="hero"
+      className="relative h-screen bg-primary max-w-full overflow-hidden"
+    >
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
-          <p className="font-dmSans max-w-[650px] h-[138px] text-center font-light text-[46px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
+          <p className="font-dmSans max-w-[650px] max-md:max-w-[300px] h-[138px] text-center font-light text-[46px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
             {paragraphs.hero}
           </p>
         </div>
@@ -125,22 +175,35 @@ const Hero: React.FC = () => {
           >
             <div
               id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
+              className="w-[16px] h-[16px] border-[1px] border-white bg-[#022D2D] border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
             ></div>
             <div
               id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
+              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 bg-[#022D2D] absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
             ></div>
             <div className="w-[249px] h-[249px] max-md:w-[117.4px] max-md:h-[117.45px] bg-[#023333] bg-opacity-50 rounded-[69px] max-md:rounded-[24px] flex justify-center items-center ">
               <div
                 id="wait"
                 className="w-[175px] h-[113px] max-md:w-[75.92px] max-md:h-[69.08px] opacity-0 flex items-center"
               >
-                <img src={s.image.path} alt={s.title} />
+                <img src={s.image.path} alt={s.title} className="opacity-30" />
               </div>
             </div>
           </div>
         ))}
+
+        {/* {solutionSlides.slice(0).map((_, index) => (
+          <div
+            key={index}
+            className="absolute border-t-2 border-dashed border-[#ffffff4D]"
+            style={{
+              top: `${(index + 1) * 10}%`,
+              left: `${(index + 1) * 10}%`,
+              width: '100px',
+              transform: 'rotate(45deg)',
+            }}
+          ></div>
+        ))} */}
       </div>
       <div className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0 max-md:w-full max-md:h-[533px] max-md:right-0 max-md:bg-gradient-to-t"></div>
       <div

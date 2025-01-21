@@ -41,16 +41,33 @@ const Footer: React.FC = () => {
   };
 
   useGSAP(() => {
-    gsap.to('#wait_footer', {
-      opacity: 1,
-      y: 0,
-      duration: 0.8,
-      stagger: 0.1,
-      scrollTrigger: {
-        toggleActions: 'play none none reverse',
-        start: 'bottom 40%',
-      },
-    });
+    if (window.innerWidth > 768) {
+      gsap.to('#wait_footer', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        stagger: 0.1,
+        scrollTrigger: {
+          trigger: '#Footer',
+          toggleActions: 'play none none reverse',
+          start: 'top 60%',
+          end: 'bottom top',
+        },
+      });
+    } else {
+      gsap.to('#wait_footer', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        stagger: 0.1,
+        scrollTrigger: {
+          trigger: '#Footer',
+          start: 'top 60%',
+          end: 'bottom bottom',
+          toggleActions: 'play none none reverse',
+        },
+      });
+    }
   }, []);
 
   return (
@@ -73,7 +90,7 @@ const Footer: React.FC = () => {
           id="wait_footer"
           className="opacity-0 translate-y-8 lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3"
         >
-          <p className=" max-w-[545px]  text-[24px] max-md:text-[16px] font-light font-dmSans">
+          <p className=" max-w-[545px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-light font-dmSans">
             {paragraphs.footer}
           </p>
           <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">
@@ -184,7 +201,7 @@ const Footer: React.FC = () => {
           </div>
         </div>
         <button
-          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[357px] max-md:right-[40px]`}
+          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[22%] max-md:right-[40px]`}
           onClick={() => hide(termsRef)}
         >
           Close
@@ -197,7 +214,7 @@ const Footer: React.FC = () => {
         ref={policyRef}
         className="w-full basic-pd h-screen hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
       >
-        <div className="w-full overflow-y-scroll  flex justify-center">
+        <div className="w-full overflow-y-scroll scrollbar-hide flex justify-center">
           <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px]">
               {' '}
@@ -228,7 +245,7 @@ const Footer: React.FC = () => {
           </div>
         </div>
         <button
-          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[357px] max-md:right-[40px]`}
+          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[22%] max-md:right-[40px]`}
           onClick={() => hide(policyRef)}
         >
           Close
