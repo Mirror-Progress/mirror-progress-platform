@@ -66,7 +66,7 @@ const Process: React.FC = () => {
                     opacity: 0,
                   })
                   .to('#p3', {
-                    y: '-150%',
+                    y: '-200%',
                     duration: 0.5,
                     opacity: 1,
                   });
@@ -130,7 +130,7 @@ const Process: React.FC = () => {
                     opacity: 0,
                   })
                   .to('#p3', {
-                    y: '-150%',
+                    y: '-180%',
                     duration: 0.5,
                     opacity: 1,
                   });
@@ -145,23 +145,21 @@ const Process: React.FC = () => {
   return (
     <section
       id="Process_Section"
-      className="basic-pd bg-[#0B3839] shadow-process-inset h-screen lg:pt-[50px] max-md:flex max-md:items-center"
+      className="basic-pd shadow-process-inset h-screen flex flex-col justify-center items-center "
     >
-      <div className="w-full flex flex-col justify-center items-center max-md:gap-[100px] ">
-        <div className="md:h-[400px]  md:w-[400px] max-md:w-[90%] flex justify-center items-center ">
+      {/* bg-[#0B3839] */}
+      <div className="w-full max-md:h-[50%] md:h-[90%] flex flex-col items-center max-md:gap-[64px] md:justify-evenly">
+        <div className="md:h-[350px] md:w-[350px] max-md:w-[90%] flex justify-center items-center">
           <DotLottieReact
             id="lottie"
             src="/animation/process.lottie"
-            className="md:h-[400px] md:w-[400px] max-md:h-[40vh]"
+            className="md:h-[350px] md:w-[350px] max-md:h-[40vh]"
             dotLottieRefCallback={(instancePlayer) =>
               setDotLottie(instancePlayer)
             }
           />
         </div>
-        <div
-          id="paragraphs"
-          className="lg:mt-[50px] max-md:mt-[50px] flex-1 flex flex-col"
-        >
+        <div id="paragraphs" className=" lg:h-[60px] flex flex-col">
           <p
             id="p1"
             className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans "
