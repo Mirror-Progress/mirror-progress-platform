@@ -146,14 +146,14 @@ const Form: React.FC = () => {
   return (
     <section
       id="Form"
-      className="h-screen w-full basic-pd  lg:mt-[100vh] max-md:mt-[100vh] lg:mb-[100px] max-md:mb-0"
+      className="h-screen w-full basic-pd lg:mt-[100vh] max-md:mt-[100vh] max-md:mb-0 py-[120px]"
       ref={sectionRef}
     >
-      <div className="h-full mw-full relative flex justify-center items-center">
-        <form action="" className="w-full">
+      <div className="h-full w-full relative flex justify-center items-center ">
+        <form action="" className="w-full ">
           <h1
             id="waitForm"
-            className="opacity-0 translate-y-12 text-center mx-auto text-[40px] font-dmSans mt-[20px] "
+            className="opacity-0 translate-y-12 text-center mx-auto text-[40px] font-dmSans "
           >
             Get in Touch
           </h1>
@@ -166,7 +166,7 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[25px] rounded-[24px] text-white leading-110"
+              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[15px] rounded-[24px] text-white leading-110"
               value={emailValue}
               onChange={(ev) => {
                 handleEmailChange(ev.target.value);
@@ -187,10 +187,10 @@ const Form: React.FC = () => {
             />
           </div>
           <div id="waitForm" className="w-full opacity-0 translate-y-12">
-            <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white mt-[24px] font-diatype leading-normal tracking-m3p ">
+            <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white my-[16px] font-diatype leading-normal tracking-m3p ">
               Choose an office
             </div>
-            <div className="relative lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[24px] bg-[#284C4C87] mx-auto mt-[24px] flex  max-md:flex-col">
+            <div className="relative lg:w-[846px] max-lg:w-[95%]  max-md:w-[100%]  lg:h-[66px] rounded-[24px] bg-[#284C4C87] mx-auto  flex  max-md:flex-col">
               {offices.map((o) => (
                 <Office
                   ref={o.id === 0 ? office0 : o.id === 1 ? office1 : office2}
@@ -214,7 +214,7 @@ const Form: React.FC = () => {
             >
               Send
             </button>
-            <p className="uppercase lg:max-w-[365px] mx-auto text-center text-[10px] font-medium text-secondaryGrey font-diatype tracking-m3p leading-100">
+            <p className="uppercase lg:max-w-[365px] max-md:max-w-[355px] mx-auto text-center text-[10px] font-medium text-secondaryGrey font-diatype tracking-m3p leading-100">
               By providing your email address, you consent to OUR{' '}
               <a
                 href="#Form"
