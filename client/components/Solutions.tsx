@@ -224,20 +224,20 @@ const Solutions: React.FC = () => {
     } else {
       return;
     }
-  }, [solutionId]);
+  }, []);
 
   return (
     <section
       id="Solutions"
-      className="h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px]"
+      className="h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px] static "
     >
-      <div className="h-full w-full flex flex-col">
+      <div className="h-full w-full flex flex-col justify-center">
         <h2 className="uppercase max-md:my-0 max-md:mb-[10px]  lg:pt-[10px] font-diatype font-light text-[24px]">
           [ Solutions ]
         </h2>
         <div
           id="solution_container"
-          className="h-[95%] w-full overflow-hidden flex flex-row justify-center items-center max-lg:flex max-lg:flex-col lg:relative max-lg:relative"
+          className="h-[95%] xl:h-[70%] w-full overflow-hidden flex flex-row justify-center items-center max-lg:flex max-lg:flex-col lg:relative max-lg:relative "
         >
           {solutionSlides.map((s) => (
             <div
@@ -246,23 +246,23 @@ const Solutions: React.FC = () => {
               key={s.id}
             >
               <div
-                className={`lg:w-[1px] max-md:w-full max-md:pb-[2px] ${s.id !== solutionId && s.id !== solutionId + 1 ? 'bg-[#126363]' : 'bg-white'}  `}
+                className={`lg:w-[1px] max-md:w-full  lg:h-full max-md:pb-[1px] ${s.id !== solutionId && s.id !== solutionId + 1 ? 'bg-[#126363]' : 'bg-white'}  `}
               ></div>
               <div
-                className={`w-full max-md:h-full flex flex-col max-md:justify-evenly`}
+                className={`w-full max-md:h-full flex flex-col max-md:justify-evenly xl:gap-[88px]`}
               >
                 <h4
-                  className={`font-diatype uppercase pl-[8px] pt-[8px] tracking-normal font-light leading-105 max-w-[150px]  ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}
+                  className={`font-diatype uppercase pl-[8px]  tracking-normal font-light leading-105 max-w-[150px]  ${s.id === solutionId || (s.id === 5 && solutionId === 6) ? 'text-white' : 'text-[#126363]'} `}
                 >
                   {s.title}
                 </h4>
                 <div
                   id={`solution_${s.id}_content`}
-                  className={`md:relative w-full flex flex-col items-center max-lg:items-start lg:justify-around max-lg:my-0 max-md:opacity-90 lg:opacity-0 max-md:h-[80%] max-md:gap-[8px]`}
+                  className={`md:relative w-full flex flex-col items-center md:opacity-0 max-md:h-[80%] max-md:gap-[8px] xl:gap-[64px] `}
                 >
-                  <div className="h-[120px] lg:h-[250px] md:h-[300px] max-md:h-[65%] self-center md:absolute lg:static md:top-[-20%] md:right-[20px]">
+                  <div className="max-md:h-[65%] self-center h-[261px]">
                     <video
-                      className="pointer-events-none h-full "
+                      className="pointer-events-none h-full mx-auto"
                       autoPlay
                       loop
                       muted
@@ -272,7 +272,7 @@ const Solutions: React.FC = () => {
                       <source src={s.video.path} type="video/mp4" />
                     </video>
                   </div>
-                  <p className="font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-[#A2A2A2] lg:pl-[10px] ">
+                  <p className="font-dmSans text-[18px] max-lg:text-[14px] leading-120 font-normal text-white lg:px-[30px] max-md:w-[300px] max-md:text-left max-md:self-start">
                     {s.text}
                   </p>
                 </div>
