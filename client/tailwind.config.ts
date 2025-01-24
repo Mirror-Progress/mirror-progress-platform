@@ -22,7 +22,7 @@ export default {
       fontFamily: {
         dmSans: ['DM Sans', 'sans-serif'],
         inter: ['Inter', 'serif'],
-        diatype: ['Diatype', 'sans-serif'],
+        diatype: ['diatype', 'sans-serif'],
       },
       lineHeight: {
         '100': '100%',

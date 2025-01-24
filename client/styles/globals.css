@@ -7,19 +7,10 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: 'Diatype';
+  font-family: 'diatype';
   src:
     url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff2') format('woff2'),
     url('/fonts/Diatype/ABCDiatypeMono-Regular-Trial.woff') format('woff');
-  font-weight: normal;
-}
-
-@font-face {
-  font-family: 'Diatype';
-  src:
-    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff2') format('woff2'),
-    url('/fonts/Diatype/ABCDiatypeMono-Medium-Trial.woff') format('woff');
-  font-weight: 500;
 }
 
 * {
@@ -47,7 +38,7 @@ html {
     @apply px-[24px] max-md:px-[16px];
   }
   .input {
-    @apply text-[16px] bg-[#284C4C87]  font-diatype font-medium tracking-m3p  placeholder:font-diatype placeholder:font-medium;
+    @apply text-[16px] bg-[#284C4C87]  font-diatype tracking-m3p  placeholder:font-diatype;
   }
   .process_par {
     @apply text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans leading-100;

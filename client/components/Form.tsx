@@ -21,7 +21,8 @@ const Form: React.FC = () => {
   const [officeChos, setOfficeChos] = useState(offices[0]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
-  // const [emailStatus, setEmailStatus] = useState(false);
+  const [dynamicHeight, setDynamicHeight] = useState(152);
+  const [dynamicPadding, setDynamicPadding] = useState(60);
 
   /* Functionalities  */
 
@@ -111,6 +112,21 @@ const Form: React.FC = () => {
     document.body.style.overflow = 'hidden';
   };
 
+  const handleInput = (
+    ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const element = ev.target as HTMLTextAreaElement;
+    const contentHeight = element.scrollHeight;
+    const minPadding = 40;
+    const maxPadding = 60;
+    const calculatedPadding = Math.max(
+      minPadding,
+      maxPadding - (contentHeight - 152) / 5
+    );
+    setDynamicHeight(contentHeight);
+    setDynamicPadding(calculatedPadding);
+  };
+
   useEffect(() => {
     handleEmailChange(emailValue);
   }, [emailValue, messageValue]);
@@ -180,14 +196,31 @@ const Form: React.FC = () => {
               Please enter a valid email address.{' '}
             </p>
 
-            <textarea
-              ref={message}
-              placeholder="Write your message here..."
-              name="mail"
-              className={`input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] rounded-[24px] text-white ${messageValue === '' ? 'text-center' : ''} font-medium  px-[134px] py-[62px] max-md:px-[30px] resize-none `}
-              value={messageValue}
-              onChange={(ev) => setMessageValue(ev.target.value)}
-            />
+            <div
+              className={`h-auto max-md:min-h-[152px] lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] relative`}
+              style={{ minHeight: dynamicHeight }}
+            >
+              <textarea
+                ref={message}
+                placeholder="Write your message here..."
+                name="mail"
+                className={`input w-full rounded-[24px] text-white ${messageValue === '' ? 'text-center' : ''} font-medium  px-[134px] max-md:px-[30px] resize-none overflow-hidden `}
+                style={{
+                  height: `${dynamicHeight}px`,
+                  paddingTop: `${dynamicPadding}px`,
+                  paddingBottom: `${dynamicPadding}px`,
+                  overflow: 'hidden',
+                }}
+                value={messageValue}
+                onChange={(ev) => setMessageValue(ev.target.value)}
+                onInput={(ev) => {
+                  handleInput(ev);
+                }}
+              />
+              <p className="text-[#FFFFFF4D] text-end font-diatype font-normal tracking-m3p leading-normal absolute right-[12px] bottom-[12px]">
+                {`${messageValue.length}/500`}
+              </p>
+            </div>
           </div>
           <div id="waitForm" className="w-full opacity-0 translate-y-12">
             <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white my-[16px] font-diatype leading-normal tracking-m3p ">
