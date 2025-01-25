@@ -1,5 +1,5 @@
 import { useGSAP } from '@gsap/react';
-import React, { MutableRefObject, useRef, useState } from 'react';
+import React, { MutableRefObject, useEffect, useRef, useState } from 'react';
 import { offices, policyText } from '../constants';
 import { Office } from './';
 import gsap from 'gsap';
@@ -21,7 +21,8 @@ const Form: React.FC = () => {
   const [officeChos, setOfficeChos] = useState(offices[0]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
-  const [emailStatus, setEmailStatus] = useState(false);
+  const [dynamicHeight, setDynamicHeight] = useState(152);
+  const [dynamicPadding, setDynamicPadding] = useState(60);
 
   /* Functionalities  */
 
@@ -89,14 +90,12 @@ const Form: React.FC = () => {
     setEmailValue(newValue);
     if (isValidEmail(newValue) && messageValue !== '') {
       if (buttonForm.current) buttonForm.current.disabled = false;
-      setEmailStatus(true);
     } else {
       if (buttonForm.current) buttonForm.current.disabled = true;
-      setEmailStatus(false);
     }
   };
 
-  const handleForm = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+  const handleForm = (e: React.FormEvent<HTMLFormElement>) => {
     if (isValidEmail(emailValue) && messageValue !== '') {
       if (sectionRef.current)
         sectionRef.current.scrollIntoView({
@@ -112,6 +111,25 @@ const Form: React.FC = () => {
     if (el.current) el.current.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   };
+
+  const handleInput = (
+    ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const element = ev.target as HTMLTextAreaElement;
+    const contentHeight = element.scrollHeight;
+    const minPadding = 40;
+    const maxPadding = 60;
+    const calculatedPadding = Math.max(
+      minPadding,
+      maxPadding - (contentHeight - 152) / 5
+    );
+    setDynamicHeight(contentHeight);
+    setDynamicPadding(calculatedPadding);
+  };
+
+  useEffect(() => {
+    handleEmailChange(emailValue);
+  }, [emailValue, messageValue]);
 
   useGSAP(() => {
     if (window.innerWidth > 768) {
@@ -150,7 +168,7 @@ const Form: React.FC = () => {
       ref={sectionRef}
     >
       <div className="h-full w-full relative flex justify-center items-center ">
-        <form action="" className="w-full ">
+        <form action="" className="w-full " onSubmit={(e) => handleForm(e)}>
           <h1
             id="waitForm"
             className="opacity-0 translate-y-12 text-center mx-auto text-[40px] font-dmSans "
@@ -166,25 +184,43 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="input lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[15px] rounded-[24px] text-white leading-110"
+              className="input text-center lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[15px] rounded-[24px] text-white leading-110"
               value={emailValue}
               onChange={(ev) => {
                 handleEmailChange(ev.target.value);
               }}
             />
             <p
-              className={`font-diatype uppercase text-[12px] text-[#FF9500] leading-100 tracking-m3p py-[12px] ${isValidEmail(emailValue) === true || emailValue === '' ? 'opacity-0' : 'opacity-1'}`}
+              className={`font-diatype uppercase text-[12px] text-[#FF9500] leading-100 tracking-m3p py-[12px] ${isValidEmail(emailValue) === false && emailValue !== '' ? 'opacity-1' : 'opacity-0'}`}
             >
               Please enter a valid email address.{' '}
             </p>
-            <textarea
-              ref={message}
-              placeholder="Write your message here..."
-              name="mail"
-              className={`input lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] h-[150px] rounded-[24px] text-white font-medium px-[134px] max-md:px-[30px] ${messageValue === '' && 'leading-[150px] focus:leading-[150px] focus:py-[0px]'} focus:leading-normal focus:py-[20px] align-middle resize-none whitespace-pre-line scrollbar-hide `}
-              value={messageValue}
-              onChange={(ev) => setMessageValue(ev.target.value)}
-            />
+
+            <div
+              className={`h-auto max-md:min-h-[152px] lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] relative`}
+              style={{ minHeight: dynamicHeight }}
+            >
+              <textarea
+                ref={message}
+                placeholder="Write your message here..."
+                name="mail"
+                className={`input w-full rounded-[24px] text-white ${messageValue === '' ? 'text-center' : ''} font-medium  px-[134px] max-md:px-[30px] resize-none overflow-hidden `}
+                style={{
+                  height: `${dynamicHeight}px`,
+                  paddingTop: `${dynamicPadding}px`,
+                  paddingBottom: `${dynamicPadding}px`,
+                  overflow: 'hidden',
+                }}
+                value={messageValue}
+                onChange={(ev) => setMessageValue(ev.target.value)}
+                onInput={(ev) => {
+                  handleInput(ev);
+                }}
+              />
+              <p className="text-[#FFFFFF4D] text-end font-diatype font-normal tracking-m3p leading-normal absolute right-[12px] bottom-[12px]">
+                {`${messageValue.length}/500`}
+              </p>
+            </div>
           </div>
           <div id="waitForm" className="w-full opacity-0 translate-y-12">
             <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white my-[16px] font-diatype leading-normal tracking-m3p ">
@@ -208,9 +244,8 @@ const Form: React.FC = () => {
 
             <button
               ref={buttonForm}
-              disabled={true}
+              type="submit"
               className={`block mx-auto my-[26px] w-[132px] h-[36px]  rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter  max-md:w-full max-md:h-[64px] ${isValidEmail(emailValue) === true && messageValue !== '' ? 'text-primary bg-white hover:cursor-pointer ' : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'} `}
-              onClick={(e) => handleForm(e)}
             >
               Send
             </button>

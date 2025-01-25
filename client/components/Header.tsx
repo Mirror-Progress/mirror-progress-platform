@@ -27,6 +27,8 @@ const Header: React.FC = () => {
       duration: 0.5,
     });
   }, []);
+
+
   return (
     <header
       id="header"
@@ -53,7 +55,7 @@ const Header: React.FC = () => {
         <a
           ref={linkFormRef}
           className="inline-block hover:cursor-pointer text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
-          href="#Solutions"
+          href="#Form"
         >
           {' '}
           Get In Touch

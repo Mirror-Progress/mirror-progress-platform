@@ -156,7 +156,7 @@ const Hero: React.FC = () => {
   return (
     <div
       id="hero"
-      className="relative h-screen bg-primary max-w-full overflow-hidden"
+      className="relative z-[1] h-screen bg-primary max-w-full overflow-hidden"
     >
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
@@ -171,7 +171,7 @@ const Hero: React.FC = () => {
           <div
             id="solution"
             key={s.id}
-            className={`w-[264px] h-[248px] max-md:w-[124.95px] max-md:h-[117.45px] absolute ${s.id === 0 ? 'bottom-[90px] max-md:bottom-[47px] right-[50px] max-md:right-[40px]' : s.id === 1 ? 'bottom-[-50px] max-md:bottom-[190px] right-[358px]  max-md:right-[231px]' : s.id === 2 ? 'top-[-50px] max-md:top-[102px] left-[350px] max-md:left-[70px]' : s.id === 3 ? 'top-[20px] max-md:top-[282px] right-[250px] max-md:right-[304px]' : s.id === 4 ? 'top-[157px] max-md:top-[209px]  left-[30px] max-md:left-[238px]  ' : s.id === 5 ? 'bottom-[15px] max-md:bottom-[264px] left-[295px] max-md:left-[280px]' : ''}`}
+            className={`w-[264px] h-[248px] max-md:w-[124.95px] max-md:h-[117.45px] absolute ${s.id === 0 ? 'bottom-[90px] max-md:bottom-[47px] right-[50px] max-md:right-[40px]' : s.id === 1 ? 'bottom-[-50px] max-md:bottom-[190px] right-[358px]  max-md:right-[231px] ' : s.id === 2 ? 'top-[-50px] max-md:top-[102px] left-[350px] max-md:left-[70px]' : s.id === 3 ? 'top-[20px] max-md:top-[282px] right-[250px] max-md:right-[304px]' : s.id === 4 ? 'top-[157px] max-md:top-[209px]  left-[30px] max-md:left-[238px]  ' : s.id === 5 ? 'bottom-[15px] max-md:bottom-[264px] left-[295px] max-md:left-[280px]' : ''}`}
           >
             <div
               id="wait"
@@ -216,9 +216,13 @@ const Hero: React.FC = () => {
       >
         <div
           id="leftImg"
-          className="absolute w-full top-[100%] flex justify-end"
+          className="absolute w-full top-[100%] flex justify-end "
         >
-          <img src={heroMP.mirror.path} alt={heroMP.mirror.alt} />
+          <img
+            src={heroMP.mirror.path}
+            alt={heroMP.mirror.alt}
+            className="pr-[3px]"
+          />
         </div>
       </div>
       <div
@@ -226,7 +230,11 @@ const Hero: React.FC = () => {
         className="h-full w-1/2 absolute top-0 right-0 bg-[#1D2222] z-[4]"
       >
         <div id="rightImg" className="absolute w-full top-[100%]">
-          <img src={heroMP.progress.path} alt={heroMP.progress.alt} />
+          <img
+            src={heroMP.progress.path}
+            alt={heroMP.progress.alt}
+            className="pl-[3px]"
+          />
         </div>
       </div>
     </div>

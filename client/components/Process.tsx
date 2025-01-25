@@ -148,34 +148,25 @@ const Process: React.FC = () => {
       className="basic-pd shadow-process-inset h-screen flex flex-col justify-center items-center "
     >
       {/* bg-[#0B3839] */}
-      <div className="w-full max-md:h-[50%] md:h-[90%] flex flex-col items-center max-md:gap-[64px] md:justify-evenly">
-        <div className="md:h-[350px] md:w-[350px] max-md:w-[90%] flex justify-center items-center">
+      <div className="w-full flex flex-col items-center max-md:gap-[64px] lg:gap-[80px] xl:gap-[128px] md:justify-evenly ">
+        <div className="h-[400px] w-[400px] flex justify-center items-center">
           <DotLottieReact
             id="lottie"
             src="/animation/process.lottie"
-            className="md:h-[350px] md:w-[350px] max-md:h-[40vh]"
+            className="h-[350px] w-[350px] "
             dotLottieRefCallback={(instancePlayer) =>
               setDotLottie(instancePlayer)
             }
           />
         </div>
-        <div id="paragraphs" className=" lg:h-[60px] flex flex-col">
-          <p
-            id="p1"
-            className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans "
-          >
+        <div id="paragraphs" className="lg:h-[60px] flex flex-col">
+          <p id="p1" className="max-w-[900px] process_par ">
             {paragraphs.process[0]}
           </p>
-          <p
-            id="p2"
-            className="max-w-[900px] text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans opacity-0"
-          >
+          <p id="p2" className="max-w-[900px] process_par opacity-0">
             {paragraphs.process[1]}
           </p>
-          <p
-            id="p3"
-            className="max-w-full text-[32px] max-md:text-[24px] max-md:tracking-m3p font-light text-center font-dmSans opacity-0"
-          >
+          <p id="p3" className="max-w-full process_par opacity-0">
             {paragraphs.process[2]}
           </p>
         </div>
