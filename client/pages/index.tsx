@@ -6,6 +6,7 @@ const sections = ['hero', 'solutions', 'process', 'form', 'footer'];
 
 const Home: NextPage = () => {
   const [activeSection, setActiveSection] = useState<string>('hero');
+  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const solutionsProgressRef = useRef<HTMLDivElement | null>(null);
 
@@ -29,7 +30,7 @@ const Home: NextPage = () => {
       {
         root: null,
         rootMargin: '0px',
-        threshold: 0.4, // Trigger when 40% of the section is visible
+        threshold: 0.4,
       }
     );
 
@@ -45,7 +46,6 @@ const Home: NextPage = () => {
   // Scroll logic for dynamic section updates and solutions progress bar
   useEffect(() => {
     const handleScroll = () => {
-      // Dynamically update the active section
       sections.forEach((id) => {
         const section = sectionRefs.current[id];
         if (section) {
@@ -59,7 +59,6 @@ const Home: NextPage = () => {
         }
       });
 
-      // Solutions-specific progress calculation
       const solutionsSection = sectionRefs.current['solutions'];
       if (solutionsSection && solutionsProgressRef.current) {
         const rect = solutionsSection.getBoundingClientRect();
@@ -71,7 +70,6 @@ const Home: NextPage = () => {
         solutionsProgressRef.current.style.height =
           progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
 
-        // Special case: Mark "solutions" section as active with gray background
         if (progress > 0 && progress < 1) {
           setActiveSection('solutions');
         }
@@ -116,16 +114,24 @@ const Home: NextPage = () => {
         {sections.map((id) => (
           <div
             key={id}
-            className={`md:w-full md:h-[24px] cursor-pointer relative ${
+            className={`relative md:w-full md:h-[24px] cursor-pointer ${
               activeSection === id
                 ? id === 'solutions'
-                  ? 'bg-gray-500' // Gray background for solutions section
+                  ? 'bg-gray-500'
                   : 'bg-white'
                 : 'bg-[#FFFFFF33]'
             }`}
             onClick={() => handleProgressClick(id)}
-            title={`Go to ${id}`}
+            onMouseEnter={() => setHoveredSection(id)}
+            onMouseLeave={() => setHoveredSection(null)}
           >
+            {/* Tooltip */}
+            {hoveredSection === id && (
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 animate-slide-right">
+                {id.charAt(0).toUpperCase() + id.slice(1)}
+              </div>
+            )}
+
             {/* Solutions Progress Bar */}
             {id === 'solutions' && (
               <div
@@ -138,6 +144,22 @@ const Home: NextPage = () => {
           </div>
         ))}
       </div>
+
+      <style jsx>{`
+        @keyframes slide-right {
+          0% {
+            transform: translateX(-10px);
+            opacity: 0;
+          }
+          100% {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-right {
+          animation: slide-right 0.3s ease-out forwards;
+        }
+      `}</style>
     </>
   );
 };
