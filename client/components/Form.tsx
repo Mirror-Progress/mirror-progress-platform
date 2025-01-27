@@ -181,7 +181,7 @@ const Form: React.FC = () => {
   return (
     <section
       id="Form"
-      className="min-h-screen w-full basic-pd mt-[100vh] max-md:mt-[100vh] max-md:mb-0 max-sm:mb-[120px] py-[120px]"
+      className="minh-screen w-full basic-pd mt-[100vh] max-md:mt-[100vh] max-md:mb-0 max-sm:mb-[120px] py-[120px]"
       ref={sectionRef}
     >
       <div className="h-full w-full relative flex justify-center items-center ">
