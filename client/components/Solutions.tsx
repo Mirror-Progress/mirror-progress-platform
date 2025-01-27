@@ -1,3 +1,4 @@
+/*
 import React, { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import gsap from 'gsap';
@@ -13,7 +14,7 @@ if (typeof window !== 'undefined') {
 /** 
  * Helpers to pick step sizes based on breakpoints.
  * Adjust as needed for your layout.
- */
+ 
 function getStepSizeForHorizontal(): number {
   const w = window.innerWidth;
   if (w >= 1280) return 14;
@@ -63,7 +64,7 @@ const Solutions: React.FC = () => {
       });
       const currentVid = videoRefs.current[index];
       if (currentVid) {
-        currentVid.play().catch(() => {/* handle autoplay restrictions */});
+        currentVid.play().catch(() => {/* handle autoplay restrictions });
       }
     }
 
@@ -466,3 +467,4 @@ const Solutions: React.FC = () => {
 
 // If you need to disable SSR in Next.js to avoid DOM mismatch:
 export default dynamic(() => Promise.resolve(Solutions), { ssr: false });
+*/
