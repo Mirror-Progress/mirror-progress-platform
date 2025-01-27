@@ -17,12 +17,13 @@ const Form: React.FC = () => {
   const office0 = useRef<HTMLDivElement | null>(null);
   const office1 = useRef<HTMLDivElement | null>(null);
   const office2 = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [officeChos, setOfficeChos] = useState(offices[0]);
   const [emailValue, setEmailValue] = useState('');
   const [messageValue, setMessageValue] = useState('');
-  const [dynamicHeight, setDynamicHeight] = useState(152);
-  const [dynamicPadding, setDynamicPadding] = useState(60);
+  // const [dynamicHeight, setDynamicHeight] = useState(152);
+  // const [dynamicPadding, setDynamicPadding] = useState(60);
 
   /* Functionalities  */
 
@@ -95,6 +96,15 @@ const Form: React.FC = () => {
     }
   };
 
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    countWords(messageValue) < 500
+      ? setMessageValue(e.target.value)
+      : countWords(messageValue) === 500 &&
+          e.target.value.length < messageValue.length
+        ? setMessageValue(e.target.value)
+        : '';
+  };
+
   const handleForm = (e: React.FormEvent<HTMLFormElement>) => {
     if (isValidEmail(emailValue) && messageValue !== '') {
       if (sectionRef.current)
@@ -116,6 +126,7 @@ const Form: React.FC = () => {
     ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const element = ev.target as HTMLTextAreaElement;
+    element.style.height = 'auto';
     const contentHeight = element.scrollHeight;
     const minPadding = 40;
     const maxPadding = 60;
@@ -123,8 +134,14 @@ const Form: React.FC = () => {
       minPadding,
       maxPadding - (contentHeight - 152) / 5
     );
-    setDynamicHeight(contentHeight);
-    setDynamicPadding(calculatedPadding);
+    element.style.height = `${contentHeight}px`;
+    element.style.paddingTop = `${calculatedPadding}px`;
+    element.style.paddingBottom = `${calculatedPadding}px`;
+  };
+
+  const countWords = (input: string): number => {
+    const words = input.trim().match(/\b\w+\b/g);
+    return words ? words.length : 0;
   };
 
   useEffect(() => {
@@ -164,7 +181,7 @@ const Form: React.FC = () => {
   return (
     <section
       id="Form"
-      className="h-screen w-full basic-pd lg:mt-[100vh] max-md:mt-[100vh] max-md:mb-0 py-[120px]"
+      className="min-h-screen w-full basic-pd mt-[100vh] max-md:mt-[100vh] max-md:mb-0 max-sm:mb-[120px] py-[120px]"
       ref={sectionRef}
     >
       <div className="h-full w-full relative flex justify-center items-center ">
@@ -198,27 +215,27 @@ const Form: React.FC = () => {
 
             <div
               className={`h-auto max-md:min-h-[152px] lg:w-[877px] max-lg:w-[90%] max-md:w-[100%] relative`}
-              style={{ minHeight: dynamicHeight }}
+              // style={{ minHeight: dynamicHeight }}
             >
               <textarea
                 ref={message}
                 placeholder="Write your message here..."
                 name="mail"
-                className={`input w-full rounded-[24px] text-white ${messageValue === '' ? 'text-center' : ''} font-medium  px-[134px] max-md:px-[30px] resize-none overflow-hidden `}
+                className={`input w-full rounded-[24px] text-white ${messageValue === '' ? 'text-center' : ''} font-medium  px-[134px] max-md:px-[30px] resize-none`}
                 style={{
-                  height: `${dynamicHeight}px`,
-                  paddingTop: `${dynamicPadding}px`,
-                  paddingBottom: `${dynamicPadding}px`,
+                  // height: `152px`,
+                  paddingTop: `60px`,
+                  paddingBottom: `60px`,
                   overflow: 'hidden',
                 }}
                 value={messageValue}
-                onChange={(ev) => setMessageValue(ev.target.value)}
+                onChange={(ev) => handleMessageChange(ev)}
                 onInput={(ev) => {
                   handleInput(ev);
                 }}
               />
               <p className="text-[#FFFFFF4D] text-end font-diatype font-normal tracking-m3p leading-normal absolute right-[12px] bottom-[12px]">
-                {`${messageValue.length}/500`}
+                {`${countWords(messageValue)}/500`}
               </p>
             </div>
           </div>

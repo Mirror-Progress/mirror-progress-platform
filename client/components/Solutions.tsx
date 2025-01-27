@@ -9,7 +9,7 @@ const Solutions: React.FC = () => {
 
   useGSAP(() => {
     CustomEase.create('bezier', '0, 0, 0, 0.99');
-    if (solutionId < 6 && window.innerWidth > 768) {
+    if (solutionId < 6 && window.innerWidth > 1024) {
       gsap
         .timeline({
           scrollTrigger: {
@@ -39,6 +39,258 @@ const Solutions: React.FC = () => {
         .to(`#solution_0`, {
           left: 0,
           duration: 1,
+          onStart: () => {
+            gsap.fromTo(
+              `#solution_0_content`,
+              { opacity: 0 },
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: 'bezier',
+              }
+            );
+          },
+          onReverseComplete: () => {
+            gsap.to(`#solution_0_content`, {
+              opacity: 0,
+              duration: 0.5,
+              ease: 'bezier',
+            });
+          },
+        })
+        .to(`#highlight_line_1`, {
+          backgroundColor: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+          onStart: () => {
+            gsap.set('#highlight_title_0', { color: '#126363', duration: 0.1 });
+            gsap.set('#highlight_line_0', {
+              backgroundColor: '#126363',
+              duration: 0.1,
+            });
+          },
+        })
+        .to(`#highlight_title_1`, {
+          color: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#solution_1`, {
+          left: `${1 * 12}%`,
+          duration: 1,
+          delay: 0.2,
+          onStart: () => {
+            gsap.fromTo(
+              `#solution_1_content`,
+              { opacity: 0 },
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: 'bezier',
+              }
+            );
+          },
+          onReverseComplete: () => {
+            gsap.to(`#solution_1_content`, {
+              opacity: 0,
+              duration: 0.5,
+              ease: 'bezier',
+            });
+          },
+        })
+        .to(`#highlight_line_2`, {
+          backgroundColor: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+          onStart: () => {
+            gsap.set('#highlight_title_1', { color: '#126363', duration: 0.1 });
+            gsap.set('#highlight_line_1', {
+              backgroundColor: '#126363',
+              duration: 0.1,
+            });
+          },
+        })
+        .to(`#highlight_title_2`, {
+          color: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#solution_2`, {
+          left: `${2 * 12}%`,
+          duration: 1,
+          delay: 0.2,
+          onStart: () => {
+            gsap.fromTo(
+              `#solution_2_content`,
+              { opacity: 0 },
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: 'bezier',
+              }
+            );
+          },
+          onReverseComplete: () => {
+            gsap.to(`#solution_2_content`, {
+              opacity: 0,
+              duration: 0.5,
+              ease: 'bezier',
+            });
+          },
+        })
+
+        .to(`#highlight_line_3`, {
+          backgroundColor: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+          onStart: () => {
+            gsap.set('#highlight_title_2', { color: '#126363', duration: 0.1 });
+            gsap.set('#highlight_line_2', {
+              backgroundColor: '#126363',
+              duration: 0.1,
+            });
+          },
+        })
+        .to(`#highlight_title_3`, {
+          color: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#solution_3`, {
+          left: `${3 * 12}%`,
+          duration: 1,
+          delay: 0.2,
+          onStart: () => {
+            gsap.fromTo(
+              `#solution_3_content`,
+              { opacity: 0 },
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: 'bezier',
+              }
+            );
+          },
+          onReverseComplete: () => {
+            gsap.to(`#solution_3_content`, {
+              opacity: 0,
+              duration: 0.5,
+              ease: 'bezier',
+            });
+          },
+        })
+
+        .to(`#highlight_line_4`, {
+          backgroundColor: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+          onStart: () => {
+            gsap.set('#highlight_title_3', { color: '#126363', duration: 0.1 });
+            gsap.set('#highlight_line_3', {
+              backgroundColor: '#126363',
+              duration: 0.1,
+            });
+          },
+        })
+        .to(`#highlight_title_4`, {
+          color: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#solution_4`, {
+          left: `${4 * 12}%`,
+          duration: 1,
+          delay: 0.2,
+          onStart: () => {
+            gsap.fromTo(
+              `#solution_4_content`,
+              { opacity: 0 },
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: 'bezier',
+              }
+            );
+          },
+          onReverseComplete: () => {
+            gsap.to(`#solution_4_content`, {
+              opacity: 0,
+              duration: 0.5,
+              ease: 'bezier',
+            });
+          },
+        })
+
+        .to(`#highlight_line_5`, {
+          backgroundColor: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+          onStart: () => {
+            gsap.set('#highlight_title_4', { color: '#126363', duration: 0.1 });
+            gsap.set('#highlight_line_4', {
+              backgroundColor: '#126363',
+              duration: 0.1,
+            });
+          },
+        })
+        .to(`#highlight_title_5`, {
+          color: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#solution_5`, {
+          left: `${5 * 12}%`,
+          duration: 1,
+          delay: 0.2,
+          onStart: () => {
+            gsap.fromTo(
+              `#solution_5_content`,
+              { opacity: 0 },
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: 'bezier',
+              }
+            );
+          },
+          onReverseComplete: () => {
+            gsap.to(`#solution_5_content`, {
+              opacity: 0,
+              duration: 0.5,
+              ease: 'bezier',
+            });
+          },
+        });
+    } else if (solutionId < 6 && window.innerWidth <= 1023) {
+      gsap
+        .timeline({
+          scrollTrigger: {
+            trigger: `#Solutions`,
+            start: 'top top',
+            end: '+=5000',
+            scrub: 8,
+            pin: true,
+            toggleActions: 'play none none reverse',
+            snap: {
+              snapTo: (progress) => Math.round(progress * 5) / 5,
+              duration: 0.5,
+              ease: 'bezier',
+            },
+          },
+        })
+        .to(`#highlight_line_0`, {
+          backgroundColor: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#highlight_title_0`, {
+          color: 'white',
+          duration: 0.1,
+          ease: 'bezier',
+        })
+        .to(`#solution_0`, {
+          top: 0,
+          duration: 1,
         })
         .to(`#solution_0_content`, {
           opacity: 1,
@@ -63,7 +315,7 @@ const Solutions: React.FC = () => {
           ease: 'bezier',
         })
         .to(`#solution_1`, {
-          left: `${1 * 13}%`,
+          top: `${1 * 8}%`,
           duration: 1,
           delay: 0.2,
         })
@@ -96,7 +348,7 @@ const Solutions: React.FC = () => {
           ease: 'bezier',
         })
         .to(`#solution_2`, {
-          left: `${2 * 13}%`,
+          top: `${2 * 8}%`,
           duration: 1,
           delay: 0.2,
         })
@@ -129,7 +381,7 @@ const Solutions: React.FC = () => {
           ease: 'bezier',
         })
         .to(`#solution_3`, {
-          left: `${3 * 13}%`,
+          top: `${3 * 8}%`,
           duration: 1,
           delay: 0.2,
         })
@@ -162,7 +414,7 @@ const Solutions: React.FC = () => {
           ease: 'bezier',
         })
         .to(`#solution_4`, {
-          left: `${4 * 13}%`,
+          top: `${4 * 8}%`,
           duration: 1,
           delay: 0.2,
         })
@@ -195,117 +447,11 @@ const Solutions: React.FC = () => {
           ease: 'bezier',
         })
         .to(`#solution_5`, {
-          left: `${5 * 13}%`,
+          top: `${5 * 8}%`,
           duration: 1,
           delay: 0.2,
         })
         .to(`#solution_5_content`, {
-          opacity: 1,
-          duration: 0.5,
-          ease: 'bezier',
-          onStart: () => {
-            gsap.to(`#solution_4_content`, {
-              opacity: 0,
-              duration: 0.2,
-            });
-          },
-        });
-    } else if (solutionId < 6 && window.innerWidth <= 768) {
-      gsap
-        .timeline({
-          scrollTrigger: {
-            trigger: `#Solutions`,
-            start: 'top top',
-            end: '+=5000',
-            scrub: 2,
-            pin: true,
-            toggleActions: 'play none none reverse',
-            snap: {
-              snapTo: (progress) => Math.round(progress * 5) / 5,
-              duration: 0.5,
-              ease: 'bezier',
-            },
-          },
-        })
-        .to(`#solution_0`, {
-          top: 0,
-          duration: 2,
-        })
-        .set(`#solution_0_content`, {
-          opacity: 1,
-          duration: 0.5,
-          ease: 'bezier',
-        })
-        .to(`#solution_1`, {
-          top: `${1 * 10}%`,
-          duration: 2,
-          delay: 1,
-        })
-        .set(`#solution_1_content`, {
-          opacity: 1,
-          duration: 0.5,
-          ease: 'bezier',
-          onStart: () => {
-            gsap.to(`#solution_0_content`, {
-              opacity: 0,
-              duration: 0.2,
-            });
-          },
-        })
-        .to(`#solution_2`, {
-          top: `${2 * 10}%`,
-          duration: 2,
-          delay: 1,
-        })
-        .set(`#solution_2_content`, {
-          opacity: 1,
-          duration: 0.5,
-          ease: 'bezier',
-          onStart: () => {
-            gsap.to(`#solution_1_content`, {
-              opacity: 0,
-              duration: 0.2,
-            });
-          },
-        })
-        .to(`#solution_3`, {
-          top: `${3 * 10}%`,
-          duration: 2,
-          delay: 1,
-        })
-        .set(`#solution_3_content`, {
-          opacity: 1,
-          duration: 0.5,
-          ease: 'bezier',
-          onStart: () => {
-            gsap.to(`#solution_2_content`, {
-              opacity: 0,
-              duration: 0.2,
-            });
-          },
-        })
-        .to(`#solution_4`, {
-          top: `${4 * 10}%`,
-          duration: 2,
-          delay: 1,
-        })
-        .set(`#solution_4_content`, {
-          opacity: 1,
-          duration: 0.5,
-          ease: 'bezier',
-          onStart: () => {
-            gsap.to(`#solution_3_content`, {
-              opacity: 0,
-              duration: 0.2,
-            });
-          },
-        })
-        .to(`#solution_5`, {
-          top: `${5 * 10}%`,
-          duration: 2,
-          delay: 1,
-        })
-        .set(`#solution_5_content`, {
           opacity: 1,
           duration: 0.5,
           ease: 'bezier',
@@ -324,42 +470,42 @@ const Solutions: React.FC = () => {
   return (
     <section
       id="Solutions"
-      className="h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px] static "
+      className="h-screen max-sm:min-h-screen max-w-full basic-pd  max-md:my-0 max-md:mt-[10px] static max-sm:mb-[120px]"
     >
-      <div className="h-full w-full flex flex-col justify-evenly">
+      <div className="h-full max-sm:min-h-full w-full flex flex-col justify-evenly">
         <h2 className="uppercase max-md:my-0 max-md:mb-[10px] lg:pt-[10px] font-diatype font-extralight text-[24px] tracking-normal leading-100">
           [ Solutions ]
         </h2>
         <div
           id="solution_container"
-          className="lg:h-[77%] w-full overflow-hidden flex flex-row justify-center items-center max-lg:flex-col relative  lg:ml-[20px]"
+          className="lg:h-[77%] max-lg:h-[90%] max-sm:min-h-[90%] w-full max-lg:w-full overflow-hidden  flex lg:flex-row max-lg:flex-col lg:justify-center lg:items-center  relative  lg:ml-[20px]"
         >
           {solutionSlides.map((s) => (
             <div
               id={`solution_${s.id}`}
-              className={`flex md:w-[34%] lg:w-[32%] bg-[#012727] md:h-[88%] max-md:h-[49%] lg:h-full max-md:w-full  max-md:flex-col max-md:justify-around absolute ${s.id === 0 ? 'lg:left-[20%] max-md:left-0 max-md:top-[40%]' : ''} ${s.id === 1 ? 'lg:left-[33%]  max-md:left-0 max-md:top-[50%]' : s.id === 2 ? ' lg:left-[46%] max-md:left-0 max-md:top-[60%]' : s.id === 3 ? ' lg:left-[59%] max-md:left-0 max-md:top-[70%]' : s.id === 4 ? ' lg:left-[72%] max-md:left-0 max-md:top-[80%]' : s.id === 5 ? ' lg:left-[85%] max-md:left-0 max-md:top-[90%]' : ''} `}
+              className={`flex lg:w-[35%] xl:w-[32%] max-lg:w-[95%] max-sm:w-full bg-[#012727] max-lg:h-[43%] max-sm:h-[60%]   lg:h-full  max-lg:flex-col max-lg:justify-around absolute ${s.id === 0 ? 'lg:left-[20%]  max-lg:top-[40%] max-sm:top-[50%] ' : ''} ${s.id === 1 ? 'lg:left-[33%]  max-lg:top-[60%] ' : s.id === 2 ? ' lg:left-[46%] max-lg:top-[70%] ' : s.id === 3 ? ' lg:left-[59%] max-lg:top-[80%] ' : s.id === 4 ? ' lg:left-[72%]  max-lg:top-[90%]  ' : s.id === 5 ? ' lg:left-[85%]  max-lg:top-[100%]' : ''} `}
               key={s.id}
             >
               <div
                 id={`highlight_line_${s.id}`}
-                className={`lg:w-[1px] max-md:w-full  lg:h-full max-md:pb-[1px]  bg-[#126363] `}
+                className={`lg:w-[1px] max-lg:w-full  lg:h-full max-lg:pb-[1px]  bg-[#126363] `}
               ></div>
               <div
-                className={`w-full max-md:h-full flex flex-col max-md:justify-evenly `}
+                className={`lg:w-full max-lg:w-full max-lg:h-full max-sm:h-full  flex flex-col max-lg:justify-evenly  bg-[#012727]`}
               >
                 <h4
                   id={`highlight_title_${s.id}`}
-                  className={`font-diatype uppercase pl-[8px]  tracking-normal font-extralight leading-100 max-w-[150px] text-[#126363] `}
+                  className={`font-diatype uppercase lg:pl-[8px] max-lg:pt-[8px]  tracking-normal font-extralight leading-100 lg:max-w-[150px] max-sm:max-w-[150px] text-[#126363] `}
                 >
                   {s.title}
                 </h4>
                 <div
                   id={`solution_${s.id}_content`}
-                  className={`md:relative flex-1 self-center flex flex-col items-center lg:justify-evenly lg:w-[95%] max-md:h-[80%] max-md:gap-[8px]  md:opacity-0`}
+                  className={`md:relative  max-lg:w-full max-lg:h-full  flex-1 self-center flex flex-col  max-lg:flex-row-reverse max-sm:flex-col  max-lg:justify-between lg:items-center lg:self-start xl:items-center lg:justify-evenly  lg:w-full  max-md:gap-[8px] max-sm:justify-evenly  md:opacity-0 bg-[#012727]`}
                 >
-                  <div className="max-md:h-[65%] self-center h-[261px]">
+                  <div className=" max-lg:pr-[50px] max-sm:pr-0 bg-[#012727] ">
                     <video
-                      className="pointer-events-none h-full mx-auto lg:pl-[10px]"
+                      className="pointer-events-none h-[261px] mx-auto lg:pl-[10px] "
                       autoPlay
                       loop
                       muted
@@ -369,7 +515,7 @@ const Solutions: React.FC = () => {
                       <source src={s.video.path} type="video/mp4" />
                     </video>
                   </div>
-                  <p className="font-dmSans text-[16px] max-lg:text-[14px] leading-120 font-normal text-white max-md:w-[300px] max-md:text-left max-md:self-start lg:pl-[10px]">
+                  <p className="font-dmSans text-[16px] lg:text-[15px] max-sm:text-[14px] leading-120 font-normal text-white  max-md:text-left max-lg:self-end max-md:self-start lg:pr-[10px] xl:pl-[10px] max-[480px]:w-[320px] max-sm:max-w-[300px] w-[375px]    max-lg:translate-y-[-30px] max-md:translate-y-[-30px] max-sm:translate-y-0 bg-[#012727] ">
                     {s.text}
                   </p>
                 </div>
