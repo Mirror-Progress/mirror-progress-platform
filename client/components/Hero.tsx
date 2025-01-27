@@ -154,10 +154,7 @@ const Hero: React.FC = () => {
   }, []);
 
   return (
-    <div
-      id="hero"
-      className="relative z-[1] h-screen bg-primary max-w-full overflow-hidden"
-    >
+    <div id="hero" className="relative  h-screen  max-w-full overflow-hidden">
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">

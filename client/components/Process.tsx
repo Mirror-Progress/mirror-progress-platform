@@ -145,11 +145,11 @@ const Process: React.FC = () => {
   return (
     <section
       id="Process_Section"
-      className="basic-pd shadow-process-inset h-screen flex flex-col justify-center items-center "
+      className="basic-pd shadow-process-inset h-screen flex flex-col justify-center items-center"
     >
       {/* bg-[#0B3839] */}
       <div className="w-full flex flex-col items-center max-md:gap-[64px] lg:gap-[80px] xl:gap-[128px] md:justify-evenly ">
-        <div className="h-[400px] w-[400px] flex justify-center items-center">
+        <div className="h-[400px] w-[400px] max-sm:w-[350px] max-sm:h-[350px] flex justify-center items-center">
           <DotLottieReact
             id="lottie"
             src="/animation/process.lottie"
