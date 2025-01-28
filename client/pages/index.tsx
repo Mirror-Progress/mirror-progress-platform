@@ -165,7 +165,7 @@ const Home: NextPage = () => {
                 ? id === 'solutions' || id === 'process'
                   ? 'bg-gray-500'
                   : 'bg-white'
-                : 'bg-[#FFFFFF33]'
+                : 'bg-[#FFFFFFFF]'
             } ${activeSection === id ? 'opacity-100' : 'opacity-50'} md:w-[3px] md:h-[24px] max-md:w-[33px] max-md:h-[5px]`}
             onClick={() => handleProgressClick(id)}
             onMouseEnter={() => setHoveredSection(id)}
