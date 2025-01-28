@@ -21,6 +21,23 @@ const Home: NextPage = () => {
     });
   }, []);
 
+  /* 
+    BY PAPA:
+            here is the animation you need to implement so the progress bar will appear just after the hero animation has completely done. 
+            Put the right id with the #rightId of the progress bar container or use any other css selector correctly by removing the #. useGSAP hook is already import just remove the comment of the block and put the right selector then it should be integrated smoothly
+  */
+
+  // useGSAP(() => {
+  //   gsap.to('#id', {
+  //     opacity: 1,
+  //     delay: 5,
+  //     duration: 0.5,
+  //   });
+  // }, []);
+
+  // Intersection observer for detecting visible sections
+
+    
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
