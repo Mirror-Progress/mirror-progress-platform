@@ -158,7 +158,7 @@ const Hero: React.FC = () => {
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
-          <p className="font-dmSans max-w-[650px] max-md:max-w-[300px] h-[138px] text-center font-light text-[46px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
+          <p className="font-dmSans max-w-[650px] max-md:max-w-[300px] h-[138px] text-center font-light text-[44px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
             {paragraphs.hero}
           </p>
         </div>
