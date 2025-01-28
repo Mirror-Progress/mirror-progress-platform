@@ -156,43 +156,53 @@ const Home: NextPage = () => {
       </section>
 
       {/* Progress Indicator */}
-      <div className="fixed z-10 md:left-[16px] md:top-[50%] md:translate-y-[-50%] max-md:bottom-0 max-md:left-0 max-md:w-full max-md:h-[24px] flex md:flex-col max-md:flex-row justify-center items-center">
+      <div className="fixed z-10 md:left-[16px] md:top-[50%] gap-2 md:translate-y-[-50%] max-md:bottom-0 max-md:left-0 max-md:w-full max-md:h-[24px] flex md:flex-col max-md:flex-row justify-center items-center">
         {sections.map((id) => (
           <div
             key={id}
-            className={`relative cursor-pointer ${
-              activeSection === id
-                ? id === 'solutions' || id === 'process'
-                  ? 'bg-gray-500'
-                  : 'bg-white'
-                : 'bg-[#FFFFFFFF]'
-            } ${activeSection === id ? 'opacity-100' : 'opacity-50'} md:w-[3px] md:h-[24px] max-md:w-[33px] max-md:h-[5px]`}
+            className="relative cursor-pointer"
+            style={{
+              padding: '16px', // Expand the hover area by 8px on all sides
+              margin: '-16px', // Compensate for the padding to keep the layout intact
+            }}
             onClick={() => handleProgressClick(id)}
             onMouseEnter={() => setHoveredSection(id)}
             onMouseLeave={() => setHoveredSection(null)}
           >
-            {/* Tooltip */}
-            {hoveredSection === id && (
-              <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2 md:-translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 animate-slide-right">
-                {id.charAt(0).toUpperCase() + id.slice(1)}
-              </div>
-            )}
+            <div
+              className={`relative ${
+                activeSection === id
+                  ? id === 'solutions' || id === 'process'
+                    ? 'bg-gray-500'
+                    : 'bg-white'
+                  : 'bg-[#FFFFFFFF]'
+              } ${
+                activeSection === id ? 'opacity-100' : 'opacity-50'
+              } md:w-[3px] md:h-[24px] max-md:w-[33px] max-md:h-[5px]`}
+            >
+              {/* Tooltip */}
+              {hoveredSection === id && (
+                <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2 md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-dmSans text-center font-light text-[44px]  text-2xl rounded-lg opacity-0 animate-slide-right">
+                  {id.charAt(0).toUpperCase() + id.slice(1)}
+                </div>
+              )}
 
-            {/* Solutions Progress Bar */}
-            {id === 'solutions' && (
-              <div
-                ref={solutionsProgressRef}
-                className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
-              ></div>
-            )}
+              {/* Solutions Progress Bar */}
+              {id === 'solutions' && (
+                <div
+                  ref={solutionsProgressRef}
+                  className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
+                ></div>
+              )}
 
-            {/* Process Progress Bar */}
-            {id === 'process' && (
-              <div
-                ref={processProgressRef}
-                className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
-              ></div>
-            )}
+              {/* Process Progress Bar */}
+              {id === 'process' && (
+                <div
+                  ref={processProgressRef}
+                  className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
+                ></div>
+              )}
+            </div>
           </div>
         ))}
       </div>
