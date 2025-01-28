@@ -9,15 +9,17 @@ const Home: NextPage = () => {
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const solutionsProgressRef = useRef<HTMLDivElement | null>(null);
+  const processProgressRef = useRef<HTMLDivElement | null>(null);
 
-  // Initialize section references
+  // Ref to track animation frames for the Process section
+  const processScrollRange = useRef<number>(0);
+
   useEffect(() => {
     sections.forEach((id) => {
       sectionRefs.current[id] = document.getElementById(id);
     });
   }, []);
 
-  // Intersection observer for detecting visible sections
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -43,7 +45,6 @@ const Home: NextPage = () => {
     };
   }, []);
 
-  // Scroll logic for dynamic section updates and solutions progress bar
   useEffect(() => {
     const handleScroll = () => {
       sections.forEach((id) => {
@@ -59,6 +60,7 @@ const Home: NextPage = () => {
         }
       });
 
+      // Solutions Progress Bar
       const solutionsSection = sectionRefs.current['solutions'];
       if (solutionsSection && solutionsProgressRef.current) {
         const rect = solutionsSection.getBoundingClientRect();
@@ -67,11 +69,56 @@ const Home: NextPage = () => {
           1
         );
 
-        solutionsProgressRef.current.style.height =
-          progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
+        if (window.innerWidth <= 768) {
+          solutionsProgressRef.current.style.width =
+            progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
+          solutionsProgressRef.current.style.height = '100%';
+        } else {
+          solutionsProgressRef.current.style.height =
+            progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
+          solutionsProgressRef.current.style.width = '100%';
+        }
 
         if (progress > 0 && progress < 1) {
           setActiveSection('solutions');
+        }
+      }
+
+      // Process Progress Bar
+      const processSection = sectionRefs.current['process'];
+      if (processSection && processProgressRef.current) {
+        const rect = processSection.getBoundingClientRect();
+
+        // Calculate the total scrollable height for the Process section
+        if (processScrollRange.current === 0) {
+          processScrollRange.current = rect.height + window.innerHeight;
+        }
+
+        // Calculate scroll progress for the Process section
+        const scrollProgress = Math.min(
+          Math.max(
+            (window.innerHeight - rect.top) / processScrollRange.current,
+            0
+          ),
+          1
+        );
+
+        if (window.innerWidth <= 768) {
+          processProgressRef.current.style.width =
+            scrollProgress > 0 && scrollProgress < 1
+              ? `${scrollProgress * 100}%`
+              : '0%';
+          processProgressRef.current.style.height = '100%';
+        } else {
+          processProgressRef.current.style.height =
+            scrollProgress > 0 && scrollProgress < 1
+              ? `${scrollProgress * 100}%`
+              : '0%';
+          processProgressRef.current.style.width = '100%';
+        }
+
+        if (scrollProgress > 0 && scrollProgress < 1) {
+          setActiveSection('process');
         }
       }
     };
@@ -82,7 +129,6 @@ const Home: NextPage = () => {
     };
   }, []);
 
-  // Scroll to a section on progress click
   const handleProgressClick = (id: string) => {
     const section = sectionRefs.current[id];
     if (section) {
@@ -99,7 +145,7 @@ const Home: NextPage = () => {
       <section id="solutions" className="relative">
         <Solutions />
       </section>
-      <section id="process">
+      <section id="process" className="relative">
         <Process />
       </section>
       <section id="form">
@@ -110,37 +156,53 @@ const Home: NextPage = () => {
       </section>
 
       {/* Progress Indicator */}
-      <div className="md:w-[3px] md:h-[136px] max-md:w-[176px] max-md:h-[3px] fixed z-10 md:top-[50%] md:translate-y-[-50%] md:left-[16px] md:flex md:flex-col md:justify-between">
+      <div className="fixed z-10 md:left-[16px] md:top-[50%] gap-2 md:translate-y-[-50%] max-md:bottom-0 max-md:left-0 max-md:w-full max-md:h-[24px] flex md:flex-col max-md:flex-row justify-center items-center">
         {sections.map((id) => (
           <div
             key={id}
-            className={`relative md:w-full md:h-[24px] cursor-pointer ${
-              activeSection === id
-                ? id === 'solutions'
-                  ? 'bg-gray-500'
-                  : 'bg-white'
-                : 'bg-[#FFFFFF33]'
-            }`}
+            className="relative cursor-pointer"
+            style={{
+              padding: '16px', // Expand the hover area by 8px on all sides
+              margin: '-16px', // Compensate for the padding to keep the layout intact
+            }}
             onClick={() => handleProgressClick(id)}
             onMouseEnter={() => setHoveredSection(id)}
             onMouseLeave={() => setHoveredSection(null)}
           >
-            {/* Tooltip */}
-            {hoveredSection === id && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 animate-slide-right">
-                {id.charAt(0).toUpperCase() + id.slice(1)}
-              </div>
-            )}
+            <div
+              className={`relative ${
+                activeSection === id
+                  ? id === 'solutions' || id === 'process'
+                    ? 'bg-gray-500'
+                    : 'bg-white'
+                  : 'bg-[#FFFFFFFF]'
+              } ${
+                activeSection === id ? 'opacity-100' : 'opacity-50'
+              } md:w-[3px] md:h-[24px] max-md:w-[33px] max-md:h-[5px]`}
+            >
+              {/* Tooltip */}
+              {hoveredSection === id && (
+                <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2 md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-dmSans text-center font-light text-[44px]  text-2xl rounded-lg opacity-0 animate-slide-right">
+                  {id.charAt(0).toUpperCase() + id.slice(1)}
+                </div>
+              )}
 
-            {/* Solutions Progress Bar */}
-            {id === 'solutions' && (
-              <div
-                ref={solutionsProgressRef}
-                className="absolute top-0 left-0 w-full bg-white transition-height duration-250 ease-out"
-                style={{ height: '0%' }}
-              ></div>
-            )}
-            <div className="md:w-full md:h-[12px]"></div>
+              {/* Solutions Progress Bar */}
+              {id === 'solutions' && (
+                <div
+                  ref={solutionsProgressRef}
+                  className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
+                ></div>
+              )}
+
+              {/* Process Progress Bar */}
+              {id === 'process' && (
+                <div
+                  ref={processProgressRef}
+                  className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
+                ></div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -160,23 +222,6 @@ const Home: NextPage = () => {
           animation: slide-right 0.3s ease-out forwards;
         }
       `}</style>
-      {/* <div className="md:w-[3px] md:h-[136px] max-md:w-[176px] max-md:h-[3px] fixed z-10 md:top-[50%] md:translate-y-[-50%] md:left-[16px] md:flex md:flex-col md:justify-between">
-        <div className="md:w-full md:h-[24px] bg-white">
-          <div className="md:w-full md:h-[12px] "></div>
-        </div>
-        <div className="md:w-full md:h-[24px] bg-[#FFFFFF33]">
-          <div className="md:w-full md:h-[12px] "></div>
-        </div>
-        <div className="md:w-full md:h-[24px] bg-[#FFFFFF33]">
-          <div className="md:w-full md:h-[12px] "></div>
-        </div>
-        <div className="md:w-full md:h-[24px] bg-[#FFFFFF33]">
-          <div className="md:w-full md:h-[12px] "></div>
-        </div>
-        <div className="md:w-full md:h-[24px] bg-[#FFFFFF33]">
-          <div className="md:w-full md:h-[12px] "></div>
-        </div>
-      </div> */}
     </>
   );
 };
