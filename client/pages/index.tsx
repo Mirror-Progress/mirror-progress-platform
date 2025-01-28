@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import type { NextPage } from 'next';
 import { Hero, Solutions, Process, Form, Footer } from '../components';
+import { useGSAP } from '@gsap/react';
 
 const sections = ['hero', 'solutions', 'process', 'form', 'footer'];
 

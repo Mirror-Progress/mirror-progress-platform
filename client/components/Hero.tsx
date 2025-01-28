@@ -118,6 +118,7 @@ const Hero: React.FC = () => {
 
     const random = (min: number, max: number) =>
       Math.random() * (max - min) + min;
+    
     gsap
       .timeline({ repeat: -1, yoyo: true })
       .to('#solution', {
