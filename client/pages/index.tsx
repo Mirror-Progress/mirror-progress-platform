@@ -9,6 +9,10 @@ const Home: NextPage = () => {
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const solutionsProgressRef = useRef<HTMLDivElement | null>(null);
+  const processProgressRef = useRef<HTMLDivElement | null>(null);
+
+  // Ref to track animation frames for the Process section
+  const processScrollRange = useRef<number>(0);
 
   useEffect(() => {
     sections.forEach((id) => {
@@ -56,6 +60,7 @@ const Home: NextPage = () => {
         }
       });
 
+      // Solutions Progress Bar
       const solutionsSection = sectionRefs.current['solutions'];
       if (solutionsSection && solutionsProgressRef.current) {
         const rect = solutionsSection.getBoundingClientRect();
@@ -64,7 +69,6 @@ const Home: NextPage = () => {
           1
         );
 
-        // Dynamically set width for smaller devices and height for larger devices
         if (window.innerWidth <= 768) {
           solutionsProgressRef.current.style.width =
             progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
@@ -77,6 +81,44 @@ const Home: NextPage = () => {
 
         if (progress > 0 && progress < 1) {
           setActiveSection('solutions');
+        }
+      }
+
+      // Process Progress Bar
+      const processSection = sectionRefs.current['process'];
+      if (processSection && processProgressRef.current) {
+        const rect = processSection.getBoundingClientRect();
+
+        // Calculate the total scrollable height for the Process section
+        if (processScrollRange.current === 0) {
+          processScrollRange.current = rect.height + window.innerHeight;
+        }
+
+        // Calculate scroll progress for the Process section
+        const scrollProgress = Math.min(
+          Math.max(
+            (window.innerHeight - rect.top) / processScrollRange.current,
+            0
+          ),
+          1
+        );
+
+        if (window.innerWidth <= 768) {
+          processProgressRef.current.style.width =
+            scrollProgress > 0 && scrollProgress < 1
+              ? `${scrollProgress * 100}%`
+              : '0%';
+          processProgressRef.current.style.height = '100%';
+        } else {
+          processProgressRef.current.style.height =
+            scrollProgress > 0 && scrollProgress < 1
+              ? `${scrollProgress * 100}%`
+              : '0%';
+          processProgressRef.current.style.width = '100%';
+        }
+
+        if (scrollProgress > 0 && scrollProgress < 1) {
+          setActiveSection('process');
         }
       }
     };
@@ -103,7 +145,7 @@ const Home: NextPage = () => {
       <section id="solutions" className="relative">
         <Solutions />
       </section>
-      <section id="process">
+      <section id="process" className="relative">
         <Process />
       </section>
       <section id="form">
@@ -120,7 +162,7 @@ const Home: NextPage = () => {
             key={id}
             className={`relative cursor-pointer ${
               activeSection === id
-                ? id === 'solutions'
+                ? id === 'solutions' || id === 'process'
                   ? 'bg-gray-500'
                   : 'bg-white'
                 : 'bg-[#FFFFFF33]'
@@ -140,6 +182,14 @@ const Home: NextPage = () => {
             {id === 'solutions' && (
               <div
                 ref={solutionsProgressRef}
+                className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
+              ></div>
+            )}
+
+            {/* Process Progress Bar */}
+            {id === 'process' && (
+              <div
+                ref={processProgressRef}
                 className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
               ></div>
             )}
