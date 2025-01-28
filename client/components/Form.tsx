@@ -28,19 +28,20 @@ const Form: React.FC = () => {
   /* Functionalities  */
 
   const animatePopup = () => {
+    CustomEase.create('bezier', '0, 0, 0, 0.99');
     if (popup.current) {
       gsap.fromTo(
         '#popup',
         {
-          display: 'hidden',
           top: '100%',
         },
         {
-          display: 'flex',
-          top: '5%',
-          ease: 'power3.inOut',
+          top: '0%',
+          ease: 'bezier',
         }
       );
+      popup.current.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
     }
   };
 
@@ -60,6 +61,7 @@ const Form: React.FC = () => {
       );
       setEmailValue('');
       setMessageValue('');
+      document.body.style.overflow = '';
     }
   };
 
