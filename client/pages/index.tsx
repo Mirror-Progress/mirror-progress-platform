@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import type { NextPage } from 'next';
 import { Hero, Solutions, Process, Form, Footer } from '../components';
-import { useGSAP } from '@gsap/react';
 
 const sections = ['hero', 'solutions', 'process', 'form', 'footer'];
 
 const Home: NextPage = () => {
   const [activeSection, setActiveSection] = useState<string>('hero');
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
+  const [showProgressBar, setShowProgressBar] = useState(false);
+
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const solutionsProgressRef = useRef<HTMLDivElement | null>(null);
   const processProgressRef = useRef<HTMLDivElement | null>(null);
@@ -19,25 +20,15 @@ const Home: NextPage = () => {
     sections.forEach((id) => {
       sectionRefs.current[id] = document.getElementById(id);
     });
+
+    // Delay progress bar appearance until Hero animation finishes
+    const timer = setTimeout(() => {
+      setShowProgressBar(true);
+    }, 4750); // Adjust based on Hero animation duration
+
+    return () => clearTimeout(timer);
   }, []);
 
-  /* 
-    BY PAPA:
-            here is the animation you need to implement so the progress bar will appear just after the hero animation has completely done. 
-            Put the right id with the #rightId of the progress bar container or use any other css selector correctly by removing the #. useGSAP hook is already import just remove the comment of the block and put the right selector then it should be integrated smoothly
-  */
-
-  // useGSAP(() => {
-  //   gsap.to('#id', {
-  //     opacity: 1,
-  //     delay: 5,
-  //     duration: 0.5,
-  //   });
-  // }, []);
-
-  // Intersection observer for detecting visible sections
-
-    
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -174,7 +165,13 @@ const Home: NextPage = () => {
       </section>
 
       {/* Progress Indicator */}
-      <div className="fixed z-10 md:left-[16px] md:top-[50%] gap-2 md:translate-y-[-50%] max-md:bottom-0 max-md:left-0 max-md:w-full max-md:h-[24px] flex md:flex-col max-md:flex-row justify-center items-center">
+      <div
+        className={`fixed z-10 md:left-[16px] md:top-[50%] gap-2 md:translate-y-[-50%] 
+        max-md:bottom-0 max-md:left-0 max-md:w-full max-md:h-[24px] flex md:flex-col max-md:flex-row 
+        justify-center items-center transition-all duration-500 ${
+          showProgressBar ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         {sections.map((id) => (
           <div
             key={id}
