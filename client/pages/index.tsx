@@ -186,7 +186,7 @@ const Home: NextPage = () => {
           >
             {/* Tooltip */}
             {hoveredSection === id && (
-              <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2  text-base md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-diatype rounded-lg  animate-slide-right">
+              <div className="absolute max-md:top-[-40px] font-bold max-md:transform max-md:-translate-x-1/2   text-base md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-diatype rounded-lg  animate-slide-right">
                 {id.charAt(0).toUpperCase() + id.slice(1)}
               </div>
             )}
@@ -199,7 +199,7 @@ const Home: NextPage = () => {
                   : 'bg-[#FFFFFFFF]'
               } ${
                 activeSection === id ? 'opacity-100' : 'opacity-50'
-              } md:w-[3px] md:h-[24px] max-md:w-[33px] max-md:h-[5px]`}
+              } md:w-[3px] md:h-[34px] max-md:w-[33px] max-md:h-[5px]`}
             >
               {/* Solutions Progress Bar */}
               {id === 'solutions' && (
