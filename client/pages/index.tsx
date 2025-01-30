@@ -197,7 +197,7 @@ const Home: NextPage = () => {
             >
               {/* Tooltip */}
               {hoveredSection === id && (
-                <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2 md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-dmSans text-center font-light text-[44px]  text-2xl rounded-lg opacity-0 animate-slide-right">
+                <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2  text-base md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-diatype rounded-lg opacity-0 animate-slide-right">
                   {id.charAt(0).toUpperCase() + id.slice(1)}
                 </div>
               )}
