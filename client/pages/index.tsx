@@ -2,10 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import type { NextPage } from 'next';
 import { Hero, Solutions, Process, Form, Footer } from '../components';
 
-const sections = ['hero', 'solutions', 'process', 'form', 'footer'];
-
+const sections = ['about', 'solutions', 'process', 'contact', 'summary'];
 const Home: NextPage = () => {
-  const [activeSection, setActiveSection] = useState<string>('hero');
+  const [activeSection, setActiveSection] = useState<string>('about');
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [showProgressBar, setShowProgressBar] = useState(false);
 
@@ -148,7 +147,7 @@ const Home: NextPage = () => {
   return (
     <>
       {/* Sections */}
-      <section id="hero">
+      <section id="about">
         <Hero />
       </section>
       <section id="solutions" className="relative">
@@ -157,10 +156,10 @@ const Home: NextPage = () => {
       <section id="process" className="relative">
         <Process />
       </section>
-      <section id="form">
+      <section id="contact">
         <Form />
       </section>
-      <section id="footer">
+      <section id="summary">
         <Footer />
       </section>
 
