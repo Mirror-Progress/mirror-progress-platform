@@ -2,10 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import type { NextPage } from 'next';
 import { Hero, Solutions, Process, Form, Footer } from '../components';
 
-const sections = ['hero', 'solutions', 'process', 'form', 'footer'];
-
+const sections = ['about', 'solutions', 'process', 'contact', 'summary'];
 const Home: NextPage = () => {
-  const [activeSection, setActiveSection] = useState<string>('hero');
+  const [activeSection, setActiveSection] = useState<string>('about');
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [showProgressBar, setShowProgressBar] = useState(false);
 
@@ -148,7 +147,7 @@ const Home: NextPage = () => {
   return (
     <>
       {/* Sections */}
-      <section id="hero">
+      <section id="about">
         <Hero />
       </section>
       <section id="solutions" className="relative">
@@ -157,10 +156,10 @@ const Home: NextPage = () => {
       <section id="process" className="relative">
         <Process />
       </section>
-      <section id="form">
+      <section id="contact">
         <Form />
       </section>
-      <section id="footer">
+      <section id="summary">
         <Footer />
       </section>
 
@@ -184,6 +183,12 @@ const Home: NextPage = () => {
             onMouseEnter={() => setHoveredSection(id)}
             onMouseLeave={() => setHoveredSection(null)}
           >
+            {/* Tooltip */}
+            {hoveredSection === id && (
+              <div className="absolute max-md:top-[-40px] font-bold max-md:transform max-md:-translate-x-1/2 text-base md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-diatype rounded-lg animate-slide-right">
+                {id.toUpperCase()}
+              </div>
+            )}
             <div
               className={`relative ${
                 activeSection === id
@@ -193,15 +198,8 @@ const Home: NextPage = () => {
                   : 'bg-[#FFFFFFFF]'
               } ${
                 activeSection === id ? 'opacity-100' : 'opacity-50'
-              } md:w-[3px] md:h-[24px] max-md:w-[33px] max-md:h-[5px]`}
+              } md:w-[3px] md:h-[34px] max-md:w-[33px] max-md:h-[5px]`}
             >
-              {/* Tooltip */}
-              {hoveredSection === id && (
-                <div className="absolute max-md:top-[-40px] max-md:left-1/2 max-md:transform max-md:-translate-x-1/2 md:left-full md:top-1/2 md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-dmSans text-center font-light text-[44px]  text-2xl rounded-lg opacity-0 animate-slide-right">
-                  {id.charAt(0).toUpperCase() + id.slice(1)}
-                </div>
-              )}
-
               {/* Solutions Progress Bar */}
               {id === 'solutions' && (
                 <div
