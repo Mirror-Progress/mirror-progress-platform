@@ -12,6 +12,7 @@ const SocialMedia: React.FC<SocialMediaProps> = ({ text, path, alt, href }) => {
     <div className="h-[14px] flex  items-center gap-[10px]">
       <a
         href={href}
+        target="_blank"
         className="uppercase text-[14px] font-medium font-diatype tracking-m3p"
       >
         {text}

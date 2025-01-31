@@ -73,7 +73,7 @@ const Footer: React.FC = () => {
   return (
     <footer
       id="Footer"
-      className="h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] pb-[10px] relative overflow-hidden "
+      className="min-h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] max-md:[64px] pb-[10px] relative overflow-hidden"
     >
       <div
         id="wait_footer"
@@ -88,9 +88,9 @@ const Footer: React.FC = () => {
         </div>
         <div
           id="wait_footer"
-          className="opacity-0 translate-y-8 lg:pr-[53px] h-full flex flex-col justify-between max-md:col-span-4 max-md:col-start-3"
+          className="opacity-0 translate-y-8 pr-[53px] max-md:pr-0 h-full flex flex-col gap-[64px]  max-md:col-span-4 max-md:col-start-3"
         >
-          <p className=" max-w-[545px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-light font-dmSans">
+          <p className=" max-w-[600px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-extralight font-dmSans">
             {paragraphs.footer}
           </p>
           <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">
@@ -115,28 +115,29 @@ const Footer: React.FC = () => {
               ))}
             </div>
           </div>
-          <div className="max-md:flex-1 max-md:pt-[70px]">
-            <div className="flex flex-col w-[132px] h-[171px] gap-[8px] max-md:gap-[24px]">
+          <div className="max-md:flex-1 ">
+            <div className="flex flex-col w-[132px]  gap-[16px] max-md:gap-[24px]">
               <FooterBtn text="Get in Touch" href="#Form" />
               <FooterBtn text="What We do" href="#Solutions" />
 
-              <div className="flex flex-col gap-[15px] max-md:gap-[24px] font-diatype font-medium leading-100 tracking-m3p mt-[20px] max-md:pt-[70px]">
+              <div className="flex flex-col gap-[16px] max-md:gap-[24px] font-diatype font-medium leading-100 tracking-m3p mt-[48px]">
                 <SocialMedia
                   text="Instagram"
                   path={icons.arrow.path}
                   alt={icons.arrow.name}
-                  href="nothing yet "
+                  href="https://www.instagram.com/mirror.progress/"
                 />
                 <SocialMedia
                   text="Linkedin"
                   path={icons.arrow.path}
                   alt={icons.arrow.name}
-                  href="nothing yet "
+                  href="https://www.linkedin.com/company/mirror-progress/"
                 />
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-[5px] max-md:gap-[24px] max-lg:pb-[50px] max-md:max-w-[175px]">
+
+          <div className="flex-1 flex flex-col  gap-[5px] max-md:gap-[24px]  max-md:max-w-[175px] max-md:mt-[150px] ">
             <div>
               <a
                 href="#footer"
@@ -164,7 +165,7 @@ const Footer: React.FC = () => {
                 className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack"
               >
                 {' '}
-                © 2024 Mirror Progress LLC All Rights Reserved{' '}
+                © 2025 Mirror Progress LLC All Rights Reserved{' '}
               </a>
             </div>
           </div>

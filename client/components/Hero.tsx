@@ -215,14 +215,14 @@ const Hero: React.FC = () => {
                 : ''
             }`}
           >
-            <div
+            {/* <div
               id="wait"
               className="w-[16px] h-[16px] border-[1px] border-white bg-[#022D2D] border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
             />
             <div
               id="wait"
               className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 bg-[#022D2D] absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
-            />
+            /> */}
             <div className="w-[249px] h-[249px] max-md:w-[117.4px] max-md:h-[117.45px] bg-[#023333] bg-opacity-50 rounded-[69px] max-md:rounded-[24px] flex justify-center items-center">
               <div
                 id="wait"

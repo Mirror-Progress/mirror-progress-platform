@@ -79,6 +79,7 @@ const Solutions: React.FC = () => {
               opacity: 0,
               duration: 0.5,
               ease: 'bezier',
+              delay: 1,
             });
             gsap.set(`#highlight_line_0`, {
               backgroundColor: '#126363',
@@ -146,6 +147,7 @@ const Solutions: React.FC = () => {
               opacity: 0,
               duration: 0.5,
               ease: 'bezier',
+              delay: 1,
             });
             gsap.set(`#highlight_line_1`, {
               backgroundColor: '#126363',
@@ -213,6 +215,7 @@ const Solutions: React.FC = () => {
               opacity: 0,
               duration: 0.5,
               ease: 'bezier',
+              delay: 1,
             });
             gsap.set(`#highlight_line_2`, {
               backgroundColor: '#126363',
@@ -280,6 +283,7 @@ const Solutions: React.FC = () => {
               opacity: 0,
               duration: 0.5,
               ease: 'bezier',
+              delay: 1,
             });
             gsap.set(`#highlight_line_3`, {
               backgroundColor: '#126363',
@@ -347,6 +351,7 @@ const Solutions: React.FC = () => {
               opacity: 0,
               duration: 0.5,
               ease: 'bezier',
+              delay: 1,
             });
             gsap.set(`#highlight_line_4`, {
               backgroundColor: '#126363',
@@ -424,6 +429,7 @@ const Solutions: React.FC = () => {
               opacity: 0,
               duration: 0.5,
               ease: 'bezier',
+              delay: 1,
             });
           },
         });
