@@ -10,7 +10,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     <>
       <Head>
         {/* Favicon */}
-        <link rel="icon" href="/images/mirror.svg" />
+        <link rel="icon" href="/images/icon.svg" />
 
         {/* Open Graph / Social Sharing Meta Tags */}
         <meta property="og:title" content="Mirror Progress" />
