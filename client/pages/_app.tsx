@@ -9,7 +9,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        <link rel="icon" href="/images/White.svg" />
+        <link rel="icon" href="/images/icon.svg" />
       </Head>
       <Layout>
         <Component {...pageProps} />
