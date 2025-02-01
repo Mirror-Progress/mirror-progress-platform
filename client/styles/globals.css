@@ -60,3 +60,37 @@ html {
   height: 0;
   transition: height 0.25s ease-out;
 }
+.hover-effect {
+  cursor: pointer;
+}
+
+.hover-effect:hover {
+  text-decoration: underline;
+}
+
+.hover-effect:active {
+  color: gray;
+}
+.hover-effect-get-in-touch {
+  cursor: pointer;
+}
+
+.hover-effect-get-in-touch:hover {
+  background-color: #011111;
+}
+
+.hover-effect-get-in-touch:active {
+  color: gray;
+}
+.hover-effect-send {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.hover-effect-send:hover {
+  transform: scale(1.1); /* Slightly increase the size */
+}
+
+.hover-effect-send:active {
+  color: gray;
+}

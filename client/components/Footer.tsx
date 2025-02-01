@@ -141,7 +141,7 @@ const Footer: React.FC = () => {
             <div>
               <a
                 href="#footer"
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack cursor-pointer"
+                className="hover-effect text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack cursor-pointer"
                 onClick={() => {
                   show(termsRef);
                 }}
@@ -152,7 +152,7 @@ const Footer: React.FC = () => {
             </div>
             <div>
               <a
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] cursor-pointer"
+                className="hover-effect text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] cursor-pointer"
                 onClick={() => show(policyRef)}
               >
                 {' '}
