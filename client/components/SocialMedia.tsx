@@ -9,7 +9,7 @@ interface SocialMediaProps {
 
 const SocialMedia: React.FC<SocialMediaProps> = ({ text, path, alt, href }) => {
   return (
-    <div className="h-[14px] flex  items-center gap-[10px]">
+    <div className="hover-effect h-[14px] flex  items-center gap-[10px]">
       <a
         href={href}
         target="_blank"

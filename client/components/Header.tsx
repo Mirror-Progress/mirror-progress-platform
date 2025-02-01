@@ -28,7 +28,6 @@ const Header: React.FC = () => {
     });
   }, []);
 
-
   return (
     <header
       id="header"
@@ -45,7 +44,7 @@ const Header: React.FC = () => {
         <div>
           <a
             ref={linkSolRef}
-            className="font-dmSans max-md:hidden hover:cursor-pointer"
+            className="hover-effect font-dmSans max-md:hidden hover:cursor-pointer"
             href="#Solutions"
           >
             {' '}
@@ -54,7 +53,7 @@ const Header: React.FC = () => {
         </div>
         <a
           ref={linkFormRef}
-          className="inline-block hover:cursor-pointer text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
+          className="hover-effect-get-in-touch inline-block hover:cursor-pointer text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
           href="#Form"
         >
           {' '}
