@@ -40,7 +40,7 @@ const Hero: React.FC = () => {
 
       // A recursive function that sets up a random tween, then repeats
       const drift = () => {
-        const randomX = gsap.utils.random(-30, 30); 
+        const randomX = gsap.utils.random(-30, 30);
         const randomY = gsap.utils.random(-30, 30);
 
         gsap.to(el, {
@@ -108,7 +108,7 @@ const Hero: React.FC = () => {
       gsap
         .timeline()
         .to('#leftImg', {
-          top: '50%',
+          top: '45%',
           duration: 1,
           ease: 'bezier',
         })
@@ -126,7 +126,7 @@ const Hero: React.FC = () => {
       gsap
         .timeline()
         .to('#rightImg', {
-          top: '50%',
+          top: '45%',
           duration: 1,
           ease: 'bezier',
         })
@@ -203,16 +203,16 @@ const Hero: React.FC = () => {
               s.id === 0
                 ? 'bottom-[90px] max-md:bottom-[47px] right-[50px] max-md:right-[40px]'
                 : s.id === 1
-                ? 'bottom-[-50px] max-md:bottom-[190px] right-[358px]  max-md:right-[231px]'
-                : s.id === 2
-                ? 'top-[-50px] max-md:top-[102px] left-[350px] max-md:left-[70px]'
-                : s.id === 3
-                ? 'top-[20px] max-md:top-[282px] right-[250px] max-md:right-[304px]'
-                : s.id === 4
-                ? 'top-[157px] max-md:top-[209px] left-[30px] max-md:left-[238px]'
-                : s.id === 5
-                ? 'bottom-[15px] max-md:bottom-[264px] left-[295px] max-md:left-[280px]'
-                : ''
+                  ? 'bottom-[-50px] max-md:bottom-[190px] right-[358px]  max-md:right-[231px]'
+                  : s.id === 2
+                    ? 'top-[-50px] max-md:top-[102px] left-[350px] max-md:left-[70px]'
+                    : s.id === 3
+                      ? 'top-[20px] max-md:top-[282px] right-[250px] max-md:right-[304px]'
+                      : s.id === 4
+                        ? 'top-[157px] max-md:top-[209px] left-[30px] max-md:left-[238px]'
+                        : s.id === 5
+                          ? 'bottom-[15px] max-md:bottom-[264px] left-[295px] max-md:left-[280px]'
+                          : ''
             }`}
           >
             {/* <div
@@ -247,7 +247,10 @@ const Hero: React.FC = () => {
         id="left"
         className="h-full w-1/2 absolute top-0 left-0 bg-[#1D2222] z-[4]"
       >
-        <div id="leftImg" className="absolute w-full top-[100%] flex justify-end">
+        <div
+          id="leftImg"
+          className="absolute w-full top-[100%] flex justify-end"
+        >
           <img
             src={heroMP.mirror.path}
             alt={heroMP.mirror.alt}
