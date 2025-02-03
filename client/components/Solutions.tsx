@@ -16,7 +16,7 @@ const Solutions: React.FC = () => {
             trigger: `#Solutions`,
             start: 'top top',
             end: '+=5000',
-            scrub: 8,
+            scrub: 5,
             pin: true,
             toggleActions: 'play none none reverse',
             snap: {
@@ -440,9 +440,9 @@ const Solutions: React.FC = () => {
             trigger: `#Solutions`,
             start: 'top top',
             end: '+=5000',
-            scrub: 8,
+            scrub: 2,
             pin: true,
-            toggleActions: 'play none none reverse',
+            toggleActions: 'play none none none',
             snap: {
               snapTo: (progress) => Math.round(progress * 5) / 5,
               duration: 0.5,
