@@ -73,7 +73,7 @@ const Footer: React.FC = () => {
   return (
     <footer
       id="Footer"
-      className="min-h-screen max-w-[100%] basic-pd bg-footer-gradient pt-[20px] max-md:[64px] pb-[10px] relative overflow-hidden"
+      className="h-screen max-w-[100%] basic-pd bg-footer-gradient max-md:[64px] pb-[10px] relative "
     >
       <div
         id="wait_footer"
@@ -88,56 +88,58 @@ const Footer: React.FC = () => {
         </div>
         <div
           id="wait_footer"
-          className="opacity-0 translate-y-8 pr-[53px] max-md:pr-0 h-full flex flex-col gap-[64px]  max-md:col-span-4 max-md:col-start-3"
+          className="opacity-0 translate-y-8 pr-[53px] max-md:pr-0 h-full flex flex-col justify-between  max-md:col-span-4 max-md:col-start-3"
         >
-          <p className=" max-w-[600px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-extralight font-dmSans">
-            {paragraphs.footer}
-          </p>
-          <div className="bg-black bg-opacity-15 rounded-[19.51px] my-[15px] max-md:hidden">
-            <div className=" grid grid-cols-6 grid-rows-1  gap-x-[7px] ">
-              {solutionSlides.map((s, i) => (
-                <div
-                  className=" bg-black bg-opacity-15 rounded-[19.51px]"
-                  key={s.id}
-                >
-                  <video
-                    className="pointer-events-none w-full h-full"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline={true}
-                    key={s.title}
-                    onLoadedMetadata={(e) => handleLoadedData(e)}
+          <div className=" flex flex-col gap-[64px] lg:gap-[20px] xl:gap-[64px] ">
+            <p className=" max-w-[600px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-extralight font-dmSans">
+              {paragraphs.footer}
+            </p>
+            <div className="my-[15px] max-md:hidden">
+              <div className=" flex gap-[7px] ">
+                {solutionSlides.map((s, i) => (
+                  <div
+                    className="bg-[#00000026] rounded-[19.51px] w-[106.12px] h-[105.02px] flex flex-col justify-center items-center"
+                    key={s.id}
                   >
-                    <source src={s.video.path} type="video/mp4" />
-                  </video>
-                </div>
-              ))}
+                    <video
+                      className=" pointer-events-none bg-transparent max-w-[80%]"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline={true}
+                      key={s.title}
+                      onLoadedMetadata={(e) => handleLoadedData(e)}
+                    >
+                      <source src={s.video.path} type="video/mp4" />
+                    </video>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="max-md:flex-1 ">
-            <div className="flex flex-col w-[132px]  gap-[16px] max-md:gap-[24px]">
-              <FooterBtn text="Get in Touch" href="#Form" />
-              <FooterBtn text="What We do" href="#Solutions" />
+            <div className="max-md:flex-1 ">
+              <div className="flex flex-col w-[132px]  gap-[16px] lg:gap-[8px] xl:gap-[16px] max-md:gap-[24px]">
+                <FooterBtn text="Get in Touch" href="#Form" />
+                <FooterBtn text="What We do" href="#Solutions" />
 
-              <div className="flex flex-col gap-[16px] max-md:gap-[24px] font-diatype font-medium leading-100 tracking-m3p mt-[48px]">
-                <SocialMedia
-                  text="Instagram"
-                  path={icons.arrow.path}
-                  alt={icons.arrow.name}
-                  href="https://www.instagram.com/mirror.progress/"
-                />
-                <SocialMedia
-                  text="Linkedin"
-                  path={icons.arrow.path}
-                  alt={icons.arrow.name}
-                  href="https://www.linkedin.com/company/mirror-progress/"
-                />
+                <div className="flex flex-col gap-[16px] lg:gap-[16px] xl:gap-[16px] max-md:gap-[24px] font-diatype font-medium leading-100 tracking-m3p mt-[48px] lg:mt-[16px] xl:mt-[48px]">
+                  <SocialMedia
+                    text="Instagram"
+                    path={icons.arrow.path}
+                    alt={icons.arrow.name}
+                    href="https://www.instagram.com/mirror.progress/"
+                  />
+                  <SocialMedia
+                    text="Linkedin"
+                    path={icons.arrow.path}
+                    alt={icons.arrow.name}
+                    href="https://www.linkedin.com/company/mirror-progress/"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col  gap-[5px] max-md:gap-[24px]  max-md:max-w-[175px] max-md:mt-[150px] ">
+          <div className=" flex flex-col  gap-[5px] max-md:gap-[24px]  max-md:max-w-[175px]  ">
             <div>
               <a
                 href="#footer"
