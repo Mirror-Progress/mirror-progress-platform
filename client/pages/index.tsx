@@ -1,240 +1,143 @@
-import React, { useEffect, useState, useRef } from 'react';
+// pages/index.tsx
+import { useEffect, useRef, useState } from 'react';
 import type { NextPage } from 'next';
-import { Hero, Solutions, Process, Form, Footer } from '../components';
 
-const sections = ['about', 'solutions', 'process', 'contact', 'summary'];
-const Home: NextPage = () => {
-  const [activeSection, setActiveSection] = useState<string>('about');
-  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
-  const [showProgressBar, setShowProgressBar] = useState(false);
+import Hero from '../components/Hero';
+import Solutions from '../components/Solutions';
+import Work from '../components/Work';
+import Process from '../components/Process';
+import Form from '../components/Form';
+import Footer from '../components/Footer';
 
-  const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
-  const solutionsProgressRef = useRef<HTMLDivElement | null>(null);
-  const processProgressRef = useRef<HTMLDivElement | null>(null);
+/* ------------------------------------------------------------------ */
+/* 1 ▸ Config                                                         */
+/* ------------------------------------------------------------------ */
+const SHOW = { solutions: false, work: false, process: false };
+const EXTRA  = SHOW.solutions || SHOW.work || SHOW.process;
 
-  // Ref to track animation frames for the Process section
-  const processScrollRange = useRef<number>(0);
+/** 🔧 ONLY KNOB — compact-mode vertical gap (px) beneath Hero. */
+const GAP = 142;          // ← set to 4, 8, 16, … if you ever want _some_ space
 
+const SECTIONS = [
+  'about',
+  ...(SHOW.solutions ? ['solutions'] : []),
+  ...(SHOW.work ? ['work'] : []),
+  ...(SHOW.process ? ['process'] : []),
+  'contact',
+  'summary',
+];
+
+/* ------------------------------------------------------------------ */
+/* 2 ▸ Hooks                                                          */
+/* ------------------------------------------------------------------ */
+function useSectionRefs(ids: string[]) {
+  const refs = useRef<Record<string, HTMLElement | null>>({});
   useEffect(() => {
-    sections.forEach((id) => {
-      sectionRefs.current[id] = document.getElementById(id);
-    });
+    ids.forEach(id => (refs.current[id] = document.getElementById(id)));
+  }, [ids]);
+  return refs;
+}
 
-    // Delay progress bar appearance until Hero animation finishes
-    const timer = setTimeout(() => {
-      setShowProgressBar(true);
-    }, 4750); // Adjust based on Hero animation duration
-
-    return () => clearTimeout(timer);
-  }, []);
-
+function useActive(
+  refs: React.MutableRefObject<Record<string, HTMLElement | null>>,
+  compact: boolean,
+) {
+  const [active, setActive] = useState('about');
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
-        });
-      },
-      {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.4,
-      }
+    const obs = new IntersectionObserver(
+      es => es.forEach(e => e.isIntersecting && setActive(e.target.id)),
+      compact
+        ? { threshold: 0, rootMargin: '-75% 0px -15% 0px' }
+        : { threshold: 0, rootMargin: '-30% 0px -60% 0px' },
     );
+    Object.values(refs.current).forEach(el => el && obs.observe(el));
+    return () => obs.disconnect();
+  }, [refs, compact]);
+  return active;
+}
 
-    Object.values(sectionRefs.current).forEach((section) => {
-      if (section) observer.observe(section);
-    });
+/* ------------------------------------------------------------------ */
+/* 3 ▸ Page                                                           */
+/* ------------------------------------------------------------------ */
+const Home: NextPage = () => {
+  const refs   = useSectionRefs(SECTIONS);
+  const active = useActive(refs, !EXTRA);
 
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
+  const [hover,   setHover]   = useState<string | null>(null);
+  const [showNav, setShowNav] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setShowNav(true), 4500); return () => clearTimeout(t); }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      sections.forEach((id) => {
-        const section = sectionRefs.current[id];
-        if (section) {
-          const rect = section.getBoundingClientRect();
-          if (
-            rect.top < window.innerHeight * 0.6 &&
-            rect.bottom > window.innerHeight * 0.4
-          ) {
-            setActiveSection(id);
-          }
-        }
-      });
-
-      // Solutions Progress Bar
-      const solutionsSection = sectionRefs.current['solutions'];
-      if (solutionsSection && solutionsProgressRef.current) {
-        const rect = solutionsSection.getBoundingClientRect();
-        const progress = Math.min(
-          Math.max((window.innerHeight - rect.top) / rect.height, 0),
-          1
-        );
-
-        if (window.innerWidth <= 768) {
-          solutionsProgressRef.current.style.width =
-            progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
-          solutionsProgressRef.current.style.height = '100%';
-        } else {
-          solutionsProgressRef.current.style.height =
-            progress > 0 && progress < 1 ? `${progress * 100}%` : '0%';
-          solutionsProgressRef.current.style.width = '100%';
-        }
-
-        if (progress > 0 && progress < 1) {
-          setActiveSection('solutions');
-        }
-      }
-
-      // Process Progress Bar
-      const processSection = sectionRefs.current['process'];
-      if (processSection && processProgressRef.current) {
-        const rect = processSection.getBoundingClientRect();
-
-        // Calculate the total scrollable height for the Process section
-        if (processScrollRange.current === 0) {
-          processScrollRange.current = rect.height + window.innerHeight;
-        }
-
-        // Calculate scroll progress for the Process section
-        const scrollProgress = Math.min(
-          Math.max(
-            (window.innerHeight - rect.top) / processScrollRange.current,
-            0
-          ),
-          1
-        );
-
-        if (window.innerWidth <= 768) {
-          processProgressRef.current.style.width =
-            scrollProgress > 0 && scrollProgress < 1
-              ? `${scrollProgress * 100}%`
-              : '0%';
-          processProgressRef.current.style.height = '100%';
-        } else {
-          processProgressRef.current.style.height =
-            scrollProgress > 0 && scrollProgress < 1
-              ? `${scrollProgress * 100}%`
-              : '0%';
-          processProgressRef.current.style.width = '100%';
-        }
-
-        if (scrollProgress > 0 && scrollProgress < 1) {
-          setActiveSection('process');
-        }
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  const handleProgressClick = (id: string) => {
-    const section = sectionRefs.current[id];
-    if (section) {
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  /* ---------- Tailwind outer spacing ---------- */
+  const heroCls    = EXTRA ? 'mb-12' : 'mb-0';
+  const contactCls = EXTRA ? 'mt-12' : 'mt-0 pt-0';
 
   return (
     <>
-      {/* Sections */}
-      <section id="about">
+      {/* --- Hero --- */}
+      <section id="about" className={heroCls}>
         <Hero />
       </section>
-      <section id="solutions" className="relative">
-        <Solutions />
-      </section>
-      <section id="process" className="relative">
-        <Process />
-      </section>
-      <section id="contact">
+
+      {/* --- Optional middle sections --- */}
+      {SHOW.solutions && <section id="solutions"><Solutions /></section>}
+      {SHOW.work      && <section id="work"><Work /></section>}
+      {SHOW.process   && <section id="process"><Process /></section>}
+
+      {/* --- Contact & footer --- */}
+      <section id="contact" className={contactCls}>
         <Form />
       </section>
-      <section id="summary">
-        <Footer />
-      </section>
+      <section id="summary"><Footer /></section>
 
-      {/* Progress Indicator */}
-      <div
-        className={`fixed z-10 md:left-[16px] md:top-[50%] gap-2 md:translate-y-[-50%] 
-        max-md:bottom-0 max-md:left-0 max-md:w-full max-md:h-[24px] flex md:flex-col max-md:flex-row 
-        justify-center items-center transition-all duration-500 ${
-          showProgressBar ? 'opacity-100' : 'opacity-0'
-        }`}
+      {/* --- Progress nav (unchanged) --- */}
+      <nav
+        className={`fixed z-10 flex gap-2 transition-opacity duration-500
+          md:left-4 md:top-1/2 md:-translate-y-1/2 md:flex-col
+          max-md:left-0 max-md:bottom-0 max-md:w-full max-md:h-6
+          ${showNav ? 'opacity-100' : 'opacity-0'}`}
       >
-        {sections.map((id) => (
+        {SECTIONS.map(id => (
           <div
             key={id}
             className="relative cursor-pointer"
-            style={{
-              padding: '16px', // Expand the hover area by 8px on all sides
-              margin: '-16px', // Compensate for the padding to keep the layout intact
-            }}
-            onClick={() => handleProgressClick(id)}
-            onMouseEnter={() => setHoveredSection(id)}
-            onMouseLeave={() => setHoveredSection(null)}
+            style={{ padding: 16, margin: -16 }}
+            onClick={() => refs.current[id]?.scrollIntoView({ behavior: 'smooth' })}
+            onMouseEnter={() => setHover(id)}
+            onMouseLeave={() => setHover(null)}
           >
-            {/* Tooltip */}
-            {hoveredSection === id && (
-              <div className="absolute max-md:top-[-40px] font-bold max-md:transform max-md:-translate-x-1/2 text-base md:-translate-y-1/2 ml-2 px-2 py-1 text-white font-diatype rounded-lg animate-slide-right">
+            {hover === id && (
+              <span className="absolute -translate-y-6 whitespace-nowrap rounded bg-black/80 px-2 py-1 text-xs text-white">
                 {id.toUpperCase()}
-              </div>
+              </span>
             )}
             <div
-              className={`relative ${
-                activeSection === id
-                  ? id === 'solutions' || id === 'process'
-                    ? 'bg-gray-500'
-                    : 'bg-white'
-                  : 'bg-[#FFFFFFFF]'
-              } ${
-                activeSection === id ? 'opacity-100' : 'opacity-50'
-              } md:w-[3px] md:h-[34px] max-md:w-[33px] max-md:h-[5px]`}
-            >
-              {/* Solutions Progress Bar */}
-              {id === 'solutions' && (
-                <div
-                  ref={solutionsProgressRef}
-                  className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
-                ></div>
-              )}
-
-              {/* Process Progress Bar */}
-              {id === 'process' && (
-                <div
-                  ref={processProgressRef}
-                  className="absolute top-0 left-0 md:w-full md:h-[100%] max-md:h-full max-md:w-[0%] bg-white transition-all duration-250 ease-out"
-                ></div>
-              )}
-            </div>
+              className={`relative rounded md:h-8 md:w-1 max-md:h-1 max-md:w-8 ${
+                active === id ? 'bg-white' : 'bg-white/40'
+              }`}
+            />
           </div>
         ))}
-      </div>
+      </nav>
 
-      <style jsx>{`
-        @keyframes slide-right {
-          0% {
-            transform: translateX(-10px);
-            opacity: 0;
+      {/* ------------------------------------------------------------------
+         Compact-mode overrides: trim Hero, zero out inner gap
+         ------------------------------------------------------------------ */}
+      {!EXTRA && (
+        <style jsx global>{`
+          #about,
+          #about > * {
+            border-bottom: none !important;
+            min-height: 55vh !important;
+            padding-bottom: 0 !important;
+            margin-bottom: ${GAP}px !important;  /* ← the only gap now */
           }
-          100% {
-            transform: translateX(0);
-            opacity: 1;
+          #contact,
+          #contact > * {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
           }
-        }
-        .animate-slide-right {
-          animation: slide-right 0.3s ease-out forwards;
-        }
-      `}</style>
+        `}</style>
+      )}
     </>
   );
 };

@@ -49,7 +49,7 @@ export const offices = [
 export const solutionSlides = [
   {
     id: 0,
-    title: 'Energy Transformation',
+    title: 'AI Systems Architecture & Deployment',
     image: {
       path: '/images/Energy_Transformation.svg',
     },
@@ -57,11 +57,11 @@ export const solutionSlides = [
       path: '/videos/Energy_Transformation.mp4',
     },
     // path: '/images/solution1.mp4',
-    text: 'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+    text: 'We design, build, and deploy full-stack AI infrastructure for real-world applications—LLM pipelines, intelligent automation, and scalable model systems tailored to enterprise needs.',
   },
   {
     id: 1,
-    title: 'Data & AI Solutions',
+    title: 'AI Strategy & Technical Advisory',
     image: {
       path: '/images/AI_Solutions.svg',
     },
@@ -69,22 +69,22 @@ export const solutionSlides = [
       path: '/videos/Data_and_AI_Solutions.mp4',
     },
     // path: '/videos/solution1.mp4',
-    text: 'We harness the power of data and advanced AI technologies to drive intelligent decision-making and automation, transforming raw data into actionable insights. Our tailored solutions empower businesses to optimize operations, enhance customer experiences, and gain a competitive edge in an increasingly data-driven landscape.',
+    text: 'Strategic guidance rooted in engineering. We help organizations identify high-leverage AI opportunities and create executable roadmaps, grounded in technical feasibility and business outcomes.',
   },
   {
     id: 2,
-    title: 'Design Engineering',
+    title: 'Custom Software Engineering',
     image: {
       path: '/images/Design_Engineering.svg',
     },
     video: {
       path: '/videos/Design_Engineering.mp4',
     },
-    text: 'Our team delivers precision-engineered solutions tailored to meet your unique needs, combining innovation with technical rigor across all stages of product and system development. From concept to execution, we ensure functionality, reliability, and performance in every design.',
+    text: 'Full-cycle software development with a deep systems mindset. We build intelligent tools, scientific platforms, and enterprise-grade applications that fuse performance, scalability, and extensibility.',
   },
   {
     id: 3,
-    title: 'Design & Experiences',
+    title: 'Applied Research & R&D as a Service',
     image: {
       path: '/images/Design_&_Experiences.svg',
     },
@@ -92,29 +92,29 @@ export const solutionSlides = [
       path: '/videos/Design&Experiences.mp4',
     },
     // path: '/videos/solution1.mp4',
-    text: "We craft engaging, innovative designs and user experiences that elevate brand interaction, ensuring a seamless alignment between aesthetics and functionality. By combining strategic thinking with creative execution, we bring your brand's vision to life in ways that captivate and convert audiences.",
+    text: "We turn abstract scientific and technical challenges into prototypes, proof-of-concepts, or white-labeled platforms—combining research depth with real-world implementation focus.",
   },
   {
     id: 4,
-    title: 'Smart Infrastructure',
+    title: 'Intelligent Infrastructure Integration',
     image: {
       path: '/images/Smart_Infrastructure.svg',
     },
     video: {
       path: '/videos/Smart_Infastructure.mp4',
     },
-    text: 'We help build future-ready infrastructure by integrating smart technology and data-driven insights, creating efficient, adaptable, and connected environments. Our approach to smart infrastructure drives operational excellence and enhances the quality of life in urban and industrial spaces alike.',
+    text: 'We modernize and embed intelligence into physical systems—across energy, construction, logistics, and beyond. From edge data processing to industrial automation, we architect smart operational systems.',
   },
   {
     id: 5,
-    title: 'Sustainable Futures',
+    title: 'Co-Development',
     image: {
       path: '/images/Sustainable_Futures.svg',
     },
     video: {
       path: '/videos/Sustainable_Futures.mp4',
     },
-    text: 'We guide organizations in building sustainable strategies that drive environmental, social, and economic impact, ensuring long-term resilience and regulatory compliance. Our solutions integrate sustainability into the core of your business to help you thrive in a rapidly changing world.',
+    text: 'Deep collaborative engagements with clients to build next-gen systems together. We integrate directly with teams, co-owning execution across engineering, research, and design.',
   },
 ];
 
