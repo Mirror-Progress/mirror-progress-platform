@@ -4,6 +4,13 @@ import '../styles/globals.css';
 import type { AppProps } from 'next/app';
 import Layout from '../components/Layout';
 import Head from 'next/head';
+import { AuthProvider } from '../hooks/useAuth';
+import AuthDialog from '../components/AuthDialog';
+import Script from 'next/script';
+import {
+  getThemeInitializationScript,
+  ThemeProvider,
+} from '../hooks/useTheme';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -33,9 +40,17 @@ function MyApp({ Component, pageProps }: AppProps) {
         />
         <meta name="twitter:image" content="/images/graphimage.png" />
       </Head>
-      <Layout>
-        <Component {...pageProps} />
-      </Layout>
+      <Script id="mirror-progress-theme-init" strategy="beforeInteractive">
+        {getThemeInitializationScript()}
+      </Script>
+      <ThemeProvider>
+        <AuthProvider>
+          <Layout>
+            <Component {...pageProps} />
+          </Layout>
+          <AuthDialog />
+        </AuthProvider>
+      </ThemeProvider>
     </>
   );
 }

@@ -190,14 +190,14 @@ const Form: React.FC = () => {
   return (
     <section
       id="Form"
-      className="min-h-screen w-full basic-pd mt-[100vh] max-md:mt-[100vh] max-md:mb-0  lg:py-[120px] mx-lg:py-[88px]"
+      className="theme-page min-h-screen w-full basic-pd max-md:mb-0 lg:pt-[40px] lg:pb-[120px] max-md:pt-[16px] max-md:pb-[88px]"
       ref={sectionRef}
     >
       <div className="h-full w-full relative flex justify-center items-center ">
         <form action="" className="w-full" onSubmit={(e) => handleForm(e)}>
           <h1
             id="waitForm"
-            className="opacity-0 translate-y-12 text-center mx-auto text-[40px] font-dmSans"
+            className="mx-auto translate-y-12 text-center font-dmSans text-[40px] opacity-0 text-[color:var(--theme-brand-ink)]"
           >
             Get in Touch
           </h1>
@@ -210,7 +210,7 @@ const Form: React.FC = () => {
               type="email"
               placeholder="Your email"
               name="mail"
-              className="input text-center lg:w-[463px] max-lg:w-[50%] max-md:w-[100%] h-[57px] mt-[15px] rounded-[24px] text-white leading-110"
+              className="input theme-input-field mt-[15px] h-[57px] rounded-[24px] text-center leading-110 lg:w-[463px] max-lg:w-[50%] max-md:w-[100%]"
               value={emailValue}
               onChange={(ev) => handleEmailChange(ev.target.value)}
             />
@@ -231,7 +231,7 @@ const Form: React.FC = () => {
                 ref={message}
                 placeholder="Write your message here..."
                 name="mail"
-                className={`input w-full rounded-[24px] text-white ${
+                className={`input theme-input-field w-full rounded-[24px] ${
                   messageValue === '' ? 'text-center' : ''
                 } font-medium px-[134px] max-md:px-[30px] resize-none`}
                 style={{
@@ -243,16 +243,16 @@ const Form: React.FC = () => {
                 onChange={(ev) => handleMessageChange(ev)}
                 onInput={(ev) => handleInput(ev)}
               />
-              <p className="text-[#FFFFFF4D] text-end font-diatype font-normal tracking-m3p leading-normal absolute right-[12px] bottom-[12px]">
+              <p className="theme-page-subtle absolute bottom-[12px] right-[12px] text-end font-diatype font-normal leading-normal tracking-m3p">
                 {`${countWords(messageValue)}/500`}
               </p>
             </div>
           </div>
           <div id="waitForm" className="w-full opacity-0 translate-y-12">
-            <div className="uppercase w-full mx-auto text-center text-[14px] font-normal text-white my-[16px] font-diatype leading-normal tracking-m3p">
+            <div className="mx-auto my-[16px] w-full text-center font-diatype text-[14px] font-normal uppercase leading-normal tracking-m3p text-[color:var(--theme-brand-ink)]">
               Choose an office
             </div>
-            <div className="relative lg:w-[846px] max-lg:w-[95%] max-md:w-[100%] lg:h-[66px] rounded-[24px] bg-[#284C4C87] mx-auto flex max-md:flex-col">
+            <div className="theme-input-field relative mx-auto flex rounded-[24px] lg:h-[66px] lg:w-[846px] max-lg:w-[95%] max-md:w-[100%] max-md:flex-col">
               {offices.map((o) => (
                 <Office
                   ref={o.id === 0 ? office0 : o.id === 1 ? office1 : office2}
@@ -264,26 +264,26 @@ const Form: React.FC = () => {
               ))}
               <div
                 id="bgOff"
-                className={`bg-[#FFFFFF0D] absolute z-[-1] lg:w-[282px] lg:h-full px-[44px] py-[28px] flex-1 rounded-[24px] max-lg:w-full h-1/3`}
+                className={`absolute z-[-1] h-1/3 flex-1 rounded-[24px] bg-[color:var(--theme-card-bg)] px-[44px] py-[28px] lg:h-full lg:w-[282px] max-lg:w-full`}
               ></div>
             </div>
 
             <button
               ref={buttonForm}
               type="submit"
-              className={`block mx-auto my-[26px] w-[132px] h-[36px] rounded-[24px] text-[14px] font-normal border-[1px] border-white border-opacity-10 font-inter max-md:w-full max-md:h-[64px] ${
+              className={`block mx-auto my-[26px] h-[36px] w-[132px] rounded-[24px] border-[1px] font-inter text-[14px] font-normal max-md:h-[64px] max-md:w-full ${
                 isValidEmail(emailValue) === true && messageValue !== ''
-                  ? 'text-primary bg-white hover:cursor-pointer'
-                  : 'text-secondaryGrey bg-white bg-opacity-15 max-md:bg-[#616161] max-md:text-[#1D2222]'
+                  ? 'theme-primary-button hover:cursor-pointer'
+                  : 'theme-secondary-button opacity-60 max-md:opacity-70'
               } hover-effect-send`}
             >
               Send
             </button>
-            <p className="uppercase lg:max-w-[365px] max-md:max-w-[355px] mx-auto text-center text-[10px] font-medium text-secondaryGrey font-diatype tracking-m3p leading-100">
+            <p className="mx-auto text-center font-diatype text-[10px] font-medium uppercase leading-100 tracking-m3p text-[color:var(--theme-brand-ink)] opacity-72 lg:max-w-[365px] max-md:max-w-[355px]">
               By providing your email address, you consent to OUR{' '}
               <a
                 href="#Form"
-                className="text-white cursor-pointer"
+                className="theme-link cursor-pointer"
                 onClick={() => show(policyRef)}
               >
                 PRIVACY POLICY
@@ -297,7 +297,7 @@ const Form: React.FC = () => {
         <div
           id="popup"
           ref={popup}
-          className="absolute hidden top-[100%] h-[90%] w-[564px] max-md:w-[90%] bg-black bg-opacity-30 mx-auto flex-col items-center justify-center backdrop-blur-lg rounded-[80px]"
+          className="theme-panel absolute hidden top-[100%] mx-auto h-[90%] w-[564px] flex-col items-center justify-center rounded-[80px] max-md:w-[90%]"
         >
           <div className="w-[340px] mb-[84px]">
             <h2 className="font-dmSans text-[80px] max-md:text-[60px] leading-100 tracking-m3p font-light text-center">
@@ -309,7 +309,7 @@ const Form: React.FC = () => {
           </div>
           <div>
             <button
-              className={`rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20`}
+              className="theme-secondary-button rounded-[24px] px-[24px] py-[8px] font-inter text-[14px] font-normal leading-140"
               onClick={() => hidePopup()}
             >
               Close

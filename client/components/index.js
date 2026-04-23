@@ -2,7 +2,7 @@
 
 import Header from './Header';
 import Hero from './Hero';
-import Solutions from './Solutions';
+import Capabilities from './Capabilities';
 import Process from './Process';
 import Form from './Form';
 import Footer from './Footer';
@@ -12,11 +12,12 @@ import Office from './Office';
 import Privacy from './Privacy';
 import Terms from './Terms';
 import Work from './Work'; // ✅ this is critical!
+import AccountMenu from './AccountMenu';
 
 export {
   Header,
   Hero,
-  Solutions,
+  Capabilities,
   Process,
   Work,       // ✅ this enables `import { Work } from '../components'`
   Form,
@@ -26,5 +27,5 @@ export {
   Office,
   Privacy,
   Terms,
+  AccountMenu,
 };
-

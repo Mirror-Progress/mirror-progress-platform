@@ -1,24 +1,16 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { icons } from '../constants';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/all';
+import AccountMenu from './AccountMenu';
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '../hooks/useTheme';
+
 gsap.registerPlugin(ScrollTrigger);
 
 const Header: React.FC = () => {
-  /* State and Refs */
-  const linkSolRef = useRef<HTMLAnchorElement>(null);
-  const linkFormRef = useRef<HTMLAnchorElement>(null);
-
-  /* Functionnality */
-  // const navigateTo = (e:React.MouseEvent<HTMLElement>, section: string) => {
-  //   switch (section) {
-  //     case 'form':
-  //       ScrollTrigger.getAll().forEach((trigger) => trigger.disable());
-  //       e.target.href = "#Form"
-  //       break;
-  //   }
-  // };
+  const { theme } = useTheme();
 
   useGSAP(() => {
     gsap.to('#header', {
@@ -35,26 +27,26 @@ const Header: React.FC = () => {
     >
       <a href="/">
         <img
-          src={icons.white.path}
-          alt={icons.white.name}
+          src={theme === 'light' ? icons.black.path : icons.white.path}
+          alt={theme === 'light' ? icons.black.name : icons.white.name}
           className="h-[26.93px] max-md:h-[22.4px] w-[28.85px] max-md:w-[24px]"
         />
       </a>
-      <nav className="flex items-center gap-[32px]">
+      <nav className="flex items-center gap-[14px] max-md:gap-[10px]">
         <div>
           <a
-            ref={linkSolRef}
-            className="hover-effect font-dmSans max-md:hidden hover:cursor-pointer"
-            href="#Solutions"
+            className="hover-effect theme-link font-dmSans max-md:hidden hover:cursor-pointer"
+            href="#capabilities"
           >
             {' '}
             What We do{' '}
           </a>
         </div>
+        <ThemeToggle className="max-md:hidden" />
+        <AccountMenu className="max-md:order-2" />
         <a
-          ref={linkFormRef}
-          className="hover-effect-get-in-touch inline-block hover:cursor-pointer text-center px-[24px] py-[8px] bg-[#000000] bg-opacity-20 rounded-[24px] text-[14px] font-normal capitalize border-[1px] border-[#FFFFFF] border-opacity-20 font-inter "
-          href="#Form"
+          className="theme-secondary-button hover-effect-get-in-touch inline-block hover:cursor-pointer rounded-[24px] px-[24px] py-[8px] text-center font-inter text-[14px] font-normal capitalize"
+          href="#contact"
         >
           {' '}
           Get In Touch

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { heroMP, paragraphs, solutionSlides } from '../constants';
+import { heroDecorativeMarkers, heroMP, paragraphs } from '../constants';
 import { Header } from './';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -7,7 +7,11 @@ import { CustomEase, ScrollTrigger } from 'gsap/all';
 
 gsap.registerPlugin(CustomEase, ScrollTrigger);
 
-const Hero: React.FC = () => {
+interface HeroProps {
+  onIntroComplete?: () => void;
+}
+
+const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
   /* Manages whether hero animation is done */
   const [endHeroAnimation, setEndHeroAnimation] = useState(false);
 
@@ -24,21 +28,13 @@ const Hero: React.FC = () => {
 
   /**
    * Random drift function:
-   * - Repeatedly tween each solution to a random (x,y)
+   * - Repeatedly tween each decorative marker to a random (x,y)
    * - On complete, pick a new random spot, etc.
    */
   const startRandomDrift = () => {
-    // For each solution element, define a function that keeps chaining tweens
-    const solEls = document.querySelectorAll<HTMLElement>('[id^="solution-"]');
+    const markerEls = document.querySelectorAll<HTMLElement>('[id^="hero-marker-"]');
 
-    solEls.forEach((el) => {
-      // We'll store the original transform or position
-      // so we can keep offsets relative to that if desired.
-      const rect = el.getBoundingClientRect();
-      const baseX = rect.left;
-      const baseY = rect.top;
-
-      // A recursive function that sets up a random tween, then repeats
+    markerEls.forEach((el) => {
       const drift = () => {
         const randomX = gsap.utils.random(-30, 30);
         const randomY = gsap.utils.random(-30, 30);
@@ -142,11 +138,10 @@ const Hero: React.FC = () => {
         });
     }
 
-    // 3) Reveal solution elements + fade in #wait
-    //    Using [id^="solution-"] so all slides are included
+    // 3) Reveal hero markers + fade them in
     gsap
       .timeline()
-      .from('[id^="solution-"]', {
+      .from('[id^="hero-marker-"]', {
         top: '50%',
         left: '50%',
         xPercent: -50,
@@ -155,14 +150,15 @@ const Hero: React.FC = () => {
         delay: 1.5,
         ease: 'bezier',
       })
-      .to('#wait', {
+      .to('.hero-marker-asset', {
         opacity: 1,
         duration: 1,
         delay: 0.75,
         ease: 'bezier',
         onComplete: () => {
-          // 4) Unlock scroll & Start the random drifting once hero is done
+          // 4) Unlock scroll and reveal the rest of the page once hero is done
           setEndHeroAnimation(true);
+          onIntroComplete?.();
           startRandomDrift();
         },
       });
@@ -180,55 +176,64 @@ const Hero: React.FC = () => {
   }, []);
 
   /**
-   * Render: each solution has a unique "solution-i" ID
+   * Render: each marker has a unique "hero-marker-i" ID
    */
   return (
-    <div id="hero" className="relative h-screen max-w-full overflow-hidden">
+    <div
+      id="hero"
+      className="relative h-screen max-w-full overflow-hidden"
+      style={{ background: 'var(--theme-hero-shell)' }}
+    >
       <Header />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
-          <p className="font-dmSans max-w-[650px] max-md:max-w-[300px] h-[138px] text-center font-light text-[44px] max-md:text-[24px] tracking-3p leading-100 z-[3]">
+          <p
+            className="z-[3] h-[138px] max-w-[650px] text-center font-dmSans text-[44px] font-light leading-100 tracking-3p max-md:max-w-[300px] max-md:text-[24px]"
+            style={{ color: 'var(--theme-hero-copy)' }}
+          >
             {paragraphs.hero}
           </p>
         </div>
       </section>
 
       <div className="w-full h-full sticky z-[1] flex items-center justify-center gap-[200px] max-md:gap-[50px] flex-wrap">
-        {solutionSlides.map((s, i) => (
+        {heroDecorativeMarkers.map((s, i) => (
           <div
-            id={`solution-${i}`}
+            id={`hero-marker-${i}`}
             key={s.id}
             className={`w-[264px] h-[248px] max-md:w-[124.95px] max-md:h-[117.45px] absolute ${
-              // your original positioning logic
               s.id === 0
                 ? 'bottom-[90px] max-md:bottom-[47px] right-[50px] max-md:right-[40px]'
-                : s.id === 1
-                  ? 'bottom-[-50px] max-md:bottom-[190px] right-[358px]  max-md:right-[231px]'
+              : s.id === 1
+                  ? 'bottom-[-20px] max-md:bottom-[194px] right-[340px] max-md:right-[222px]'
                   : s.id === 2
-                    ? 'top-[-50px] max-md:top-[102px] left-[350px] max-md:left-[70px]'
+                    ? 'top-[-30px] max-md:top-[100px] left-[350px] max-md:left-[56px]'
                     : s.id === 3
-                      ? 'top-[20px] max-md:top-[282px] right-[250px] max-md:right-[304px]'
-                      : s.id === 4
-                        ? 'top-[157px] max-md:top-[209px] left-[30px] max-md:left-[238px]'
-                        : s.id === 5
-                          ? 'bottom-[15px] max-md:bottom-[264px] left-[295px] max-md:left-[280px]'
-                          : ''
+                      ? 'top-[24px] max-md:top-[280px] right-[250px] max-md:right-[296px]'
+                      : 'bottom-[132px] left-[80px] max-md:bottom-[250px] max-md:left-[205px]'
             }`}
           >
-            {/* <div
-              id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white bg-[#022D2D] border-opacity-30 absolute top-1/2 left-[-8px] opacity-0 max-md:hidden"
-            />
             <div
-              id="wait"
-              className="w-[16px] h-[16px] border-[1px] border-white border-opacity-30 bg-[#022D2D] absolute top-1/2 right-[8px] opacity-0 max-md:hidden"
-            /> */}
-            <div className="w-[249px] h-[249px] max-md:w-[117.4px] max-md:h-[117.45px] bg-[#023333] bg-opacity-50 rounded-[69px] max-md:rounded-[24px] flex justify-center items-center">
+              className="flex h-[249px] w-[249px] items-center justify-center rounded-[69px] max-md:h-[117.45px] max-md:w-[117.4px] max-md:rounded-[24px]"
+              style={{
+                background: 'var(--theme-hero-marker-bg)',
+                border: '1px solid var(--theme-hero-marker-border)',
+                boxShadow: 'var(--theme-hero-marker-shadow)',
+              }}
+            >
               <div
-                id="wait"
-                className="w-[175px] h-[113px] max-md:w-[75.92px] max-md:h-[69.08px] opacity-0 flex items-center"
+                className="hero-marker-asset flex w-[190px] max-md:w-[84px] items-center justify-center opacity-0"
               >
-                <img src={s.image.path} alt={s.title} className="opacity-30" />
+                <img
+                  src={s.image.path}
+                  alt=""
+                  aria-hidden="true"
+                  className="max-h-[70px] max-md:max-h-[34px]"
+                  style={{
+                    opacity: 'var(--theme-hero-marker-icon-opacity)',
+                    filter: 'var(--theme-hero-marker-icon-filter)',
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -236,16 +241,24 @@ const Hero: React.FC = () => {
       </div>
 
       {/* Gradients */}
-      <div className="w-[237px] h-full absolute bg-gradient-to-l to-[#1D2222FF] from-[#1D222200]  top-0 left-0 z-0 max-md:w-full max-md:h-[533px] max-md:right-0 max-md:bg-gradient-to-t" />
       <div
-        className="w-[237px] h-full absolute
-        bg-gradient-to-l to-[#1D222200] from-[#1D2222FF] top-0 right-0 z-0 max-md:hidden"
+        className="absolute top-0 left-0 z-0 hidden h-full w-[237px] md:block"
+        style={{ background: 'var(--theme-hero-gradient-left)' }}
+      />
+      <div
+        className="absolute top-0 right-0 z-0 h-full w-[237px] max-md:hidden"
+        style={{ background: 'var(--theme-hero-gradient-right)' }}
+      />
+      <div
+        className="absolute bottom-0 left-0 right-0 z-0 h-[533px] md:hidden"
+        style={{ background: 'var(--theme-hero-gradient-mobile)' }}
       />
 
       {/* Left Panel */}
       <div
         id="left"
-        className="h-full w-1/2 absolute top-0 left-0 bg-[#1D2222] z-[4]"
+        className="absolute top-0 left-0 z-[4] h-full w-1/2"
+        style={{ background: 'var(--theme-hero-door)' }}
       >
         <div
           id="leftImg"
@@ -254,7 +267,7 @@ const Hero: React.FC = () => {
           <img
             src={heroMP.mirror.path}
             alt={heroMP.mirror.alt}
-            className="pr-[3px]"
+            className="pr-[1px] max-md:pr-[1px]"
           />
         </div>
       </div>
@@ -262,16 +275,17 @@ const Hero: React.FC = () => {
       {/* Right Panel */}
       <div
         id="right"
-        className="h-full w-1/2 absolute top-0 right-0 bg-[#1D2222] z-[4]"
+        className="absolute top-0 right-0 z-[4] h-full w-1/2"
+        style={{ background: 'var(--theme-hero-door)' }}
       >
-        <div id="rightImg" className="absolute w-full top-[100%]">
+        <div id="rightImg" className="absolute w-full top-[100%] flex justify-start">
           <img
             src={heroMP.progress.path}
             alt={heroMP.progress.alt}
-            className="pl-[3px]"
+            className="pl-[5px] max-md:pl-[5px]"
           />
         </div>
-      </div>
+      </div> 
     </div>
   );
 };

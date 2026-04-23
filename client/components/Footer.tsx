@@ -1,202 +1,204 @@
+/* ------------------------------------------------------------------ */
+/* components/Footer.tsx                                              */
+/* ------------------------------------------------------------------ */
 import React, {
-  MutableRefObject,
-  SyntheticEvent,
-  useRef,
-  useState,
+  useRef, MutableRefObject,
 } from 'react';
 import {
-  icons,
-  paragraphs,
-  policyText,
-  solutionSlides,
-  termsConditions,
+  capabilityBuckets, icons, paragraphs, termsConditions, policyText,
 } from '../constants';
-import { FooterBtn, SocialMedia } from './';
-import { Metadata } from 'next';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
+import { FooterBtn }  from './';
+import { useGSAP }    from '@gsap/react';
+import gsap           from 'gsap';
+import AccountMenu from './AccountMenu';
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '../hooks/useTheme';
 
+interface SocialProps {
+  src: string; href: string; sr: string;
+  colour?: string; size?: string;
+}
+const Social: React.FC<SocialProps> = ({
+  src,
+  href,
+  sr,
+  colour = 'oklch(27.7% 0.046 192.524)',
+  size   = 'w-6 h-6',
+}) => (
+  <a
+    href={href}
+    target="_blank" rel="noopener noreferrer"
+    aria-label={sr}
+    className="inline-flex items-center group"
+  >
+    <span
+      className={`${size} transition-opacity group-hover:opacity-80`}
+      style={{
+        backgroundColor: colour,
+        WebkitMask: `url(${src}) no-repeat center / contain`,
+        mask:        `url(${src}) no-repeat center / contain`,
+      }}
+    />
+  </a>
+);
+
+/* ------------------------------------------------------------------ */
 const Footer: React.FC = () => {
-  const termsRef = useRef<HTMLDivElement | null>(null);
-  const policyRef = useRef<HTMLDivElement | null>(null);
-  const [loadedMetaData, setLoadedMetaData] = useState<
-    (Metadata | SyntheticEvent<HTMLVideoElement, Event>)[]
-  >([]);
+  const { theme } = useTheme();
 
-  /* Functionalities  */
-  const show = (el: MutableRefObject<HTMLDivElement | null>) => {
-    if (el.current) el.current.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+  /* ── modal refs & helpers ─────────────────────────────────────── */
+  const termsRef  = useRef<HTMLDivElement>(null);
+  const policyRef = useRef<HTMLDivElement>(null);
+
+  const toggle = (r: MutableRefObject<HTMLDivElement | null>, on: boolean) => {
+    if (r.current) r.current.style.display = on ? 'flex' : '';
+    document.body.style.overflow = on ? 'hidden' : '';
   };
 
-  const hide = (el: MutableRefObject<HTMLDivElement | null>) => {
-    if (el.current) el.current.style.display = '';
-    document.body.style.overflow = '';
-  };
-
-  const handleLoadedData = (
-    e: React.SyntheticEvent<HTMLVideoElement, Event> | Metadata
-  ) => {
-    setLoadedMetaData((c) => [...c, e]);
-  };
-
+  /* ── entrance fade-in ─────────────────────────────────────────── */
   useGSAP(() => {
-    if (window.innerWidth > 768) {
-      gsap.to('#wait_footer', {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        stagger: 0.1,
-        scrollTrigger: {
-          trigger: '#Footer',
-          toggleActions: 'play none none reverse',
-          start: 'top 60%',
-          end: 'bottom top',
-        },
-      });
-    } else {
-      gsap.to('#wait_footer', {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        stagger: 0.1,
-        scrollTrigger: {
-          trigger: '#Footer',
-          start: 'top 60%',
-          end: 'bottom bottom',
-          toggleActions: 'play none none reverse',
-        },
-      });
-    }
+    const mobile = window.innerWidth < 768;
+    gsap.to('#wait_footer', {
+      opacity: 1, y: 0, duration: 0.8, stagger: 0.1,
+      scrollTrigger: {
+        trigger: '#Footer',
+        start: 'top 60%',
+        end:   mobile ? 'bottom bottom' : 'bottom top',
+        toggleActions: 'play none none reverse',
+      },
+    });
   }, []);
 
+  /* ---------------------------------------------------------------- */
   return (
     <footer
       id="Footer"
-      className="h-screen max-w-[100%] basic-pd bg-footer-gradient max-md:[64px] pb-[10px] relative "
+      className="theme-footer-gradient relative flex h-screen w-full flex-col basic-pd pb-[10px]"
     >
+      {/* ================= MAIN GRID ================= */}
       <div
         id="wait_footer"
-        className=" opacity-0 translate-y-8 grid grid-cols-2 max-md:grid-cols-5 h-full"
+        className="opacity-0 translate-y-8 grid grid-cols-[auto_1fr] flex-1 max-md:grid-cols-1"
       >
-        <div className=" h-full max-md:col-span-1">
+        {/* ▸ Logo */}
+        <div className="pt-[16px]">
           <img
-            src={icons.white.path}
-            alt={icons.white.name}
+            src={theme === 'light' ? icons.black.path : icons.white.path}
+            alt={theme === 'light' ? icons.black.name : icons.white.name}
             className="w-[46px]"
           />
         </div>
+
+        {/* ▸ Centred content column */}
         <div
-          id="wait_footer"
-          className="opacity-0 translate-y-8 pr-[53px] max-md:pr-0 h-full flex flex-col justify-between  max-md:col-span-4 max-md:col-start-3"
+          className="pt-[128px] pr-[53px] max-md:pr-0
+                     flex flex-col items-center justify-between
+                     w-full max-w-[750px] text-center justify-self-center"
         >
-          <div className=" flex flex-col gap-[64px] lg:gap-[20px] xl:gap-[64px] ">
-            <p className=" max-w-[600px] text-[24px] leading-110 tracking-m3p max-md:text-[16px] font-extralight font-dmSans">
+          {/* copy · chips · buttons */}
+          <div className="flex flex-col items-center gap-[64px] lg:gap-[20px] xl:gap-[64px]">
+            <p className="max-w-[600px] font-dmSans text-[24px] font-extralight leading-110 tracking-m3p text-[color:var(--theme-brand-ink)] max-md:text-[16px]">
               {paragraphs.footer}
             </p>
+
+            {/* desktop chips */}
             <div className="my-[15px] max-md:hidden">
-              <div className=" flex gap-[7px] ">
-                {solutionSlides.map((s, i) => (
+              <div className="grid grid-cols-2 gap-[7px]">
+                {capabilityBuckets.map((capability) => (
                   <div
-                    className="bg-[#00000026] rounded-[19.51px] w-[106.12px] h-[105.02px] flex flex-col justify-center items-center"
-                    key={s.id}
+                    key={capability.id}
+                    className="theme-marketing-card flex min-h-[105px] max-w-[220px] items-end rounded-[20px] px-[14px] py-[16px] text-left"
                   >
-                    <video
-                      className=" pointer-events-none bg-transparent max-w-[80%]"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline={true}
-                      key={s.title}
-                      onLoadedMetadata={(e) => handleLoadedData(e)}
-                    >
-                      <source src={s.video.path} type="video/mp4" />
-                    </video>
+                    <p className="font-dmSans text-[15px] leading-110 tracking-m3p text-[color:var(--theme-page-text)]">
+                      {capability.title}
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="max-md:flex-1 ">
-              <div className="flex flex-col w-[132px]  gap-[16px] lg:gap-[8px] xl:gap-[16px] max-md:gap-[24px]">
-                <FooterBtn text="Get in Touch" href="#Form" />
-                <FooterBtn text="What We do" href="#Solutions" />
 
-                <div className="flex flex-col gap-[16px] lg:gap-[16px] xl:gap-[16px] max-md:gap-[24px] font-diatype font-medium leading-100 tracking-m3p mt-[48px] lg:mt-[16px] xl:mt-[48px]">
-                  <SocialMedia
-                    text="Instagram"
-                    path={icons.arrow.path}
-                    alt={icons.arrow.name}
-                    href="https://www.instagram.com/mirror.progress/"
-                  />
-                  <SocialMedia
-                    text="Linkedin"
-                    path={icons.arrow.path}
-                    alt={icons.arrow.name}
-                    href="https://www.linkedin.com/company/mirror-progress/"
-                  />
-                </div>
+            {/* buttons + desktop socials */}
+            <div className="flex min-w-[160px] flex-col items-center gap-[16px]">
+              <ThemeToggle />
+              <FooterBtn text="Get in Touch" href="#contact" />
+              <FooterBtn text="What We do"   href="#capabilities" />
+              <AccountMenu className="mt-[2px]" />
+
+              <div className="flex-row gap-[16px] mt-[48px] hidden max-md:flex" />
+              <div className="flex flex-row gap-[16px] mt-[48px] max-md:hidden">
+                <Social
+                  src="/images/instagram.svg"
+                  href="https://www.instagram.com/mirror.progress/"
+                  sr="Instagram"
+                  colour={theme === 'light' ? 'var(--theme-brand-ink)' : '#ffffff'}
+                  size="w-8 h-8"
+                />
+                <Social
+                  src="/images/linkedin.svg"
+                  href="https://www.linkedin.com/company/mirror-progress/"
+                  sr="LinkedIn"
+                  colour={theme === 'light' ? 'var(--theme-brand-ink)' : '#ffffff'}
+                  size="w-6 h-6"
+                />
               </div>
             </div>
           </div>
 
-          <div className=" flex flex-col  gap-[5px] max-md:gap-[24px]  max-md:max-w-[175px]  ">
-            <div>
-              <a
-                href="#footer"
-                className="hover-effect text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack cursor-pointer"
-                onClick={() => {
-                  show(termsRef);
-                }}
-              >
-                {' '}
-                TERMS{' '}
-              </a>
+          {/* -------- desktop legal row -------- */}
+          <div
+            className="mt-[48px] flex w-full items-center justify-center gap-[24px] font-diatype text-[12px] uppercase text-[color:var(--theme-brand-ink)] max-md:hidden"
+          >
+            {/* links cluster (left of copyright) */}
+            <div className="flex flex-row gap-[24px]">
+              <button onClick={() => toggle(termsRef, true)}  className="hover-effect">Terms</button>
+              <button onClick={() => toggle(policyRef, true)} className="hover-effect">Privacy</button>
             </div>
-            <div>
-              <a
-                className="hover-effect text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-[#1D2222] cursor-pointer"
-                onClick={() => show(policyRef)}
-              >
-                {' '}
-                PRIVACY{' '}
-              </a>
-            </div>
-            <div>
-              <a
-                href="#footer"
-                className="text-[12px] font-medium uppercase font-diatype leading-120 tracking-m2p text-secondaryBlack"
-              >
-                {' '}
-                © 2025 Mirror Progress LLC All Rights Reserved{' '}
-              </a>
-            </div>
+
+            {/* copyright */}
+            <span>
+              ©&nbsp;2025&nbsp;Mirror&nbsp;Progress&nbsp;Global&nbsp;Inc&nbsp;·&nbsp;All&nbsp;rights&nbsp;reserved
+            </span>
           </div>
         </div>
       </div>
 
-      {/* TERMS MODAL*/}
+      {/* ============== MOBILE DOCK ============== */}
+      <div className="hidden max-md:flex w-full justify-between px-[16px] pb-[24px]">
+        <div className="flex flex-row gap-[24px]">
+          <Social
+            src="/images/instagram.svg" href="https://www.instagram.com/mirror.progress/"
+            sr="Instagram" colour={theme === 'light' ? 'var(--theme-brand-ink)' : '#ffffff'} size="w-5 h-5"
+          />
+          <Social
+            src="/images/linkedin.svg"  href="https://www.linkedin.com/company/mirror-progress/"
+            sr="LinkedIn"  colour={theme === 'light' ? 'var(--theme-brand-ink)' : '#ffffff'} size="w-6 h-6"
+          />
+        </div>
+        <div className="flex flex-row gap-[24px]">
+          <button onClick={() => toggle(termsRef, true)}  className="hover-effect text-[12px] font-diatype uppercase text-[color:var(--theme-brand-ink)]">Terms</button>
+          <button onClick={() => toggle(policyRef, true)} className="hover-effect text-[12px] font-diatype uppercase text-[color:var(--theme-brand-ink)]">Privacy</button>
+        </div>
+      </div>
+
+      {/* ===================== TERMS MODAL ======================= */}
       <div
         ref={termsRef}
-        className="w-full basic-pd h-screen hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
+        className="theme-modal-overlay fixed inset-0 hidden h-screen basic-pd justify-center backdrop-blur-lg"
       >
         <div className="w-full overflow-y-scroll scrollbar-hide flex justify-center">
-          <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
-            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px] ">
-              {' '}
-              Terms & Conditions{' '}
+          <div className="md:max-w-[464px] max-md:max-w-full max-md:px-[40px]">
+            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light tracking-m2p pt-[180px]">
+              Terms & Conditions
             </h2>
-
-            <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
-              {' '}
-              Effective Date: Januarty 1st 2025
+            <h3 className="font-diatype text-[14px] uppercase mt-[64px] mb-[40px]">
+              Effective&nbsp;Date:&nbsp;January&nbsp;1&nbsp;2025
             </h3>
+
+            {/* full copy */}
             <div className="pb-[30px]">
-              {termsConditions.map((t) => (
-                <div
-                  key={t.id}
-                  className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
-                >
-                  <h4>{t.title}</h4>
+              {termsConditions.map(t => (
+                <div key={t.id} className="font-dmSans text-[17px] max-md:text-[12px] leading-120 mb-[30px]">
+                  <h4 className="mb-[8px]">{t.title}</h4>
                   <p>{t.text}</p>
                 </div>
               ))}
@@ -204,52 +206,49 @@ const Footer: React.FC = () => {
           </div>
         </div>
         <button
-          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[22%] max-md:right-[40px]`}
-          onClick={() => hide(termsRef)}
+          onClick={() => toggle(termsRef, false)}
+          className="theme-secondary-button absolute h-[36px] rounded-[24px] px-[24px] py-[8px] font-inter text-[14px] md:right-[22%] md:top-[188px] max-md:right-[40px] max-md:top-[40px]"
         >
           Close
         </button>
       </div>
 
-      {/* POLICY MODAL */}
-
+      {/* ===================== PRIVACY MODAL ===================== */}
       <div
         ref={policyRef}
-        className="w-full basic-pd h-screen hidden justify-center bg-black bg-opacity-20 backdrop-blur-lg fixed top-0 left-0 right-0 bottom-0"
+        className="theme-modal-overlay fixed inset-0 hidden h-screen basic-pd justify-center backdrop-blur-lg"
       >
         <div className="w-full overflow-y-scroll scrollbar-hide flex justify-center">
-          <div className="md:max-w-[464px] max-md:max-w-full  max-md:px-[40px]">
-            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light leading-100 tracking-m2p pt-[180px]">
-              {' '}
-              Privacy Policy{' '}
+          <div className="md:max-w-[464px] max-md:max-w-full max-md:px-[40px]">
+            <h2 className="font-dmSans text-[80px] max-md:text-[40px] font-light tracking-m2p pt-[180px]">
+              Privacy&nbsp;Policy
             </h2>
-            <h3 className="font-diatype text-[14px] leading-120 uppercase mt-[64px] mb-[40px]">
-              {' '}
-              Effective Date: Januarty 1st 2025
+            <h3 className="font-diatype text-[14px] uppercase mt-[64px] mb-[40px]">
+              Effective&nbsp;Date:&nbsp;January&nbsp;1&nbsp;2025
             </h3>
+
+            {/* full copy */}
             <div className="pb-[30px]">
-              {policyText.map((t) => (
-                <div
-                  key={t.id}
-                  className="font-dmSans text-[17px] max-md:text-[12px] leading-120 font-normal mb-[30px]"
-                >
-                  <h4>{t.title}</h4>
-                  <p>{t.text}</p>
-                  <ul className=" pl-[35px]">
-                    {t.items.map((i) => (
-                      <li key={i.id} className="list-disc">
-                        {i.text}
-                      </li>
-                    ))}
-                  </ul>
+              {policyText.map(section => (
+                <div key={section.id} className="font-dmSans text-[17px] max-md:text-[12px] leading-120 mb-[30px]">
+                  <h4 className="mb-[8px]">{section.title}</h4>
+                  <p>{section.text}</p>
+
+                  {section.items && (
+                    <ul className="pl-[35px] list-disc">
+                      {section.items.map(item => (
+                        <li key={item.id}>{item.text}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         </div>
         <button
-          className={`h-[36px] rounded-[24px] text-[14px] text-white font-normal font-inter leading-140 px-[24px] py-[8px] bg-white bg-opacity-20 absolute md:top-[188px] max-md:top-[40px] md:right-[22%] max-md:right-[40px]`}
-          onClick={() => hide(policyRef)}
+          onClick={() => toggle(policyRef, false)}
+          className="theme-secondary-button absolute h-[36px] rounded-[24px] px-[24px] py-[8px] font-inter text-[14px] md:right-[22%] md:top-[188px] max-md:right-[40px] max-md:top-[40px]"
         >
           Close
         </button>

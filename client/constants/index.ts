@@ -46,75 +46,79 @@ export const offices = [
   },
 ];
 
-export const solutionSlides = [
+export const capabilityBuckets = [
   {
-    id: 0,
-    title: 'AI Systems Architecture & Deployment',
-    image: {
-      path: '/images/Energy_Transformation.svg',
+    id: 'ai-systems-model-infrastructure',
+    title: 'AI Systems & Model Infrastructure',
+    excerpt:
+      'RAG systems, agent orchestration, agent tools, inference infrastructure, fine-tuning, evaluation, intelligent workflows.',
+    media: {
+      imagePath: '/images/AI_Solutions.svg',
+      videoPath: '/videos/Data_and_AI_Solutions.mp4',
     },
-    video: {
-      path: '/videos/Energy_Transformation.mp4',
-    },
-    // path: '/images/solution1.mp4',
-    text: 'We design, build, and deploy full-stack AI infrastructure for real-world applications—LLM pipelines, intelligent automation, and scalable model systems tailored to enterprise needs.',
   },
   {
-    id: 1,
-    title: 'AI Strategy & Technical Advisory',
+    id: 'data-platforms-backend-systems',
+    title: 'Data Platforms & Backend Systems',
+    excerpt:
+      'APIs, ingestion pipelines, document processing, data normalization, internal tools, operational platforms.',
+    media: {
+      imagePath: '/images/Design_Engineering.svg',
+      videoPath: '/videos/Design_Engineering.mp4',
+    },
+  },
+  {
+    id: 'web-infrastructure-digital-platforms',
+    title: 'Web Infrastructure & Digital Platforms',
+    excerpt:
+      'Global websites, CMS architecture, frontend systems, multi-region delivery, performance engineering.',
+    media: {
+      imagePath: '/images/Smart_Infrastructure.svg',
+      videoPath: '/videos/Smart_Infastructure.mp4',
+    },
+  },
+  {
+    id: 'research-analysis-technical-strategy',
+    title: 'Research, Analysis & Technical Strategy',
+    excerpt:
+      'Original insight, technical analysis, architecture planning, system design, emerging technology research.',
+    media: {
+      imagePath: '/images/Sustainable_Futures.svg',
+      videoPath: '/videos/Sustainable_Futures.mp4',
+    },
+  },
+] as const;
+
+export const heroDecorativeMarkers = [
+  {
+    id: 0,
     image: {
       path: '/images/AI_Solutions.svg',
     },
-    video: {
-      path: '/videos/Data_and_AI_Solutions.mp4',
-    },
-    // path: '/videos/solution1.mp4',
-    text: 'Strategic guidance rooted in engineering. We help organizations identify high-leverage AI opportunities and create executable roadmaps, grounded in technical feasibility and business outcomes.',
   },
   {
-    id: 2,
-    title: 'Custom Software Engineering',
-    image: {
-      path: '/images/Design_Engineering.svg',
-    },
-    video: {
-      path: '/videos/Design_Engineering.mp4',
-    },
-    text: 'Full-cycle software development with a deep systems mindset. We build intelligent tools, scientific platforms, and enterprise-grade applications that fuse performance, scalability, and extensibility.',
-  },
-  {
-    id: 3,
-    title: 'Applied Research & R&D as a Service',
+    id: 1,
     image: {
       path: '/images/Design_&_Experiences.svg',
     },
-    video: {
-      path: '/videos/Design&Experiences.mp4',
+  },
+  {
+    id: 2,
+    image: {
+      path: '/images/Energy_Transformation.svg',
     },
-    // path: '/videos/solution1.mp4',
-    text: "We turn abstract scientific and technical challenges into prototypes, proof-of-concepts, or white-labeled platforms—combining research depth with real-world implementation focus.",
+  },
+  {
+    id: 3,
+    image: {
+      path: '/images/Design_Engineering.svg',
+    },
   },
   {
     id: 4,
-    title: 'Intelligent Infrastructure Integration',
     image: {
       path: '/images/Smart_Infrastructure.svg',
     },
-    video: {
-      path: '/videos/Smart_Infastructure.mp4',
-    },
-    text: 'We modernize and embed intelligence into physical systems—across energy, construction, logistics, and beyond. From edge data processing to industrial automation, we architect smart operational systems.',
-  },
-  {
-    id: 5,
-    title: 'Co-Development',
-    image: {
-      path: '/images/Sustainable_Futures.svg',
-    },
-    video: {
-      path: '/videos/Sustainable_Futures.mp4',
-    },
-    text: 'Deep collaborative engagements with clients to build next-gen systems together. We integrate directly with teams, co-owning execution across engineering, research, and design.',
   },
 ];
 
@@ -125,8 +129,8 @@ export const paragraphs = {
     'We iterate to find the right solutions.',
     'We end with systems that scale and help our parterns expand.',
   ],
-  solution:
-    'We support companies in their shift toward renewable energy and optimized energy management, delivering innovative solutions that improve efficiency and reduce carbon footprints. Our expertise accelerates your journey to a sustainable future while meeting evolving industry demands.',
+  capabilities:
+    'We build the systems underneath ambitious organizations, from model infrastructure and data platforms to the websites and operational tools that keep everything moving.',
   footer:
     'Mirror Progress is a team of experts that partner closely with organizations who want to move ahead. We create internal and external products. We provide custom services. We are focused on what’s next. ',
 };
