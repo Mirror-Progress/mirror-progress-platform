@@ -520,4 +520,4 @@ The highest-value follow-ups would be:
 - moving auth/workspace/admin storage to a real durable database while keeping the active backend in Next.js
 - stronger validation around admin mutations
 - a more explicit invitation flow
-- tighter audit history with actor ids and richer metadata
+- tighter audit history with actor ids and richer metadata.
