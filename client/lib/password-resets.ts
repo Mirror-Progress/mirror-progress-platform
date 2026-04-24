@@ -1,11 +1,7 @@
 import crypto from 'crypto';
-import path from 'path';
-import {
-  findAccountByEmail,
-  findAccountById,
-  updateAccountPassword,
-} from './accounts';
-import { dataDir, ensureJsonFile, readJsonText, writeJsonFile } from './storage';
+import { findAccountByEmail, findAccountById, updateAccountPassword } from './accounts';
+import { ensureMongoBootstrap } from './mongodb-bootstrap';
+import { getDb } from './mongodb';
 
 interface PasswordResetRecord {
   token: string;
@@ -16,69 +12,31 @@ interface PasswordResetRecord {
   consumedAt: string | null;
 }
 
-const RESET_TTL_MS = 1000 * 60 * 60;
-const resetPath = path.join(dataDir, 'password-resets.local.json');
-
-async function ensureResetFile() {
-  await ensureJsonFile(resetPath, () => []);
+interface PasswordResetDocument extends PasswordResetRecord {
+  _id: string;
 }
 
-async function writeResetRecords(records: PasswordResetRecord[]) {
-  await ensureResetFile();
-  await writeJsonFile(resetPath, records);
+const RESET_TTL_MS = 1000 * 60 * 60;
+
+function passwordResetsCollection() {
+  return getDb().then((db) =>
+    db.collection<PasswordResetDocument>('password_resets')
+  );
 }
 
 function isResetUsable(record: PasswordResetRecord) {
   return !record.consumedAt && new Date(record.expiresAt).getTime() > Date.now();
 }
 
-async function readResetRecords() {
-  await ensureResetFile();
-  const raw = await readJsonText(resetPath);
-
-  try {
-    const parsed = JSON.parse(raw) as PasswordResetRecord[];
-    const normalized = Array.isArray(parsed)
-      ? parsed.filter(
-          (record): record is PasswordResetRecord =>
-            Boolean(
-              record &&
-                record.token &&
-                record.accountId &&
-                record.emailLower &&
-                record.createdAt &&
-                record.expiresAt
-            )
-        )
-      : [];
-    const pruned = normalized.filter(
-      (record) =>
-        Boolean(record.consumedAt) ||
-        new Date(record.expiresAt).getTime() > Date.now() - RESET_TTL_MS
-    );
-
-    if (pruned.length !== normalized.length) {
-      await writeResetRecords(pruned);
-    }
-
-    return pruned;
-  } catch {
-    await writeResetRecords([]);
-    return [];
-  }
-}
-
 export async function createPasswordResetRequest(email: string) {
+  await ensureMongoBootstrap();
   const account = await findAccountByEmail(email);
 
   if (!account) {
     return null;
   }
 
-  const records = await readResetRecords();
-  const nextRecords = records.filter(
-    (record) => record.accountId !== account.id || !isResetUsable(record)
-  );
+  const collection = await passwordResetsCollection();
   const token = crypto.randomBytes(24).toString('hex');
   const record: PasswordResetRecord = {
     token,
@@ -89,8 +47,18 @@ export async function createPasswordResetRequest(email: string) {
     consumedAt: null,
   };
 
-  nextRecords.push(record);
-  await writeResetRecords(nextRecords);
+  await collection.deleteMany({
+    accountId: account.id,
+    $or: [
+      { consumedAt: { $ne: null } },
+      { expiresAt: { $lte: new Date().toISOString() } },
+    ],
+  });
+
+  await collection.insertOne({
+    _id: token,
+    ...record,
+  });
 
   return {
     token,
@@ -101,8 +69,9 @@ export async function createPasswordResetRequest(email: string) {
 }
 
 export async function validatePasswordResetToken(token: string) {
-  const records = await readResetRecords();
-  const record = records.find((entry) => entry.token === token);
+  await ensureMongoBootstrap();
+  const collection = await passwordResetsCollection();
+  const record = await collection.findOne({ _id: token });
 
   if (!record || !isResetUsable(record)) {
     return null;
@@ -122,20 +91,22 @@ export async function validatePasswordResetToken(token: string) {
 }
 
 export async function consumePasswordResetToken(token: string, password: string) {
-  const records = await readResetRecords();
-  const index = records.findIndex((entry) => entry.token === token);
+  await ensureMongoBootstrap();
+  const collection = await passwordResetsCollection();
+  const record = await collection.findOne({ _id: token });
 
-  if (index === -1 || !isResetUsable(records[index])) {
+  if (!record || !isResetUsable(record)) {
     throw new Error('This password reset link is invalid or has expired.');
   }
 
-  const record = records[index];
   await updateAccountPassword(record.accountId, password);
 
-  records[index] = {
-    ...record,
-    consumedAt: new Date().toISOString(),
-  };
-
-  await writeResetRecords(records);
+  await collection.updateOne(
+    { _id: token },
+    {
+      $set: {
+        consumedAt: new Date().toISOString(),
+      },
+    }
+  );
 }

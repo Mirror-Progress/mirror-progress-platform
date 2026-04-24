@@ -1,65 +1,69 @@
-import path from 'path';
-import { dataDir, ensureJsonFile, readJsonText, writeJsonFile } from './storage';
+import { ensureMongoBootstrap } from './mongodb-bootstrap';
+import { getDb } from './mongodb';
 
-interface WorkspaceViewStore {
-  views: Record<string, Record<string, string>>;
+interface WorkspaceViewDocument {
+  _id: string;
+  userId: string;
+  projectId: string;
+  viewedAt: string;
 }
 
-const workspaceViewsPath = path.join(dataDir, 'workspace-views.local.json');
-
-async function ensureWorkspaceViewFile() {
-  await ensureJsonFile(workspaceViewsPath, () => ({ views: {} }));
-}
-
-async function readWorkspaceViews(): Promise<WorkspaceViewStore> {
-  await ensureWorkspaceViewFile();
-  const raw = await readJsonText(workspaceViewsPath);
-
-  try {
-    return JSON.parse(raw) as WorkspaceViewStore;
-  } catch {
-    return { views: {} };
-  }
-}
-
-async function writeWorkspaceViews(store: WorkspaceViewStore) {
-  await ensureWorkspaceViewFile();
-  await writeJsonFile(workspaceViewsPath, store);
+function workspaceViewsCollection() {
+  return getDb().then((db) =>
+    db.collection<WorkspaceViewDocument>('workspace_views')
+  );
 }
 
 export async function getWorkspaceView(userId: string, projectId: string) {
-  const store = await readWorkspaceViews();
-  return store.views[userId]?.[projectId] ?? null;
+  await ensureMongoBootstrap();
+  const collection = await workspaceViewsCollection();
+  const record = await collection.findOne({
+    _id: `${userId}:${projectId}`,
+  });
+
+  return record?.viewedAt ?? null;
 }
 
 export async function listLatestWorkspaceViews() {
-  const store = await readWorkspaceViews();
+  await ensureMongoBootstrap();
+  const collection = await workspaceViewsCollection();
+  const records = await collection.find({}).sort({ viewedAt: -1 }).toArray();
+  const grouped = new Map<string, Record<string, string>>();
 
-  return Object.entries(store.views).map(([userId, projectViews]) => {
-    const latestViewedAt = Object.values(projectViews).sort().at(-1) ?? null;
-
-    return {
-      userId,
-      latestViewedAt,
-      projectViews,
-    };
+  records.forEach((record) => {
+    const existing = grouped.get(record.userId) ?? {};
+    existing[record.projectId] = record.viewedAt;
+    grouped.set(record.userId, existing);
   });
+
+  return [...grouped.entries()].map(([userId, projectViews]) => ({
+    userId,
+    latestViewedAt: Object.values(projectViews).sort().at(-1) ?? null,
+    projectViews,
+  }));
 }
 
 export async function recordWorkspaceView(input: {
   userId: string;
   projectId: string;
 }) {
-  const store = await readWorkspaceViews();
-  const currentViews = store.views[input.userId] ?? {};
-  const previousViewedAt = currentViews[input.projectId] ?? null;
+  await ensureMongoBootstrap();
+  const collection = await workspaceViewsCollection();
+  const currentRecord = await collection.findOne({
+    _id: `${input.userId}:${input.projectId}`,
+  });
 
-  store.views[input.userId] = {
-    ...currentViews,
-    [input.projectId]: new Date().toISOString(),
-  };
+  await collection.updateOne(
+    { _id: `${input.userId}:${input.projectId}` },
+    {
+      $set: {
+        userId: input.userId,
+        projectId: input.projectId,
+        viewedAt: new Date().toISOString(),
+      },
+    },
+    { upsert: true }
+  );
 
-  await writeWorkspaceViews(store);
-
-  return previousViewedAt;
+  return currentRecord?.viewedAt ?? null;
 }

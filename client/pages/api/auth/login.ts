@@ -8,7 +8,6 @@ import {
 import { getApiErrorMessage, getApiErrorStatus } from '../../../lib/api-errors';
 import { applyRateLimit } from '../../../lib/rate-limit';
 import { setSessionCookie } from '../../../lib/session';
-import { DemoReadOnlyError, StorageUnavailableError } from '../../../lib/storage';
 
 export default async function handler(
   req: NextApiRequest,
@@ -52,12 +51,7 @@ export default async function handler(
     try {
       sessionAccount = await touchAccountLogin(account.id);
     } catch (error) {
-      if (
-        !(error instanceof DemoReadOnlyError) &&
-        !(error instanceof StorageUnavailableError)
-      ) {
-        throw error;
-      }
+      // Session creation can continue even if last-login tracking fails.
     }
 
     const user = toSessionUser(sessionAccount);

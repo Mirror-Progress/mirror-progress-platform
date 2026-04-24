@@ -1,11 +1,8 @@
-import { DemoReadOnlyError, StorageUnavailableError } from './storage';
-
 export function getApiErrorStatus(error: unknown, fallbackStatus = 400) {
-  if (error instanceof DemoReadOnlyError) {
-    return 503;
-  }
-
-  if (error instanceof StorageUnavailableError) {
+  if (
+    error instanceof Error &&
+    /mongodb|mongo|persist|storage|connect/i.test(error.message)
+  ) {
     return 503;
   }
 

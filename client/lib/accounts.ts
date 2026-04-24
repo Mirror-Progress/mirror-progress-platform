@@ -1,8 +1,9 @@
-import path from 'path';
 import crypto from 'crypto';
+import { hashPassword, verifyPassword as verifyStoredPassword } from './auth-crypto';
+import { ensureMongoBootstrap } from './mongodb-bootstrap';
+import { getDb } from './mongodb';
+import { DEV_SEED_ACCOUNTS } from './seed-data';
 import type { InviteStatus, UserRole, UserStatus } from './workspace-data';
-import { allowDevSeedAccounts } from './app-runtime';
-import { dataDir, ensureJsonFile, readJsonText, writeJsonFile } from './storage';
 
 export interface StoredAccount {
   id: string;
@@ -20,101 +21,12 @@ export interface StoredAccount {
   lastLoginAt: string | null;
 }
 
-export const DEV_SEED_ACCOUNTS = [
-  {
-    email: 'admin@mirrorprogress.local',
-    password: 'MirrorProgressAdmin123!',
-    role: 'super_admin' as const,
-  },
-  {
-    email: 'lead@mirrorprogress.local',
-    password: 'MirrorProgressLead123!',
-    role: 'project_lead' as const,
-  },
-  {
-    email: 'sarah@horizonbiolabs.com',
-    password: 'MirrorProgressClient123!',
-    role: 'client' as const,
-  },
-];
-
-const accountsPath = path.join(dataDir, 'accounts.local.json');
-const seedCreatedAt = '2026-04-22T08:30:00.000Z';
-
-const seededAccountDefinitions = [
-  {
-    id: 'user-admin-super',
-    name: 'Avery Cole',
-    email: 'admin@mirrorprogress.local',
-    company: 'Mirror Progress',
-    password: 'MirrorProgressAdmin123!',
-    role: 'super_admin' as const,
-    status: 'active' as const,
-    clientId: null,
-    assignedProjectIds: [],
-    inviteStatus: 'accepted' as const,
-  },
-  {
-    id: 'user-project-lead',
-    name: 'Jordan Lee',
-    email: 'lead@mirrorprogress.local',
-    company: 'Mirror Progress',
-    password: 'MirrorProgressLead123!',
-    role: 'project_lead' as const,
-    status: 'active' as const,
-    clientId: null,
-    assignedProjectIds: ['project-horizon-refinement', 'project-atlas-ops'],
-    inviteStatus: 'accepted' as const,
-  },
-  {
-    id: 'user-client-horizon',
-    name: 'Sarah Bennett',
-    email: 'sarah@horizonbiolabs.com',
-    company: 'Horizon Biolabs',
-    password: 'MirrorProgressClient123!',
-    role: 'client' as const,
-    status: 'active' as const,
-    clientId: 'client-horizon-biolabs',
-    assignedProjectIds: ['project-horizon-refinement'],
-    inviteStatus: 'accepted' as const,
-  },
-  {
-    id: 'user-client-northline',
-    name: 'Maya Chen',
-    email: 'maya@northlineenergy.com',
-    company: 'Northline Energy',
-    password: 'MirrorProgressClient123!',
-    role: 'client' as const,
-    status: 'active' as const,
-    clientId: 'client-northline-energy',
-    assignedProjectIds: ['project-northline-launch'],
-    inviteStatus: 'accepted' as const,
-  },
-  {
-    id: 'user-client-atlas',
-    name: 'Elias Porter',
-    email: 'elias@atlashealth.io',
-    company: 'Atlas Health',
-    password: 'MirrorProgressClient123!',
-    role: 'client' as const,
-    status: 'active' as const,
-    clientId: 'client-atlas-health',
-    assignedProjectIds: ['project-atlas-ops'],
-    inviteStatus: 'accepted' as const,
-  },
-];
-const seededAccountEmails = new Set(
-  seededAccountDefinitions.map((definition) => definition.email.toLowerCase())
-);
-
-function isInternalSeedRole(role: UserRole) {
-  return role === 'super_admin' || role === 'admin' || role === 'project_lead';
+interface UserDocument extends StoredAccount {
+  _id: string;
 }
 
-function hashPassword(password: string) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const derivedKey = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${derivedKey}`;
+function usersCollection() {
+  return getDb().then((db) => db.collection<UserDocument>('users'));
 }
 
 function normalizeStoredAccount(
@@ -130,184 +42,72 @@ function normalizeStoredAccount(
     status: account.status ?? 'active',
     clientId: account.clientId ?? null,
     assignedProjectIds: Array.isArray(account.assignedProjectIds)
-      ? account.assignedProjectIds
+      ? account.assignedProjectIds.filter(
+          (projectId): projectId is string =>
+            typeof projectId === 'string' && projectId.trim().length > 0
+        )
       : [],
     inviteStatus: account.inviteStatus ?? 'accepted',
     lastLoginAt: account.lastLoginAt ?? null,
   };
 }
 
-function createSeededAccount(
-  definition: (typeof seededAccountDefinitions)[number],
-  existing?: StoredAccount
-) {
+function toStoredAccount(document: UserDocument | null) {
+  if (!document) {
+    return null;
+  }
+
   return normalizeStoredAccount({
-    id: definition.id,
-    name: definition.name,
-    email: definition.email,
-    emailLower: definition.email.toLowerCase(),
-    company: definition.company,
-    passwordHash:
-      existing?.passwordHash ?? hashPassword(definition.password),
-    createdAt: existing?.createdAt ?? seedCreatedAt,
-    role: definition.role,
-    status: definition.status,
-    clientId: definition.clientId,
-    assignedProjectIds: definition.assignedProjectIds,
-    inviteStatus: definition.inviteStatus,
-    lastLoginAt: existing?.lastLoginAt ?? null,
+    id: document.id || document._id,
+    name: document.name,
+    email: document.email,
+    emailLower: document.emailLower,
+    company: document.company,
+    passwordHash: document.passwordHash,
+    createdAt: document.createdAt,
+    role: document.role,
+    status: document.status,
+    clientId: document.clientId,
+    assignedProjectIds: document.assignedProjectIds,
+    inviteStatus: document.inviteStatus,
+    lastLoginAt: document.lastLoginAt,
   });
 }
 
-function createSeededAccounts(): StoredAccount[] {
-  return seededAccountDefinitions.map((definition) =>
-    createSeededAccount(definition)
+function isDuplicateKeyError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: number }).code === 11000
   );
 }
 
-function createInitialAccounts() {
-  return allowDevSeedAccounts() ? createSeededAccounts() : [];
-}
-
-function reconcileSeededAccount(
-  definition: (typeof seededAccountDefinitions)[number],
-  existing: StoredAccount
-) {
-  const normalized = normalizeStoredAccount(existing);
-
-  if (isInternalSeedRole(definition.role)) {
-    return normalizeStoredAccount({
-      ...normalized,
-      id: definition.id,
-      name: definition.name,
-      email: definition.email,
-      emailLower: definition.email.toLowerCase(),
-      company: definition.company,
-      role: definition.role,
-    });
-  }
-
-  return normalizeStoredAccount({
-    ...normalized,
-    email: definition.email,
-    emailLower: definition.email.toLowerCase(),
-    role: 'client',
-  });
-}
-
-async function ensureDataFile() {
-  await ensureJsonFile(accountsPath, createInitialAccounts);
-}
-
-async function writeAccounts(accounts: StoredAccount[]) {
-  await ensureDataFile();
-  await writeJsonFile(accountsPath, accounts);
-}
-
-function mergeSeedAccounts(accounts: StoredAccount[]) {
-  if (!allowDevSeedAccounts()) {
-    const filteredAccounts = accounts.filter(
-      (account) => !seededAccountEmails.has(account.emailLower)
-    );
-
-    return {
-      accounts: filteredAccounts,
-      changed: filteredAccounts.length !== accounts.length,
-    };
-  }
-
-  const byEmail = new Map(accounts.map((account) => [account.emailLower, account]));
-  let changed = false;
-
-  seededAccountDefinitions.forEach((definition) => {
-    const existing = byEmail.get(definition.email.toLowerCase());
-
-    if (existing) {
-      const canonical = reconcileSeededAccount(definition, existing);
-
-      if (JSON.stringify(existing) !== JSON.stringify(canonical)) {
-        byEmail.set(canonical.emailLower, canonical);
-        changed = true;
-      }
-
-      return;
-    }
-
-    byEmail.set(definition.email.toLowerCase(), createSeededAccount(definition));
-    changed = true;
-  });
-
-  return {
-    accounts: [...byEmail.values()],
-    changed,
-  };
-}
+export const verifyPassword = verifyStoredPassword;
 
 export async function readAccounts(): Promise<StoredAccount[]> {
-  await ensureDataFile();
-  const raw = await readJsonText(accountsPath);
-
-  try {
-    const parsed = JSON.parse(raw) as Array<Partial<StoredAccount>>;
-    const normalized = parsed
-      .filter(
-        (account): account is Partial<StoredAccount> &
-          Pick<
-            StoredAccount,
-            'id' | 'name' | 'email' | 'emailLower' | 'company' | 'passwordHash' | 'createdAt'
-          > =>
-          Boolean(
-            account.id &&
-              account.name &&
-              account.email &&
-              account.emailLower &&
-              account.company &&
-              account.passwordHash &&
-              account.createdAt
-          )
-      )
-      .map((account) => normalizeStoredAccount(account));
-
-    const merged = mergeSeedAccounts(normalized);
-
-    if (merged.changed) {
-      await writeAccounts(merged.accounts);
-    }
-
-    return merged.accounts;
-  } catch {
-    const seededAccounts = createInitialAccounts();
-    await writeAccounts(seededAccounts);
-    return seededAccounts;
-  }
-}
-
-export function verifyPassword(password: string, storedHash: string) {
-  const [salt, expectedHash] = storedHash.split(':');
-
-  if (!salt || !expectedHash) {
-    return false;
-  }
-
-  const derivedKey = crypto.scryptSync(password, salt, 64);
-  const expectedKey = Buffer.from(expectedHash, 'hex');
-
-  if (derivedKey.length !== expectedKey.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(derivedKey, expectedKey);
+  await ensureMongoBootstrap();
+  const collection = await usersCollection();
+  const accounts = await collection.find({}).sort({ createdAt: 1 }).toArray();
+  return accounts
+    .map((account) => toStoredAccount(account))
+    .filter((account): account is StoredAccount => Boolean(account));
 }
 
 export async function findAccountByEmail(email: string) {
-  const emailLower = email.trim().toLowerCase();
-  const accounts = await readAccounts();
-  return accounts.find((account) => account.emailLower === emailLower) ?? null;
+  await ensureMongoBootstrap();
+  const collection = await usersCollection();
+  const account = await collection.findOne({
+    emailLower: email.trim().toLowerCase(),
+  });
+  return toStoredAccount(account);
 }
 
 export async function findAccountById(accountId: string) {
-  const accounts = await readAccounts();
-  return accounts.find((account) => account.id === accountId) ?? null;
+  await ensureMongoBootstrap();
+  const collection = await usersCollection();
+  const account = await collection.findOne({ _id: accountId });
+  return toStoredAccount(account);
 }
 
 export async function listAccounts() {
@@ -329,13 +129,10 @@ export async function createAccount(input: {
   assignedProjectIds?: string[];
   inviteStatus?: InviteStatus;
 }) {
-  const accounts = await readAccounts();
+  await ensureMongoBootstrap();
+  const collection = await usersCollection();
   const email = input.email.trim();
   const emailLower = email.toLowerCase();
-
-  if (accounts.some((account) => account.emailLower === emailLower)) {
-    throw new Error('An account with that email already exists.');
-  }
 
   const account = normalizeStoredAccount({
     id: crypto.randomUUID(),
@@ -353,8 +150,18 @@ export async function createAccount(input: {
     lastLoginAt: null,
   });
 
-  accounts.push(account);
-  await writeAccounts(accounts);
+  try {
+    await collection.insertOne({
+      _id: account.id,
+      ...account,
+    });
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error('An account with that email already exists.');
+    }
+
+    throw error;
+  }
 
   return account;
 }
@@ -375,39 +182,57 @@ export async function updateAccount(
     >
   >
 ) {
-  const accounts = await readAccounts();
-  const index = accounts.findIndex((account) => account.id === accountId);
+  await ensureMongoBootstrap();
+  const collection = await usersCollection();
+  const currentAccount = await findAccountById(accountId);
 
-  if (index === -1) {
+  if (!currentAccount) {
     throw new Error('Account not found.');
   }
 
   const updatedAccount = normalizeStoredAccount({
-    ...accounts[index],
+    ...currentAccount,
     ...patch,
   });
 
-  accounts[index] = updatedAccount;
-  await writeAccounts(accounts);
+  await collection.updateOne(
+    { _id: accountId },
+    {
+      $set: {
+        ...updatedAccount,
+        id: accountId,
+      },
+    }
+  );
 
   return updatedAccount;
 }
 
 export async function updateAccountPassword(accountId: string, password: string) {
-  const accounts = await readAccounts();
-  const index = accounts.findIndex((account) => account.id === accountId);
+  await ensureMongoBootstrap();
+  const collection = await usersCollection();
+  const currentAccount = await findAccountById(accountId);
 
-  if (index === -1) {
+  if (!currentAccount) {
     throw new Error('Account not found.');
   }
 
-  accounts[index] = normalizeStoredAccount({
-    ...accounts[index],
+  const updatedAccount = normalizeStoredAccount({
+    ...currentAccount,
     passwordHash: hashPassword(password),
   });
 
-  await writeAccounts(accounts);
-  return accounts[index];
+  await collection.updateOne(
+    { _id: accountId },
+    {
+      $set: {
+        ...updatedAccount,
+        id: accountId,
+      },
+    }
+  );
+
+  return updatedAccount;
 }
 
 export async function touchAccountLogin(accountId: string) {
@@ -429,3 +254,5 @@ export function toSessionUser(account: StoredAccount) {
     assignedProjectIds: account.assignedProjectIds,
   };
 }
+
+export { DEV_SEED_ACCOUNTS };
