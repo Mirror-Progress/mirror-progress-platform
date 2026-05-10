@@ -52,9 +52,9 @@ const ResearchIndexPage: NextPage<ResearchIndexPageProps> = ({
                     Structured public research for technical decision-makers.
                   </h1>
                   <p className="max-w-[60ch] font-dmSans text-[21px] leading-130 text-[color:var(--research-text-muted)] max-md:text-[18px]">
-                    Research is the public authority layer for Mirror Progress:
-                    short whitepapers, briefs, and technical notes designed to
-                    turn social hooks into deeper on-site analysis.
+                    Mirror Progress Research publishes concise whitepapers,
+                    technical briefs, and strategic notes for organizations
+                    building what comes next.
                   </p>
                 </div>
 
