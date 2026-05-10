@@ -8,13 +8,14 @@ import React, {
 
 export type ThemeMode = 'dark' | 'light';
 
-const THEME_STORAGE_KEY = 'mirror_progress_theme';
+const THEME_STORAGE_KEY = 'mirror_progress_theme_session';
 const DEFAULT_THEME: ThemeMode = 'dark';
 
 interface ThemeContextValue {
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
+  isHydrated: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -28,7 +29,7 @@ function readPersistedTheme(): ThemeMode {
     return DEFAULT_THEME;
   }
 
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  const storedTheme = window.sessionStorage.getItem(THEME_STORAGE_KEY);
 
   if (storedTheme === 'light' || storedTheme === 'dark') {
     return storedTheme;
@@ -52,22 +53,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [theme, setThemeState] = useState<ThemeMode>(readInitialTheme);
-
-  useEffect(() => {
-    applyTheme(theme);
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     const persistedTheme = readPersistedTheme();
+    applyTheme(persistedTheme);
+    setThemeState(persistedTheme);
+    setIsHydrated(true);
+  }, []);
 
-    if (persistedTheme !== theme) {
-      setThemeState(persistedTheme);
+  useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') {
       return;
     }
 
-    applyTheme(persistedTheme);
-  }, []);
+    applyTheme(theme);
+    window.sessionStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme, isHydrated]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
@@ -77,8 +79,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
         setThemeState((currentTheme) =>
           currentTheme === 'dark' ? 'light' : 'dark'
         ),
+      isHydrated,
     }),
-    [theme]
+    [isHydrated, theme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
@@ -99,10 +102,16 @@ export function getThemeInitializationScript() {
     (function() {
       try {
         var storageKey = '${THEME_STORAGE_KEY}';
-        var storedTheme = window.localStorage.getItem(storageKey);
-        var theme = storedTheme === 'light' || storedTheme === 'dark'
-          ? storedTheme
-          : 'dark';
+        var storedTheme = window.sessionStorage.getItem(storageKey);
+        var theme;
+
+        if (storedTheme === 'light' || storedTheme === 'dark') {
+          theme = storedTheme;
+        } else {
+          theme = Math.random() < 0.5 ? 'dark' : 'light';
+          window.sessionStorage.setItem(storageKey, theme);
+        }
+
         document.documentElement.dataset.theme = theme;
         document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
       } catch (error) {

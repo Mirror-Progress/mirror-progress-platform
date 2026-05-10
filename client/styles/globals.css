@@ -67,12 +67,28 @@
   --theme-hero-marker-shadow: 0 18px 48px rgba(0, 0, 0, 0.14);
   --theme-hero-marker-icon-opacity: 0.34;
   --theme-hero-marker-icon-filter: none;
+  --theme-hero-intro-word-filter: none;
+  --theme-hero-intro-word-shadow: drop-shadow(0 0 18px rgba(255, 255, 255, 0.06));
   --theme-toggle-track: rgba(255, 255, 255, 0.14);
   --theme-toggle-thumb: #ffffff;
   --theme-toggle-thumb-text: #012727;
   --theme-marketing-card-bg: rgba(255, 255, 255, 0.05);
   --theme-marketing-card-border: rgba(255, 255, 255, 0.12);
   --theme-marketing-card-hover: rgba(255, 255, 255, 0.09);
+  --theme-research-cta-bg: rgba(7, 33, 33, 0.84);
+  --theme-research-cta-border: rgba(255, 255, 255, 0.14);
+  --theme-research-cta-text: #f7fbfb;
+  --theme-research-cta-muted: rgba(247, 251, 251, 0.78);
+  --theme-research-surface: rgba(7, 33, 33, 0.72);
+  --theme-research-surface-strong: rgba(8, 28, 29, 0.86);
+  --theme-research-border: rgba(255, 255, 255, 0.12);
+  --theme-research-text: #f6fbfb;
+  --theme-research-text-muted: rgba(246, 251, 251, 0.74);
+  --theme-research-accent: #b9efef;
+  --theme-research-accent-soft: rgba(185, 239, 239, 0.12);
+  --theme-research-callout: rgba(255, 255, 255, 0.05);
+  --theme-research-table-stripe: rgba(255, 255, 255, 0.03);
+  --theme-research-shadow: 0 28px 72px rgba(0, 0, 0, 0.16);
   --theme-atmosphere:
     radial-gradient(circle at 15% 20%, rgba(55, 183, 183, 0.12), transparent 28%),
     radial-gradient(circle at 78% 18%, rgba(92, 213, 233, 0.14), transparent 26%),
@@ -138,12 +154,27 @@
     0 0 28px rgba(71, 220, 244, 0.14);
   --theme-hero-marker-icon-opacity: 0.82;
   --theme-hero-marker-icon-filter: drop-shadow(0 0 14px rgba(193, 250, 255, 0.34));
+  --theme-hero-intro-word-shadow: drop-shadow(0 0 20px rgba(18, 62, 145, 0.12));
   --theme-toggle-track: rgba(15, 72, 154, 0.14);
   --theme-toggle-thumb: #fefeff;
   --theme-toggle-thumb-text: #133a83;
-  --theme-marketing-card-bg: rgba(190, 218, 255, 0.26);
-  --theme-marketing-card-border: rgba(125, 186, 252, 0.48);
-  --theme-marketing-card-hover: rgba(211, 232, 255, 0.42);
+  --theme-marketing-card-bg: rgba(148, 191, 252, 0.34);
+  --theme-marketing-card-border: rgba(104, 166, 245, 0.56);
+  --theme-marketing-card-hover: rgba(184, 216, 255, 0.5);
+  --theme-research-cta-bg: rgba(18, 62, 145, 0.88);
+  --theme-research-cta-border: rgba(170, 220, 255, 0.3);
+  --theme-research-cta-text: #f8fbff;
+  --theme-research-cta-muted: rgba(232, 245, 255, 0.82);
+  --theme-research-surface: rgba(17, 54, 120, 0.72);
+  --theme-research-surface-strong: rgba(11, 43, 108, 0.86);
+  --theme-research-border: rgba(168, 215, 255, 0.34);
+  --theme-research-text: #ffffff;
+  --theme-research-text-muted: rgba(247, 251, 255, 0.76);
+  --theme-research-accent: #c8f8ff;
+  --theme-research-accent-soft: rgba(178, 244, 255, 0.16);
+  --theme-research-callout: rgba(255, 255, 255, 0.08);
+  --theme-research-table-stripe: rgba(255, 255, 255, 0.06);
+  --theme-research-shadow: 0 30px 84px rgba(24, 71, 145, 0.16);
   --theme-atmosphere:
     radial-gradient(circle at 76% 18%, rgba(0, 194, 244, 0.48), transparent 17%),
     radial-gradient(circle at 88% 38%, rgba(0, 171, 142, 0.34), transparent 20%),
@@ -396,6 +427,65 @@ select {
 
   .theme-status-line {
     background: color-mix(in srgb, var(--theme-brand-accent) 82%, white 18%);
+  }
+
+  .research-frame {
+    border: 1px solid var(--research-border);
+    background: var(--research-surface);
+    color: var(--research-text);
+    box-shadow: var(--research-shadow);
+    backdrop-filter: blur(22px);
+  }
+
+  .research-frame-strong {
+    border: 1px solid var(--research-border);
+    background: var(--research-surface-strong);
+    color: var(--research-text);
+    box-shadow: var(--research-shadow);
+    backdrop-filter: blur(22px);
+  }
+
+  .research-outline-card {
+    border: 1px solid color-mix(in srgb, var(--research-border) 86%, transparent);
+    background: color-mix(in srgb, var(--research-surface) 82%, transparent);
+    color: var(--research-text);
+  }
+
+  .research-callout {
+    border: 1px solid color-mix(in srgb, var(--research-accent) 22%, var(--research-border) 78%);
+    background: linear-gradient(
+      135deg,
+      var(--research-accent-soft) 0%,
+      var(--research-callout) 100%
+    );
+    color: var(--research-text);
+  }
+
+  .research-divider {
+    border-color: color-mix(in srgb, var(--research-border) 82%, transparent);
+  }
+
+  .research-bar-track {
+    background: color-mix(in srgb, var(--research-border) 74%, transparent);
+  }
+
+  .research-bar-fill {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--research-accent) 88%, white 12%) 0%,
+      color-mix(in srgb, var(--research-accent) 62%, #0cb5d7 38%) 100%
+    );
+  }
+
+  .research-cta-panel {
+    border: 1px solid var(--theme-research-cta-border);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--theme-research-cta-bg) 94%, white 6%) 0%,
+      var(--theme-research-cta-bg) 100%
+    );
+    color: var(--theme-research-cta-text);
+    box-shadow: var(--theme-research-shadow);
   }
 }
 

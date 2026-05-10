@@ -9,22 +9,33 @@ gsap.registerPlugin(CustomEase, ScrollTrigger);
 
 interface HeroProps {
   onIntroComplete?: () => void;
+  skipIntro?: boolean;
 }
 
-const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
+const Hero: React.FC<HeroProps> = ({ onIntroComplete, skipIntro = false }) => {
   /* Manages whether hero animation is done */
   const [endHeroAnimation, setEndHeroAnimation] = useState(false);
 
   useEffect(() => {
     // Lock or unlock scrolling based on hero animation
-    if (endHeroAnimation) {
+    if (skipIntro || endHeroAnimation) {
       document.body.style.overflowY = 'auto';
       document.body.style.overflowX = 'hidden';
     } else {
       document.body.style.overflowY = 'hidden';
       document.body.style.overflowX = 'hidden';
     }
-  }, [endHeroAnimation]);
+  }, [endHeroAnimation, skipIntro]);
+
+  useEffect(() => {
+    if (!skipIntro) {
+      return;
+    }
+
+    setEndHeroAnimation(true);
+    onIntroComplete?.();
+    startRandomDrift();
+  }, [onIntroComplete, skipIntro]);
 
   /**
    * Random drift function:
@@ -58,6 +69,11 @@ const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
    * Once the main hero animation finishes, we'll call startRandomDrift().
    */
   useGSAP(() => {
+    if (skipIntro) {
+      gsap.set('.hero-marker-asset', { opacity: 1 });
+      return;
+    }
+
     // 1) Custom Ease
     CustomEase.create('bezier', '0, 0, 0, 0.99');
 
@@ -163,7 +179,9 @@ const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
         },
       });
 
-    // 5) Fade out hero on scroll
+  }, [skipIntro]);
+
+  useGSAP(() => {
     gsap.to('#hero', {
       opacity: 0,
       ease: 'bezier',
@@ -184,7 +202,7 @@ const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
       className="relative h-screen max-w-full overflow-hidden"
       style={{ background: 'var(--theme-hero-shell)' }}
     >
-      <Header />
+      <Header skipIntro={skipIntro} />
       <section className="basic-pd h-full absolute top-0 left-0 right-0">
         <div className="h-full flex items-center justify-center">
           <p
@@ -222,7 +240,9 @@ const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
               }}
             >
               <div
-                className="hero-marker-asset flex w-[190px] max-md:w-[84px] items-center justify-center opacity-0"
+                className={`hero-marker-asset flex w-[190px] max-md:w-[84px] items-center justify-center ${
+                  skipIntro ? 'opacity-100' : 'opacity-0'
+                }`}
               >
                 <img
                   src={s.image.path}
@@ -254,38 +274,54 @@ const Hero: React.FC<HeroProps> = ({ onIntroComplete }) => {
         style={{ background: 'var(--theme-hero-gradient-mobile)' }}
       />
 
-      {/* Left Panel */}
-      <div
-        id="left"
-        className="absolute top-0 left-0 z-[4] h-full w-1/2"
-        style={{ background: 'var(--theme-hero-door)' }}
-      >
-        <div
-          id="leftImg"
-          className="absolute w-full top-[100%] flex justify-end"
-        >
-          <img
-            src={heroMP.mirror.path}
-            alt={heroMP.mirror.alt}
-            className="pr-[1px] max-md:pr-[1px]"
-          />
-        </div>
-      </div>
+      {!skipIntro ? (
+        <>
+          {/* Left Panel */}
+          <div
+            id="left"
+            className="absolute top-0 left-0 z-[4] h-full w-1/2"
+            style={{ background: 'var(--theme-hero-door)' }}
+          >
+            <div
+              id="leftImg"
+              className="absolute w-full top-[100%] flex justify-end"
+            >
+              <span
+                role="img"
+                aria-label={heroMP.mirror.alt}
+                className="block h-[31px] w-[112px] pr-[1px] max-md:h-[26px] max-md:w-[94px]"
+                style={{
+                  backgroundColor: 'var(--theme-brand-ink)',
+                  WebkitMask: `url(${heroMP.mirror.path}) no-repeat center / contain`,
+                  mask: `url(${heroMP.mirror.path}) no-repeat center / contain`,
+                  filter: 'var(--theme-hero-intro-word-shadow)',
+                }}
+              />
+            </div>
+          </div>
 
-      {/* Right Panel */}
-      <div
-        id="right"
-        className="absolute top-0 right-0 z-[4] h-full w-1/2"
-        style={{ background: 'var(--theme-hero-door)' }}
-      >
-        <div id="rightImg" className="absolute w-full top-[100%] flex justify-start">
-          <img
-            src={heroMP.progress.path}
-            alt={heroMP.progress.alt}
-            className="pl-[5px] max-md:pl-[5px]"
-          />
-        </div>
-      </div> 
+          {/* Right Panel */}
+          <div
+            id="right"
+            className="absolute top-0 right-0 z-[4] h-full w-1/2"
+            style={{ background: 'var(--theme-hero-door)' }}
+          >
+            <div id="rightImg" className="absolute w-full top-[100%] flex justify-start">
+              <span
+                role="img"
+                aria-label={heroMP.progress.alt}
+                className="block h-[39px] w-[157px] pl-[5px] max-md:h-[32px] max-md:w-[129px]"
+                style={{
+                  backgroundColor: 'var(--theme-brand-ink)',
+                  WebkitMask: `url(${heroMP.progress.path}) no-repeat center / contain`,
+                  mask: `url(${heroMP.progress.path}) no-repeat center / contain`,
+                  filter: 'var(--theme-hero-intro-word-shadow)',
+                }}
+              />
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 };

@@ -1,36 +1,39 @@
 import React from 'react';
-import { icons } from '../constants';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/all';
 import AccountMenu from './AccountMenu';
 import ThemeToggle from './ThemeToggle';
-import { useTheme } from '../hooks/useTheme';
+import BrandMark from './BrandMark';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const Header: React.FC = () => {
-  const { theme } = useTheme();
+interface HeaderProps {
+  skipIntro?: boolean;
+}
 
+const Header: React.FC<HeaderProps> = ({ skipIntro = false }) => {
   useGSAP(() => {
+    if (skipIntro) {
+      return;
+    }
+
     gsap.to('#header', {
       opacity: 1,
       delay: 4.75,
       duration: 0.5,
     });
-  }, []);
+  }, [skipIntro]);
 
   return (
     <header
       id="header"
-      className="flex justify-between items-center h-[84px] max-w-full basic-pd absolute top-0 left-0 right-0 z-[2] opacity-0"
+      className={`absolute top-0 left-0 right-0 z-[2] flex h-[84px] max-w-full items-center justify-between basic-pd ${
+        skipIntro ? 'opacity-100' : 'opacity-0'
+      }`}
     >
-      <a href="/">
-        <img
-          src={theme === 'light' ? icons.black.path : icons.white.path}
-          alt={theme === 'light' ? icons.black.name : icons.white.name}
-          className="h-[26.93px] max-md:h-[22.4px] w-[28.85px] max-md:w-[24px]"
-        />
+      <a href="/" aria-label="Mirror Progress homepage">
+        <BrandMark className="h-[26.93px] w-[28.85px] max-md:h-[22.4px] max-md:w-[24px]" />
       </a>
       <nav className="flex items-center gap-[14px] max-md:gap-[10px]">
         <div>
@@ -40,6 +43,14 @@ const Header: React.FC = () => {
           >
             {' '}
             What We do{' '}
+          </a>
+        </div>
+        <div>
+          <a
+            className="hover-effect theme-link font-dmSans hover:cursor-pointer"
+            href="/research"
+          >
+            Research
           </a>
         </div>
         <ThemeToggle className="max-md:hidden" />

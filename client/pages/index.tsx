@@ -3,6 +3,7 @@
 /* ------------------------------------------------------------------ */
 import { useEffect, useRef, useState } from 'react';
 import type { NextPage } from 'next';
+import { useRouter } from 'next/router';
 import Hero from '../components/Hero';
 import Capabilities from '../components/Capabilities';
 import Form from '../components/Form';
@@ -14,6 +15,18 @@ import Footer from '../components/Footer';
 const GAP = 88;
 
 const SECTIONS = ['about', 'capabilities', 'contact', 'summary'];
+const CONTACT_SKIP_INTRO = 'contact';
+
+const readIntroBypassTarget = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get('skipIntro') === CONTACT_SKIP_INTRO
+    ? CONTACT_SKIP_INTRO
+    : null;
+};
 
 /* ------------------------------------------------------------------ */
 /* 2 ▸ Utility hooks                                                  */
@@ -46,16 +59,42 @@ const useActive = (
 /* 3 ▸ Page                                                           */
 /* ------------------------------------------------------------------ */
 const Home: NextPage = () => {
+  const router = useRouter();
   const refs = useSectionRefs(SECTIONS);
   const active = useActive(refs, false);
-  const [introComplete, setIntroComplete] = useState(false);
+  const [skipIntro, setSkipIntro] = useState(() => readIntroBypassTarget() === CONTACT_SKIP_INTRO);
+  const [introComplete, setIntroComplete] = useState(() => skipIntro);
 
   const [hover, setHover] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!router.isReady) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const shouldSkipIntro = params.get('skipIntro') === CONTACT_SKIP_INTRO;
+
+    if (!shouldSkipIntro) {
+      return;
+    }
+
+    setSkipIntro(true);
+    setIntroComplete(true);
+
+    requestAnimationFrame(() => {
+      refs.current.contact?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      window.history.replaceState({}, '', '/#contact');
+    });
+  }, [refs, router.isReady]);
 
   return (
     <>
       <section id="about" className="relative min-h-screen overflow-hidden">
-        <Hero onIntroComplete={() => setIntroComplete(true)} />
+        <Hero
+          skipIntro={skipIntro}
+          onIntroComplete={() => setIntroComplete(true)}
+        />
       </section>
 
       <div
