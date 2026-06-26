@@ -13,13 +13,17 @@ function readBooleanEnv(value: string | undefined, fallback: boolean) {
 }
 
 const protectedMode = readBooleanEnv(process.env.APP_PROTECTED_MODE, false);
+const siteSurface = `${process.env.SITE_SURFACE || process.env.NEXT_PUBLIC_SITE_SURFACE || ''}`
+  .trim()
+  .toLowerCase();
+const campaignSurface = siteSurface === 'campaign';
 const allowPublicSignup = readBooleanEnv(
   process.env.ALLOW_PUBLIC_SIGNUP,
-  !protectedMode
+  !protectedMode && !campaignSurface
 );
 const allowPasswordReset = readBooleanEnv(
   process.env.ALLOW_PASSWORD_RESET,
-  !protectedMode
+  !protectedMode && !campaignSurface
 );
 
 const nextConfig: NextConfig = {
@@ -27,6 +31,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['gsap'],
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
+    NEXT_PUBLIC_SITE_SURFACE: siteSurface,
     NEXT_PUBLIC_ALLOW_PUBLIC_SIGNUP: `${allowPublicSignup}`,
     NEXT_PUBLIC_ALLOW_PASSWORD_RESET: `${allowPasswordReset}`,
   },
