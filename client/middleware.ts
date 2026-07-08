@@ -82,7 +82,12 @@ function isCampaignPublicPath(pathname: string) {
     return true;
   }
 
-  if (pathname === '/' || pathname === '/research' || pathname.startsWith('/research/')) {
+  if (
+    pathname === '/' ||
+    pathname === '/thank-you' ||
+    pathname === '/research' ||
+    pathname.startsWith('/research/')
+  ) {
     return true;
   }
 

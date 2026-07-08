@@ -73,7 +73,7 @@ const Footer: React.FC = () => {
   return (
     <footer
       id="Footer"
-      className="theme-footer-gradient relative flex h-screen w-full flex-col basic-pd pb-[10px]"
+      className="theme-footer-gradient relative flex min-h-screen min-h-[100dvh] w-full flex-col basic-pd pb-[10px]"
     >
       {/* ================= MAIN GRID ================= */}
       <div

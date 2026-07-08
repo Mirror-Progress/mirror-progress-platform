@@ -17,17 +17,6 @@ const GAP = 88;
 const SECTIONS = ['about', 'capabilities', 'contact', 'summary'];
 const CONTACT_SKIP_INTRO = 'contact';
 
-const readIntroBypassTarget = () => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  return params.get('skipIntro') === CONTACT_SKIP_INTRO
-    ? CONTACT_SKIP_INTRO
-    : null;
-};
-
 /* ------------------------------------------------------------------ */
 /* 2 ▸ Utility hooks                                                  */
 /* ------------------------------------------------------------------ */
@@ -62,8 +51,8 @@ const Home: NextPage = () => {
   const router = useRouter();
   const refs = useSectionRefs(SECTIONS);
   const active = useActive(refs, false);
-  const [skipIntro, setSkipIntro] = useState(() => readIntroBypassTarget() === CONTACT_SKIP_INTRO);
-  const [introComplete, setIntroComplete] = useState(() => skipIntro);
+  const [skipIntro, setSkipIntro] = useState(false);
+  const [introComplete, setIntroComplete] = useState(false);
 
   const [hover, setHover] = useState<string | null>(null);
 
@@ -148,6 +137,17 @@ const Home: NextPage = () => {
           </div>
         ))}
       </nav>
+
+      <a
+        href="#contact"
+        className={`theme-primary-button fixed bottom-[28px] right-[28px] z-20 rounded-[999px] px-[20px] py-[13px] font-diatype text-[11px] uppercase tracking-m3p shadow-[0_18px_54px_rgba(0,0,0,0.2)] transition-all duration-500 max-md:bottom-[38px] max-md:left-[16px] max-md:right-[16px] max-md:text-center ${
+          introComplete
+            ? 'translate-y-0 opacity-100'
+            : 'pointer-events-none translate-y-4 opacity-0'
+        }`}
+      >
+        Start a Readiness Conversation
+      </a>
 
       <style jsx global>{`
         #about,

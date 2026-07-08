@@ -24,16 +24,8 @@ const Capabilities: React.FC = () => {
             const isOpen = openId === capability.id;
 
             return (
-              <button
+              <article
                 key={capability.id}
-                type="button"
-                aria-expanded={isOpen}
-                aria-controls={`${capability.id}-content`}
-                onClick={() =>
-                  setOpenId((current) =>
-                    current === capability.id ? null : capability.id
-                  )
-                }
                 className={`group rounded-[32px] border text-left transition-all duration-300 ${
                   isOpen
                     ? 'theme-panel border-[color:var(--theme-border-strong)]'
@@ -41,7 +33,17 @@ const Capabilities: React.FC = () => {
                 }`}
               >
                 <div className="flex h-full flex-col gap-[24px] px-[28px] py-[26px] max-md:px-[20px] max-md:py-[22px]">
-                  <div className="flex items-start justify-between gap-[20px]">
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-controls={`${capability.id}-content`}
+                    onClick={() =>
+                      setOpenId((current) =>
+                        current === capability.id ? null : capability.id
+                      )
+                    }
+                    className="flex w-full items-start justify-between gap-[20px] text-left"
+                  >
                     <div className="flex min-w-0 flex-col gap-[14px]">
                       <span className="theme-eyebrow font-diatype text-[12px] uppercase tracking-m3p">
                         {String(index + 1).padStart(2, '0')}
@@ -60,7 +62,11 @@ const Capabilities: React.FC = () => {
                     >
                       {isOpen ? '−' : '+'}
                     </span>
-                  </div>
+                  </button>
+
+                  <p className="theme-page-muted max-w-[540px] font-dmSans text-[16px] leading-120 max-md:text-[15px]">
+                    {capability.excerpt}
+                  </p>
 
                   <div
                     id={`${capability.id}-content`}
@@ -71,17 +77,40 @@ const Capabilities: React.FC = () => {
                     }`}
                   >
                     <div className="overflow-hidden">
-                      <p className="theme-page-muted max-w-[540px] pt-[8px] font-dmSans text-[17px] leading-120 max-md:text-[15px]">
-                        {capability.excerpt}
-                      </p>
+                      <div className="grid gap-[12px] pt-[6px]">
+                        <div className="theme-card-soft rounded-[22px] px-[16px] py-[14px]">
+                          <p className="theme-eyebrow font-diatype text-[10px] uppercase tracking-m3p">
+                            Business cost
+                          </p>
+                          <p className="theme-page-muted mt-[8px] font-dmSans text-[14px] leading-125">
+                            {capability.cost}
+                          </p>
+                        </div>
+                        <div className="theme-card-soft rounded-[22px] px-[16px] py-[14px]">
+                          <p className="theme-eyebrow font-diatype text-[10px] uppercase tracking-m3p">
+                            Mirror Progress builds
+                          </p>
+                          <p className="theme-page-muted mt-[8px] font-dmSans text-[14px] leading-125">
+                            {capability.solution}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <span className="theme-eyebrow font-diatype text-[12px] uppercase tracking-m3p">
-                    {isOpen ? 'Tap to close' : 'Tap to expand'}
-                  </span>
+                  <div className="flex flex-wrap items-center justify-between gap-[12px]">
+                    <span className="theme-eyebrow font-diatype text-[12px] uppercase tracking-m3p">
+                      {isOpen ? 'Tap to close' : 'Tap to expand'}
+                    </span>
+                    <a
+                      href={capability.offerHref}
+                      className="theme-secondary-button rounded-[999px] px-[14px] py-[9px] font-diatype text-[10px] uppercase tracking-m3p"
+                    >
+                      {capability.offerLabel}
+                    </a>
+                  </div>
                 </div>
-              </button>
+              </article>
             );
           })}
         </div>

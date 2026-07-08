@@ -108,8 +108,7 @@ export function getThemeInitializationScript() {
         if (storedTheme === 'light' || storedTheme === 'dark') {
           theme = storedTheme;
         } else {
-          theme = Math.random() < 0.5 ? 'dark' : 'light';
-          window.sessionStorage.setItem(storageKey, theme);
+          theme = '${DEFAULT_THEME}';
         }
 
         document.documentElement.dataset.theme = theme;

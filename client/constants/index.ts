@@ -49,9 +49,14 @@ export const offices = [
 export const capabilityBuckets = [
   {
     id: 'ai-systems-model-infrastructure',
-    title: 'AI Systems & Model Infrastructure',
+    title: 'Knowledge is scattered across files, tools, and people.',
     excerpt:
-      'RAG systems, agent orchestration, agent tools, inference infrastructure, fine-tuning, evaluation, intelligent workflows.',
+      'Teams lose time hunting through PDFs, folders, chat history, old proposals, and individual memory instead of reusing what the organization already knows.',
+    cost: 'Slow decisions, duplicated work, and valuable expertise trapped outside the systems people use every day.',
+    solution:
+      'Mirror Progress builds searchable knowledge layers, document intelligence, and governed retrieval systems that make institutional knowledge usable.',
+    offerLabel: 'See proposal intelligence',
+    offerHref: '/capabilities/proposal-intelligence',
     media: {
       imagePath: '/images/AI_Solutions.svg',
       videoPath: '/videos/Data_and_AI_Solutions.mp4',
@@ -59,9 +64,14 @@ export const capabilityBuckets = [
   },
   {
     id: 'data-platforms-backend-systems',
-    title: 'Data Platforms & Backend Systems',
+    title: 'Revenue work slows down when research and proposals restart from scratch.',
     excerpt:
-      'APIs, ingestion pipelines, document processing, data normalization, internal tools, operational platforms.',
+      'Business development, proposal, and client-facing teams often rebuild the same research, case studies, and positioning every time a new opportunity appears.',
+    cost: 'High-value staff spend hours on manual assembly instead of sharper strategy, faster follow-up, and better client conversations.',
+    solution:
+      'We connect account research, precedent memory, fit scoring, and human-reviewed drafting into a reusable revenue operating layer.',
+    offerLabel: 'Review proposal systems',
+    offerHref: '/capabilities/proposal-intelligence',
     media: {
       imagePath: '/images/Design_Engineering.svg',
       videoPath: '/videos/Design_Engineering.mp4',
@@ -69,9 +79,14 @@ export const capabilityBuckets = [
   },
   {
     id: 'web-infrastructure-digital-platforms',
-    title: 'Web Infrastructure & Digital Platforms',
+    title: 'Leadership reporting depends on manual updates and disconnected systems.',
     excerpt:
-      'Global websites, CMS architecture, frontend systems, multi-region delivery, performance engineering.',
+      'Important operating signals sit across spreadsheets, CRMs, project tools, inboxes, and dashboards that do not agree with one another.',
+    cost: 'Leaders get late visibility, teams spend time reconciling data, and operational risk stays hidden until it becomes expensive.',
+    solution:
+      'Mirror Progress builds internal intelligence systems that normalize data, surface risk, and turn recurring operational questions into tracked workflows.',
+    offerLabel: 'Explore operational intelligence',
+    offerHref: '/capabilities/operational-intelligence',
     media: {
       imagePath: '/images/Smart_Infrastructure.svg',
       videoPath: '/videos/Smart_Infastructure.mp4',
@@ -79,9 +94,14 @@ export const capabilityBuckets = [
   },
   {
     id: 'research-analysis-technical-strategy',
-    title: 'Research, Analysis & Technical Strategy',
+    title: 'AI plans stall because data, workflows, and governance are not ready.',
     excerpt:
-      'Original insight, technical analysis, architecture planning, system design, emerging technology research.',
+      'Companies want agents, dashboards, and automation, but the underlying sources, access rules, integrations, and workflow ownership are unclear.',
+    cost: 'AI pilots stay fragile, teams distrust outputs, and leadership cannot tell what to build first.',
+    solution:
+      'We audit workflows, data readiness, integration gaps, and governance risk, then map the first useful AI sprint.',
+    offerLabel: 'Start with an AI Readiness Audit',
+    offerHref: '/capabilities/ai-readiness-audit',
     media: {
       imagePath: '/images/Sustainable_Futures.svg',
       videoPath: '/videos/Sustainable_Futures.mp4',
@@ -130,7 +150,7 @@ export const paragraphs = {
     'We end with systems that scale and help our parterns expand.',
   ],
   capabilities:
-    'We build the systems underneath ambitious organizations, from model infrastructure and data platforms to the websites and operational tools that keep everything moving.',
+    'Start with the operational problems buyers already feel: scattered knowledge, slow revenue workflows, manual reporting, and AI plans blocked by weak infrastructure.',
   footer:
     'Mirror Progress is a team of experts that partner closely with organizations who want to move ahead. We create internal and external products. We provide custom services. We are focused on what’s next. ',
 };
@@ -173,7 +193,7 @@ export const policyText = [
     items: [
       {
         id: 0,
-        text: 'Email address',
+        text: 'Name, company name, company email, company size, industry, inquiry message, source attribution, and related contact context.',
       },
     ],
   },
@@ -184,11 +204,11 @@ export const policyText = [
     items: [
       {
         id: 0,
-        text: 'Send you newsletters, updates, and promotional materials.',
+        text: 'Respond to your inquiry and understand whether Mirror Progress can help with the business problem you shared.',
       },
       {
         id: 1,
-        text: 'Communicate with you about our services or respond to your inquiries.',
+        text: 'Improve our public funnel, campaign attribution, and service discovery process.',
       },
     ],
   },
