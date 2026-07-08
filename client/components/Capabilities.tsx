@@ -102,12 +102,6 @@ const Capabilities: React.FC = () => {
                     <span className="theme-eyebrow font-diatype text-[12px] uppercase tracking-m3p">
                       {isOpen ? 'Tap to close' : 'Tap to expand'}
                     </span>
-                    <a
-                      href={capability.offerHref}
-                      className="theme-secondary-button rounded-[999px] px-[14px] py-[9px] font-diatype text-[10px] uppercase tracking-m3p"
-                    >
-                      {capability.offerLabel}
-                    </a>
                   </div>
                 </div>
               </article>

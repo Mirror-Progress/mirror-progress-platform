@@ -55,8 +55,6 @@ export const capabilityBuckets = [
     cost: 'Slow decisions, duplicated work, and valuable expertise trapped outside the systems people use every day.',
     solution:
       'Mirror Progress builds searchable knowledge layers, document intelligence, and governed retrieval systems that make institutional knowledge usable.',
-    offerLabel: 'See proposal intelligence',
-    offerHref: '/capabilities/proposal-intelligence',
     media: {
       imagePath: '/images/AI_Solutions.svg',
       videoPath: '/videos/Data_and_AI_Solutions.mp4',
@@ -70,8 +68,6 @@ export const capabilityBuckets = [
     cost: 'High-value staff spend hours on manual assembly instead of sharper strategy, faster follow-up, and better client conversations.',
     solution:
       'We connect account research, precedent memory, fit scoring, and human-reviewed drafting into a reusable revenue operating layer.',
-    offerLabel: 'Review proposal systems',
-    offerHref: '/capabilities/proposal-intelligence',
     media: {
       imagePath: '/images/Design_Engineering.svg',
       videoPath: '/videos/Design_Engineering.mp4',
@@ -85,8 +81,6 @@ export const capabilityBuckets = [
     cost: 'Leaders get late visibility, teams spend time reconciling data, and operational risk stays hidden until it becomes expensive.',
     solution:
       'Mirror Progress builds internal intelligence systems that normalize data, surface risk, and turn recurring operational questions into tracked workflows.',
-    offerLabel: 'Explore operational intelligence',
-    offerHref: '/capabilities/operational-intelligence',
     media: {
       imagePath: '/images/Smart_Infrastructure.svg',
       videoPath: '/videos/Smart_Infastructure.mp4',
@@ -100,8 +94,6 @@ export const capabilityBuckets = [
     cost: 'AI pilots stay fragile, teams distrust outputs, and leadership cannot tell what to build first.',
     solution:
       'We audit workflows, data readiness, integration gaps, and governance risk, then map the first useful AI sprint.',
-    offerLabel: 'Start with an AI Readiness Audit',
-    offerHref: '/capabilities/ai-readiness-audit',
     media: {
       imagePath: '/images/Sustainable_Futures.svg',
       videoPath: '/videos/Sustainable_Futures.mp4',
