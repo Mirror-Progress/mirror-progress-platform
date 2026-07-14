@@ -1,1021 +1,262 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React from 'react';
 import BrandMark from '../BrandMark';
 import ThemeToggle from '../ThemeToggle';
+import type { CapabilityExperience } from '../../lib/capability-experiences';
 import WorkflowSimulation from './WorkflowSimulation';
-import type { CapabilityArtifact, CapabilityExperience, CapabilityStep } from '../../lib/capability-experiences';
 
 type CapabilityExperiencePageProps = {
   experience: CapabilityExperience;
 };
 
-const toneClass = (tone: CapabilityArtifact['tone'] = 'neutral') => {
-  switch (tone) {
-    case 'accent':
-      return 'capability-tone-accent';
-    case 'success':
-      return 'capability-tone-success';
-    case 'warning':
-      return 'capability-tone-warning';
-    default:
-      return 'capability-tone-neutral';
-  }
-};
+const CONTACT_HREF = '/?skipIntro=contact#contact';
 
-const modeLabel = {
-  proposal: 'Pursuit system demo',
-  operations: 'Operations system demo',
-  infrastructure: 'Infrastructure readiness demo',
-  audit: 'AI readiness audit demo',
-} as const;
-
-const modeStatusCopy = {
-  proposal: 'Mock pursuit workflow. No real RFP, portfolio, or proposal data is connected.',
-  operations: 'Mock operations workflow. No external tools are queried or updated.',
-  infrastructure: 'Mock infrastructure readiness workflow. No real client systems, files, or data sources are connected.',
-  audit: 'Mock AI readiness audit workflow. No client systems are queried and no recommendations are executed.',
-} as const;
-
-const modeArtifactLabel = {
-  proposal: 'Pursuit artifact',
-  operations: 'Agent workspace',
-  infrastructure: 'Infrastructure artifact',
-  audit: 'Audit artifact',
-} as const;
-
-const modeStateLabel = {
-  proposal: 'Pursuit recommendation state',
-  operations: 'Operations intelligence state',
-  infrastructure: 'Infrastructure readiness state',
-  audit: 'Audit roadmap state',
-} as const;
-
-const defaultImplementationSteps: Array<[string, string, string]> = [
-  ['01', 'Map the workflow', 'Define the real decisions, data sources, users, and risk boundaries before designing the interface.'],
-  ['02', 'Build the intelligence layer', 'Connect approved mock or production data into structured retrieval, scoring, drafting, and review flows.'],
-  ['03', 'Operate and improve', 'Ship a focused internal system, observe usage, tune the logic, and expand only where value is proven.'],
-];
-
-const CapabilityExperiencePage: React.FC<CapabilityExperiencePageProps> = ({ experience }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(true);
-  const activeStep = experience.steps[activeIndex];
-  const nextStep = experience.steps[(activeIndex + 1) % experience.steps.length];
-  const progress = ((activeIndex + 1) / experience.steps.length) * 100;
-  const implementationSteps = experience.implementationSteps ?? defaultImplementationSteps;
-
-  useEffect(() => {
-    if (!autoPlay) return undefined;
-
-    const timer = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % experience.steps.length);
-    }, 5200);
-
-    return () => window.clearInterval(timer);
-  }, [autoPlay, experience.steps.length]);
-
-  const statusCopy = useMemo(() => modeStatusCopy[experience.mode], [experience.mode]);
-
-  const handleStepClick = (index: number) => {
-    setActiveIndex(index);
-    setAutoPlay(false);
-  };
-
+const CapabilityExperiencePage: React.FC<CapabilityExperiencePageProps> = ({
+  experience,
+}) => {
   return (
     <>
       <Head>
         <title>{`${experience.title} | Mirror Progress`}</title>
         <meta name="robots" content="noindex,nofollow" />
-        <meta name="description" content={experience.purpose} />
+        <meta name="description" content={experience.problemStatement} />
       </Head>
 
-      <section className={`capability-page capability-page-${experience.mode} min-h-screen overflow-hidden px-[24px] pb-[72px] pt-[24px] text-[var(--theme-text-primary)] max-md:px-[16px]`}>
-        <div className="capability-shell mx-auto flex w-full max-w-[1320px] flex-col gap-[38px] max-md:gap-[28px]">
-          <header className="capability-private-header theme-panel flex items-center justify-between gap-[16px] rounded-[28px] px-[18px] py-[14px] max-md:rounded-[22px]">
-            <Link href="/" aria-label="Mirror Progress home" className="inline-flex items-center gap-[12px]">
-              <BrandMark className="h-[28px] w-[30px]" />
-              <span className="font-diatype text-[12px] uppercase tracking-m3p text-[var(--theme-text-primary)]">
-                Mirror Progress
-              </span>
+      <section className={`capability-page capability-page-${experience.mode}`}>
+        <div className="capability-shell">
+          <header className="capability-private-header">
+            <Link href="/" aria-label="Mirror Progress home" className="capability-brand">
+              <BrandMark className="h-[27px] w-[29px]" />
+              <span>Mirror Progress</span>
             </Link>
-
-            <div className="hidden items-center gap-[8px] rounded-full border border-[var(--theme-border)] px-[12px] py-[7px] font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)] md:flex">
-              <span className="h-[6px] w-[6px] rounded-full bg-[var(--theme-accent)] shadow-[0_0_18px_var(--theme-accent-soft)]" />
-              Direct capability brief
-            </div>
-
-            <div className="flex items-center gap-[10px]">
-              <ThemeToggle className="max-sm:hidden" />
-              <a href="#capability-contact" className="theme-secondary-button rounded-full px-[16px] py-[10px] font-diatype text-[11px] uppercase tracking-m3p">
+            <span className="capability-private-label">
+              <i /> Direct capability brief
+            </span>
+            <div className="capability-header-actions">
+              <ThemeToggle />
+              <a href={CONTACT_HREF} className="theme-secondary-button capability-discuss-button">
                 Discuss
               </a>
             </div>
           </header>
 
-          <div className="capability-hero-grid grid grid-cols-[minmax(0,1fr)_420px] gap-[22px] max-lg:grid-cols-1">
-            <section className="theme-panel-strong capability-hero-panel relative overflow-hidden rounded-[32px] p-[34px] max-md:rounded-[24px] max-md:p-[22px]">
-              <div className="capability-scanline" aria-hidden="true" />
-              <div className="relative z-[1] flex max-w-[820px] flex-col gap-[26px]">
-                <div className="flex flex-wrap items-center gap-[10px]">
-                  <span className="theme-chip">{experience.eyebrow}</span>
-                  <span className="theme-chip">{modeLabel[experience.mode]}</span>
-                </div>
-                <div className="space-y-[18px]">
-                  <h1 className="font-diatype text-[58px] font-semibold leading-[0.96] text-[var(--theme-text-primary)] max-lg:text-[48px] max-md:text-[36px]">
-                    {experience.title}
-                  </h1>
-                  <p className="max-w-[760px] font-diatype text-[18px] leading-[1.6] text-[var(--theme-text-secondary)] max-md:text-[15px]">
-                    {experience.purpose}
-                  </p>
-                </div>
-                <div className="grid grid-cols-3 gap-[10px] max-md:grid-cols-1">
-                  {experience.heroStats.map((stat) => (
-                    <div key={`${stat.label}-${stat.value}`} className={`capability-stat ${toneClass(stat.tone)} rounded-[18px] border px-[16px] py-[14px]`}>
-                      <p className="font-diatype text-[11px] uppercase tracking-m3p opacity-70">{stat.label}</p>
-                      <p className="mt-[8px] font-diatype text-[22px] font-semibold">{stat.value}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-[12px]">
-                  <a href="#capability-demo" className="theme-primary-button rounded-full px-[20px] py-[13px] font-diatype text-[12px] uppercase tracking-m3p">
-                    View Interactive Demo
-                  </a>
-                  <a href="#capability-outcomes" className="theme-secondary-button rounded-full px-[20px] py-[13px] font-diatype text-[12px] uppercase tracking-m3p">
-                    Business Outcomes
-                  </a>
-                </div>
+          <main className="capability-primary">
+            <section className="capability-copy">
+              <span className="capability-eyebrow">{experience.eyebrow}</span>
+              <h1>{experience.problemQuestion}</h1>
+              <p className="capability-problem">{experience.problemStatement}</p>
+
+              <div className="capability-pain-list" aria-label="Common business problems">
+                {experience.painPoints.map((point, index) => (
+                  <div key={point}>
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <p>{point}</p>
+                  </div>
+                ))}
               </div>
+
+              <div className="capability-solution">
+                <span>How Mirror Progress helps</span>
+                <p>{experience.solutionStatement}</p>
+              </div>
+
+              <a href={CONTACT_HREF} className="theme-primary-button capability-primary-cta">
+                {experience.ctaLabel}
+                <span aria-hidden="true">↗</span>
+              </a>
             </section>
 
-            <aside className="theme-panel capability-context-panel min-w-0 rounded-[32px] p-[24px] max-md:rounded-[24px]">
-              <div className="flex h-full flex-col justify-between gap-[24px]">
-                <div className="min-w-0 space-y-[14px]">
-                  <span className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">
-                    {experience.sampleContextTitle}
-                  </span>
-                  <p className="break-words font-diatype text-[20px] leading-[1.35] text-[var(--theme-text-primary)]">
-                    {experience.sampleContextBody}
-                  </p>
-                </div>
-                <div className="space-y-[10px]">
-                  {experience.systemLayers.map((layer, index) => (
-                    <div key={layer} className="capability-layer-row flex min-w-0 items-center gap-[10px] rounded-[16px] border border-[var(--theme-border)] bg-[var(--theme-surface-muted)] px-[13px] py-[11px]">
-                      <span className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-full border border-[var(--theme-border)] font-diatype text-[10px] text-[var(--theme-text-muted)]">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 break-words font-diatype text-[13px] leading-[1.35] text-[var(--theme-text-secondary)]">{layer}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </aside>
-          </div>
+            <WorkflowSimulation experience={experience} />
+          </main>
 
-          <WorkflowSimulation mode={experience.mode} />
-
-          <ProgressiveSection id="capability-demo" className="capability-section-frame capability-workflow-module rounded-[32px] p-[18px] max-md:rounded-[24px] max-md:p-[12px]">
-            <div className="mb-[16px] flex flex-wrap items-center justify-between gap-[12px] px-[8px]">
-              <div className="min-w-0 max-w-[780px]">
-                <span className="theme-chip">Interactive Workflow Steps</span>
-                <h2 className="mt-[12px] break-words font-diatype text-[28px] font-semibold leading-[1.12] text-[var(--theme-text-primary)] max-md:text-[22px]">
-                  Explore the workflow one decision at a time.
-                </h2>
-                <p className="mt-[8px] max-w-[720px] break-words font-diatype text-[14px] leading-[1.6] text-[var(--theme-text-secondary)]">{statusCopy}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAutoPlay((current) => !current)}
-                className="capability-control-button rounded-full border border-[var(--theme-border)] px-[14px] py-[10px] font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-secondary)] transition hover:border-[var(--theme-border-strong)] hover:text-[var(--theme-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent-soft)]"
-              >
-                {autoPlay ? 'Pause Flow' : 'Auto Flow'}
-              </button>
+          <section className="capability-close" aria-labelledby="capability-receive-title">
+            <div className="capability-close-intro">
+              <span>What you receive</span>
+              <h2 id="capability-receive-title">A practical path from diagnosis to implementation.</h2>
+              <p>{experience.businessCost}</p>
             </div>
-
-            <div className="capability-demo-grid grid grid-cols-[300px_minmax(0,1fr)_310px] gap-[14px] max-xl:grid-cols-[280px_minmax(0,1fr)] max-lg:grid-cols-1">
-              <WorkflowRail steps={experience.steps} activeIndex={activeIndex} onStepClick={handleStepClick} />
-              <DemoConsole activeStep={activeStep} activeIndex={activeIndex} progress={progress} totalSteps={experience.steps.length} mode={experience.mode} />
-              <LiveOutcomePanel activeStep={activeStep} nextStep={nextStep} mode={experience.mode} />
+            <div className="capability-deliverables">
+              {experience.deliverables.map((deliverable, index) => (
+                <article key={deliverable}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <h3>{deliverable}</h3>
+                </article>
+              ))}
             </div>
-          </ProgressiveSection>
-
-          <ProgressiveSection id="capability-outcomes" className="capability-section-frame rounded-[32px] p-[14px] max-md:rounded-[24px]">
-            <div className="mb-[14px] flex flex-wrap items-end justify-between gap-[12px] px-[8px]">
-              <div>
-                <span className="theme-chip">Business Value</span>
-                <h2 className="mt-[12px] break-words font-diatype text-[28px] font-semibold leading-[1.12] text-[var(--theme-text-primary)] max-md:text-[22px]">
-                  What the system changes for the team.
-                </h2>
-              </div>
+            <div className="capability-close-action">
+              <p>{experience.audience}</p>
+              <a href={CONTACT_HREF} className="theme-secondary-button">
+                Start a conversation
+              </a>
             </div>
-            <div className="grid grid-cols-[0.8fr_1.2fr] gap-[20px] max-lg:grid-cols-1">
-              <div className="capability-value-intro min-w-0 rounded-[28px] p-[28px] max-md:rounded-[22px] max-md:p-[20px]">
-                <span className="theme-chip">Capability fit</span>
-                <h2 className="mt-[18px] break-words font-diatype text-[32px] font-semibold leading-[1.08] text-[var(--theme-text-primary)] max-md:text-[26px]">
-                  Built for teams that need intelligence, not another static page.
-                </h2>
-                <p className="mt-[16px] break-words font-diatype text-[15px] leading-[1.65] text-[var(--theme-text-secondary)]">
-                  {experience.audience}
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-[12px] max-md:grid-cols-1">
-                {experience.outcomes.map((outcome) => (
-                  <article key={outcome.title} className="capability-value-card min-w-0 rounded-[24px] p-[20px]">
-                    {outcome.metric ? (
-                      <span className="capability-mini-metric inline-flex max-w-full rounded-full border border-[var(--theme-border)] px-[10px] py-[6px] font-diatype text-[10px] uppercase leading-[1.2] tracking-m3p">
-                        {outcome.metric}
-                      </span>
-                    ) : null}
-                    <h3 className="mt-[18px] break-words font-diatype text-[18px] font-semibold leading-[1.2] text-[var(--theme-text-primary)]">{outcome.title}</h3>
-                    <p className="mt-[10px] break-words font-diatype text-[13px] leading-[1.55] text-[var(--theme-text-secondary)]">{outcome.description}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </ProgressiveSection>
-
-          <TransformationSection mode={experience.mode} />
-
-          <ProgressiveSection className="capability-section-frame rounded-[32px] p-[14px] max-md:rounded-[24px]">
-            <div className="grid grid-cols-[0.75fr_1.25fr] gap-[18px] max-lg:grid-cols-1">
-              <div className="capability-process-intro min-w-0 rounded-[28px] p-[26px] max-md:rounded-[22px] max-md:p-[20px]">
-                <span className="theme-chip">Implementation Approach</span>
-                <h2 className="mt-[16px] break-words font-diatype text-[30px] font-semibold leading-[1.12] text-[var(--theme-text-primary)] max-md:text-[24px]">
-                  Designed around the real operating context.
-                </h2>
-                <p className="mt-[13px] break-words font-diatype text-[14px] leading-[1.65] text-[var(--theme-text-secondary)]">
-                  Mirror Progress builds these as custom systems: workflow first, data boundaries second, interface third, with human review built into the places where judgment matters.
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-[12px] max-md:grid-cols-1">
-                {implementationSteps.map(([number, title, body]) => (
-                  <article key={title} className="capability-process-card min-w-0 rounded-[24px] p-[20px]">
-                    <span className="capability-process-number inline-flex h-[34px] w-[34px] items-center justify-center rounded-full border font-diatype text-[11px]">
-                      {number}
-                    </span>
-                    <h3 className="mt-[16px] break-words font-diatype text-[17px] font-semibold leading-[1.2] text-[var(--theme-text-primary)]">{title}</h3>
-                    <p className="mt-[9px] break-words font-diatype text-[13px] leading-[1.55] text-[var(--theme-text-secondary)]">{body}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </ProgressiveSection>
-
-          <ProgressiveSection id="capability-contact" className="theme-panel-strong flex items-center justify-between gap-[20px] rounded-[32px] p-[28px] max-md:flex-col max-md:items-start max-md:rounded-[24px] max-md:p-[20px]">
-            <div className="max-w-[760px]">
-              <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Custom Mirror Progress system</p>
-              <h2 className="mt-[10px] font-diatype text-[30px] font-semibold leading-[1.12] text-[var(--theme-text-primary)] max-md:text-[24px]">
-                Shape this into a real operating system for your team.
-              </h2>
-              <p className="mt-[12px] font-diatype text-[14px] leading-[1.6] text-[var(--theme-text-secondary)]">
-                These demos use realistic mock data and human approval gates. The next step is mapping the actual workflows, data sources, risk boundaries, and business outcomes that matter.
-              </p>
-            </div>
-            <Link href="/#contact" className="theme-primary-button shrink-0 rounded-full px-[22px] py-[14px] font-diatype text-[12px] uppercase tracking-m3p focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent-soft)] max-md:w-full max-md:justify-center">
-              {experience.ctaLabel}
-            </Link>
-          </ProgressiveSection>
+          </section>
         </div>
       </section>
 
       <style jsx global>{`
         .capability-page {
-          --theme-bg: var(--theme-page-bg);
-          --theme-bg-elevated: var(--theme-page-bg-soft);
-          --theme-text-primary: #f8ffff;
-          --theme-text-secondary: rgba(246, 251, 251, 0.78);
-          --theme-text-muted: rgba(246, 251, 251, 0.62);
-          --theme-surface: rgba(7, 32, 34, 0.78);
-          --theme-surface-muted: rgba(255, 255, 255, 0.055);
-          --theme-accent: #b9efef;
-          --theme-accent-soft: rgba(185, 239, 239, 0.14);
-          --capability-readable-surface: rgba(8, 35, 37, 0.84);
-          --capability-readable-surface-muted: rgba(14, 51, 54, 0.72);
-          --capability-readable-border: rgba(255, 255, 255, 0.14);
-          --capability-readable-shadow: 0 22px 70px rgba(0, 0, 0, 0.2);
+          --scene-accent: #a9eded;
+          --scene-accent-rgb: 169, 237, 237;
+          min-height: 100vh;
           background:
-            radial-gradient(circle at 18% 14%, color-mix(in srgb, var(--theme-accent) 17%, transparent), transparent 28%),
-            radial-gradient(circle at 82% 22%, rgba(120, 164, 255, 0.11), transparent 30%),
-            linear-gradient(180deg, var(--theme-bg) 0%, var(--theme-bg-elevated) 100%);
+            radial-gradient(circle at 74% 22%, rgba(var(--scene-accent-rgb), 0.07), transparent 25%),
+            var(--theme-page-bg);
+          color: var(--theme-page-text);
+          padding: 20px 24px 42px;
         }
 
-        :root[data-theme='light'] .capability-page {
-          --theme-bg: #eef4ff;
-          --theme-bg-elevated: #f8fbff;
-          --theme-text-primary: #10264f;
-          --theme-text-secondary: #27466f;
-          --theme-text-muted: #526985;
-          --theme-surface: rgba(255, 255, 255, 0.92);
-          --theme-surface-muted: rgba(228, 238, 255, 0.82);
-          --theme-accent: #1d5fc7;
-          --theme-accent-soft: rgba(29, 95, 199, 0.14);
-          --capability-readable-surface: rgba(255, 255, 255, 0.94);
-          --capability-readable-surface-muted: rgba(235, 243, 255, 0.9);
-          --capability-readable-border: rgba(84, 130, 201, 0.34);
-          --capability-readable-shadow: 0 24px 70px rgba(28, 75, 150, 0.13);
+        .capability-page-audit { --scene-accent: #9ee8d7; --scene-accent-rgb: 158, 232, 215; }
+        .capability-page-infrastructure { --scene-accent: #8fd9f0; --scene-accent-rgb: 143, 217, 240; }
+        .capability-page-operations { --scene-accent: #d6dba1; --scene-accent-rgb: 214, 219, 161; }
+        .capability-page-proposal { --scene-accent: #d6b8ef; --scene-accent-rgb: 214, 184, 239; }
+
+        .capability-shell { width: min(1380px, 100%); margin: 0 auto; }
+        .capability-private-header {
+          min-height: 56px; display: grid; grid-template-columns: 1fr auto 1fr;
+          align-items: center; gap: 16px; border-bottom: 1px solid var(--theme-border);
+          padding: 0 2px 14px;
         }
-
-        .capability-page-operations {
-          background:
-            radial-gradient(circle at 16% 12%, rgba(48, 214, 156, 0.16), transparent 28%),
-            radial-gradient(circle at 84% 18%, color-mix(in srgb, var(--theme-accent) 12%, transparent), transparent 30%),
-            linear-gradient(180deg, var(--theme-bg) 0%, var(--theme-bg-elevated) 100%);
+        .capability-brand { display: inline-flex; align-items: center; gap: 11px; width: max-content; }
+        .capability-brand span, .capability-private-label, .capability-eyebrow,
+        .capability-scene-kicker, .capability-solution > span, .capability-close-intro > span {
+          font-family: diatype, monospace; text-transform: uppercase; letter-spacing: 0;
         }
+        .capability-brand span { font-size: 11px; color: var(--theme-page-text); }
+        .capability-private-label { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--theme-page-text-muted); }
+        .capability-private-label i { width: 6px; height: 6px; border-radius: 50%; background: var(--scene-accent); box-shadow: 0 0 15px rgba(var(--scene-accent-rgb), .7); }
+        .capability-header-actions { justify-self: end; display: flex; align-items: center; gap: 9px; }
+        .capability-discuss-button { border-radius: 6px; padding: 9px 14px; font: 10px diatype, monospace; text-transform: uppercase; }
 
-        .capability-page-infrastructure {
-          background:
-            radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--theme-accent) 15%, transparent), transparent 30%),
-            radial-gradient(circle at 82% 20%, rgba(148, 163, 184, 0.14), transparent 32%),
-            linear-gradient(180deg, var(--theme-bg) 0%, var(--theme-bg-elevated) 100%);
+        .capability-primary {
+          min-height: 720px; display: grid; grid-template-columns: minmax(400px, .82fr) minmax(600px, 1.18fr);
+          gap: clamp(30px, 5vw, 78px); align-items: center; padding: clamp(42px, 6vh, 72px) 0 48px;
         }
-
-        .capability-page-audit {
-          background:
-            radial-gradient(circle at 20% 14%, rgba(248, 196, 113, 0.14), transparent 28%),
-            radial-gradient(circle at 84% 18%, color-mix(in srgb, var(--theme-accent) 12%, transparent), transparent 30%),
-            linear-gradient(180deg, var(--theme-bg) 0%, var(--theme-bg-elevated) 100%);
+        .capability-copy { max-width: 600px; }
+        .capability-eyebrow { display: block; color: var(--scene-accent); font-size: 10px; margin-bottom: 18px; }
+        .capability-copy h1 {
+          max-width: 590px; margin: 0; font-family: diatype, sans-serif; font-size: clamp(42px, 4.4vw, 66px);
+          line-height: .98; font-weight: 600; letter-spacing: 0; color: var(--theme-page-text-strong);
         }
+        .capability-problem { max-width: 575px; margin: 22px 0 0; font: 16px/1.6 'DM Sans', sans-serif; color: var(--theme-page-text-muted); }
+        .capability-pain-list { display: grid; gap: 0; margin-top: 24px; border-top: 1px solid var(--theme-border); }
+        .capability-pain-list > div { display: grid; grid-template-columns: 34px 1fr; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--theme-border); }
+        .capability-pain-list span { padding-top: 2px; font: 9px diatype, monospace; color: var(--scene-accent); }
+        .capability-pain-list p { margin: 0; font: 13px/1.45 'DM Sans', sans-serif; color: var(--theme-page-text-muted); }
+        .capability-solution { margin-top: 20px; padding-left: 14px; border-left: 2px solid var(--scene-accent); }
+        .capability-solution > span { font-size: 9px; color: var(--scene-accent); }
+        .capability-solution p { margin: 7px 0 0; font: 14px/1.5 'DM Sans', sans-serif; color: var(--theme-page-text); }
+        .capability-primary-cta { display: inline-flex; align-items: center; gap: 18px; margin-top: 23px; border-radius: 6px; padding: 12px 16px; font: 10px diatype, monospace; text-transform: uppercase; }
+        .capability-primary-cta span { font-size: 15px; }
 
-        .capability-hero-panel::after,
-        .capability-context-panel::after {
-          content: '';
-          position: absolute;
-          inset: auto 24px 0 24px;
-          height: 1px;
-          background: linear-gradient(90deg, transparent, var(--theme-border-strong), transparent);
-          opacity: 0.7;
+        .capability-scene {
+          min-width: 0; border: 1px solid var(--theme-border); background: var(--theme-panel-bg-strong);
+          box-shadow: var(--theme-shadow); border-radius: 8px; overflow: hidden;
         }
+        .capability-scene-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 66px; padding: 13px 15px; border-bottom: 1px solid var(--theme-border); }
+        .capability-scene-kicker { margin: 0; font-size: 9px; color: var(--theme-page-text-muted); }
+        .capability-scene-status { margin: 5px 0 0; font: 13px diatype, monospace; color: var(--theme-page-text); }
+        .capability-scene-controls { display: flex; gap: 6px; }
+        .capability-icon-button { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--theme-border); border-radius: 4px; color: var(--theme-page-text-muted); transition: .18s ease; }
+        .capability-icon-button:hover:not(:disabled) { border-color: var(--scene-accent); color: var(--scene-accent); }
+        .capability-icon-button:disabled { opacity: .35; }
+        .capability-icon-button svg { width: 15px; height: 15px; }
+        .capability-scene-canvas { position: relative; height: 455px; overflow: hidden; background: color-mix(in srgb, var(--theme-card-bg-soft) 75%, transparent); }
+        .capability-stage-nav { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--theme-border); }
+        .capability-stage-nav button { min-width: 0; padding: 10px 5px; border-right: 1px solid var(--theme-border); font: 9px diatype, monospace; color: var(--theme-page-text-muted); transition: .18s ease; }
+        .capability-stage-nav button:last-child { border-right: 0; }
+        .capability-stage-nav button span { display: block; margin-bottom: 4px; font-size: 8px; color: color-mix(in srgb, var(--theme-page-text-muted) 65%, transparent); }
+        .capability-stage-nav button.is-active { background: rgba(var(--scene-accent-rgb), .1); color: var(--scene-accent); }
+        .capability-scene-note { margin: 0; padding: 8px 14px; border-top: 1px solid var(--theme-border); font: 9px diatype, monospace; color: var(--theme-page-text-subtle); }
 
-        .capability-scanline {
-          position: absolute;
-          inset: 0;
-          background:
-            linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.08) 28%, transparent 44%),
-            linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-          background-size: 180% 100%, 100% 42px;
-          animation: capabilityScan 8s linear infinite;
-          opacity: 0.65;
+        .audit-scene, .infrastructure-scene, .operations-scene, .proposal-scene { position: relative; width: 100%; height: 100%; padding: 28px; }
+        .audit-pressure { display: flex; justify-content: space-between; gap: 16px; padding: 13px 15px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-card-bg); }
+        .audit-pressure span, .audit-recommendation span { font: 9px diatype, monospace; text-transform: uppercase; color: var(--scene-accent); }
+        .audit-pressure strong { font: 12px diatype, monospace; color: var(--theme-page-text); }
+        .audit-matrix { margin-top: 22px; }
+        .audit-matrix-head, .audit-row { display: grid; grid-template-columns: 1.55fr repeat(3, 1fr); gap: 12px; align-items: center; }
+        .audit-matrix-head { padding: 0 12px 8px; font: 8px diatype, monospace; text-transform: uppercase; color: var(--theme-page-text-subtle); }
+        .audit-row { opacity: 0; transform: translateY(8px); padding: 13px 12px; border-top: 1px solid var(--theme-border); transition: .45s ease var(--row-delay); }
+        .audit-row.is-visible { opacity: 1; transform: none; }
+        .audit-row.is-selected { background: rgba(var(--scene-accent-rgb), .1); box-shadow: inset 2px 0 0 var(--scene-accent); }
+        .audit-row > strong { font: 11px diatype, monospace; color: var(--theme-page-text); }
+        .score-cell { position: relative; height: 5px; background: var(--theme-progress-track); }
+        .score-cell span { display: block; height: 100%; background: var(--scene-accent); transition: width .65s ease; }
+        .score-cell span.is-risk { background: #d7b18e; }
+        .score-cell small { position: absolute; top: -17px; right: 0; font: 8px diatype, monospace; color: var(--theme-page-text-muted); }
+        .audit-recommendation { position: absolute; left: 28px; right: 28px; bottom: 25px; opacity: 0; transform: translateY(10px); padding: 15px; border: 1px solid rgba(var(--scene-accent-rgb), .4); background: rgba(var(--scene-accent-rgb), .08); transition: .45s ease; }
+        .audit-recommendation.is-visible { opacity: 1; transform: none; }
+        .audit-recommendation strong, .audit-recommendation small { display: block; }
+        .audit-recommendation strong { margin-top: 7px; font: 13px diatype, monospace; color: var(--theme-page-text); }
+        .audit-recommendation small { margin-top: 7px; font: 9px diatype, monospace; color: var(--theme-page-text-muted); }
+
+        .system-map { position: relative; height: 330px; }
+        .system-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+        .system-map path { fill: none; stroke: var(--scene-accent); stroke-width: 1.4; stroke-dasharray: 7 7; opacity: 0; transition: opacity .4s ease; }
+        .system-map path.is-visible { opacity: .55; animation: capability-flow 1.2s linear infinite; }
+        .system-node { position: absolute; width: 142px; opacity: 0; padding: 10px; border: 1px solid var(--theme-border); background: var(--theme-card-bg); transition: .5s ease; z-index: 2; }
+        .system-node.is-visible { opacity: 1; }
+        .system-node span, .system-node small { display: block; }
+        .system-node span { font: 10px diatype, monospace; color: var(--theme-page-text); }
+        .system-node small { margin-top: 5px; font: 8px diatype, monospace; color: #d7b18e; }
+        .system-node.is-organized small { color: var(--scene-accent); }
+        .system-node-1 { left: 0; top: 10px; }.system-node-2 { right: 0; top: 10px; }.system-node-3 { left: 0; bottom: 10px; }.system-node-4 { right: 0; bottom: 10px; }
+        .foundation-core { position: absolute; z-index: 3; left: 50%; top: 50%; width: 176px; opacity: 0; transform: translate(-50%, -50%) scale(.92); padding: 18px 12px; border: 1px solid rgba(var(--scene-accent-rgb), .5); background: color-mix(in srgb, var(--theme-page-bg) 88%, transparent); text-align: center; transition: .45s ease; }
+        .foundation-core.is-visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .foundation-core span, .foundation-core strong, .foundation-core small { display: block; font-family: diatype, monospace; }
+        .foundation-core span { font-size: 8px; text-transform: uppercase; color: var(--scene-accent); }
+        .foundation-core strong { margin-top: 7px; font-size: 11px; color: var(--theme-page-text); }
+        .foundation-core small { opacity: 0; margin-top: 8px; font-size: 7px; color: var(--theme-page-text-muted); transition: opacity .4s ease; }.foundation-core small.is-visible { opacity: 1; }
+        .foundation-output { opacity: 0; transform: translateY(8px); padding: 12px 14px; border-left: 2px solid var(--scene-accent); background: var(--theme-card-bg); transition: .45s ease; }
+        .foundation-output.is-visible { opacity: 1; transform: none; }
+        .foundation-output span, .foundation-output strong { display: block; font-family: diatype, monospace; }.foundation-output span { font-size: 8px; color: var(--scene-accent); text-transform: uppercase; }.foundation-output strong { margin-top: 6px; font-size: 11px; color: var(--theme-page-text); }
+
+        .operations-scene { display: grid; grid-template-columns: 112px 1fr; gap: 18px; align-items: stretch; }
+        .operations-sources { display: flex; flex-direction: column; justify-content: center; gap: 9px; }
+        .operations-sources span { opacity: 0; transform: translateX(-8px); padding: 10px 8px; border: 1px solid var(--theme-border); font: 9px diatype, monospace; color: var(--theme-page-text-muted); transition: .4s ease var(--row-delay); }
+        .operations-sources span.is-visible { opacity: 1; transform: none; }.operations-sources i { display: inline-block; width: 5px; height: 5px; margin-right: 7px; border-radius: 50%; background: var(--scene-accent); }
+        .operating-brief { opacity: 0; transform: translateX(10px); padding: 17px; border: 1px solid var(--theme-border); background: var(--theme-card-bg-soft); transition: .45s ease; }
+        .operating-brief.is-visible { opacity: 1; transform: none; }
+        .brief-head { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--theme-border); }.brief-head span,.brief-head strong { display:block; font-family:diatype,monospace; }.brief-head span { font-size:8px; text-transform:uppercase; color:var(--scene-accent); }.brief-head strong { margin-top:6px; font-size:12px; color:var(--theme-page-text); }.brief-head b { align-self:center; padding:6px 8px; background:rgba(215,177,142,.12); font:8px diatype,monospace; color:#d7b18e; }
+        .brief-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:13px 0; }.brief-metrics div { padding:10px; border:1px solid var(--theme-border); }.brief-metrics small,.brief-metrics strong { display:block; font-family:diatype,monospace; }.brief-metrics small { font-size:7px; color:var(--theme-page-text-subtle); }.brief-metrics strong { margin-top:5px; font-size:16px; color:var(--theme-page-text); }
+        .priority-list > div { display:grid; grid-template-columns:8px 1fr 18px; gap:9px; align-items:center; opacity:0; padding:10px 8px; border-top:1px solid var(--theme-border); transition:.35s ease; }.priority-list > div.is-visible { opacity:1; }.priority-list > div.is-priority { background:rgba(var(--scene-accent-rgb),.08); }.priority-list i { width:6px;height:6px;border-radius:50%;background:var(--scene-accent); }.priority-list i.risk-high { background:#d7b18e; }.priority-list span strong,.priority-list span small { display:block;font-family:diatype,monospace; }.priority-list span strong { font-size:9px;color:var(--theme-page-text); }.priority-list span small { margin-top:4px;font-size:7px;color:var(--theme-page-text-muted); }.priority-list b { font:9px diatype,monospace;color:var(--theme-page-text-subtle); }
+        .brief-action { opacity:0; margin-top:12px; padding:10px; border-left:2px solid var(--scene-accent); background:rgba(var(--scene-accent-rgb),.08); font:8px/1.4 diatype,monospace; color:var(--theme-page-text); transition:.4s ease; }.brief-action.is-visible { opacity:1; }
+
+        .proposal-scene { display:grid; grid-template-columns:1fr 30px 1fr; gap:12px; align-items:center; padding-bottom:100px; }
+        .rfp-document { min-height:260px; padding:17px; border:1px solid var(--theme-border); background:var(--theme-card-bg); }.document-head { display:flex; justify-content:space-between; padding-bottom:11px; border-bottom:1px solid var(--theme-border); }.document-head span { padding:4px 6px; background:rgba(var(--scene-accent-rgb),.12); font:8px diatype,monospace;color:var(--scene-accent); }.document-head small { font:8px diatype,monospace;color:var(--theme-page-text-muted); }.rfp-document p { margin:18px 0 0; font:10px/1.6 diatype,monospace;color:var(--theme-page-text-muted);transition:.4s ease; }.rfp-document p.is-marked { color:var(--theme-page-text);background:linear-gradient(transparent 55%,rgba(var(--scene-accent-rgb),.18) 55%); }.document-lines { display:grid;gap:7px;margin-top:16px; }.document-lines i { height:4px;background:var(--theme-progress-track); }.document-lines i:nth-child(2){width:82%}.document-lines i:nth-child(3){width:91%}.document-lines i:nth-child(4){width:65%}.extracted-tags { display:flex;flex-wrap:wrap;gap:5px;opacity:0;margin-top:17px;transition:.4s ease; }.extracted-tags.is-visible { opacity:1; }.extracted-tags span { padding:5px 6px;border:1px solid rgba(var(--scene-accent-rgb),.3);font:7px diatype,monospace;color:var(--scene-accent); }
+        .proposal-arrow { opacity:0;text-align:center;font:20px diatype,monospace;color:var(--scene-accent);transition:.4s ease; }.proposal-arrow.is-visible { opacity:1; }
+        .precedent-stack { opacity:0;transform:translateX(8px);transition:.45s ease; }.precedent-stack.is-visible { opacity:1;transform:none; }.precedent-stack > span { display:block;margin-bottom:9px;font:8px diatype,monospace;text-transform:uppercase;color:var(--scene-accent); }.precedent-stack > div { display:grid;grid-template-columns:25px 1fr;gap:3px 8px;align-items:center;padding:10px;border:1px solid var(--theme-border);margin-top:7px;background:var(--theme-card-bg); }.precedent-stack i { grid-row:span 2;display:grid;place-items:center;width:23px;height:23px;border:1px solid var(--theme-border);font:8px diatype,monospace;color:var(--theme-page-text-muted); }.precedent-stack strong { font:9px diatype,monospace;color:var(--theme-page-text); }.precedent-stack small { font:7px diatype,monospace;color:var(--scene-accent); }
+        .pursuit-package { position:absolute;left:28px;right:28px;bottom:25px;opacity:0;transform:translateY(8px);padding:13px 15px;border:1px solid rgba(var(--scene-accent-rgb),.35);background:rgba(var(--scene-accent-rgb),.08);transition:.45s ease; }.pursuit-package.is-visible { opacity:1;transform:none; }.pursuit-package span,.pursuit-package strong,.pursuit-package small { display:block;font-family:diatype,monospace; }.pursuit-package span { font-size:8px;text-transform:uppercase;color:var(--scene-accent); }.pursuit-package strong { margin-top:6px;font-size:11px;color:var(--theme-page-text); }.pursuit-package small { opacity:0;margin-top:6px;font-size:8px;color:var(--theme-page-text-muted);transition:.4s ease; }.pursuit-package small.is-visible { opacity:1; }
+
+        .capability-close { display:grid; grid-template-columns:1.1fr 1.55fr .75fr; gap:28px; align-items:center; min-height:205px; padding:31px 0 9px; border-top:1px solid var(--theme-border); }
+        .capability-close-intro > span { font-size:9px;color:var(--scene-accent); }.capability-close-intro h2 { max-width:390px;margin:9px 0 0;font:500 22px/1.15 diatype,sans-serif;color:var(--theme-page-text); }.capability-close-intro p { max-width:410px;margin:11px 0 0;font:11px/1.5 'DM Sans',sans-serif;color:var(--theme-page-text-muted); }
+        .capability-deliverables { display:grid;grid-template-columns:repeat(3,1fr);border-left:1px solid var(--theme-border); }.capability-deliverables article { min-height:105px;padding:10px 16px;border-right:1px solid var(--theme-border); }.capability-deliverables span { font:8px diatype,monospace;color:var(--scene-accent); }.capability-deliverables h3 { margin:25px 0 0;font:500 12px/1.35 diatype,sans-serif;color:var(--theme-page-text); }
+        .capability-close-action p { margin:0 0 13px;font:10px/1.45 'DM Sans',sans-serif;color:var(--theme-page-text-muted); }.capability-close-action a { display:inline-flex;border-radius:5px;padding:10px 13px;font:9px diatype,monospace;text-transform:uppercase; }
+
+        @keyframes capability-flow { to { stroke-dashoffset:-28; } }
+
+        @media (max-width: 1120px) {
+          .capability-primary { grid-template-columns: minmax(360px,.8fr) minmax(520px,1.2fr); gap:28px; }
+          .capability-close { grid-template-columns:1fr 1.5fr; }.capability-close-action { grid-column:1/-1; display:flex;justify-content:space-between;align-items:center; }.capability-close-action p { max-width:650px; }
         }
-
-        .capability-stat,
-        .capability-mini-metric {
-          color: var(--theme-text-secondary);
-          background: var(--theme-surface-muted);
-          border-color: var(--theme-border);
+        @media (max-width: 900px) {
+          .capability-page { padding:16px 16px 34px; }.capability-primary { display:flex;flex-direction:column;min-height:0;padding:44px 0 38px;align-items:stretch; }.capability-copy { max-width:720px; }.capability-scene-canvas { height:430px; }.capability-close { grid-template-columns:1fr; }.capability-deliverables { border-left:0;border-top:1px solid var(--theme-border); }.capability-close-action { grid-column:auto; }
         }
-
-        .capability-page .theme-chip {
-          max-width: 100%;
-          white-space: normal;
-          overflow-wrap: anywhere;
-          line-height: 1.25;
-          color: var(--theme-text-primary);
-          background: var(--theme-surface-muted);
-          border-color: var(--capability-readable-border);
+        @media (max-width: 600px) {
+          .capability-private-header { grid-template-columns:1fr auto; }.capability-private-label { display:none; }.capability-header-actions :global(.theme-toggle) { display:none; }
+          .capability-copy h1 { font-size:39px; }.capability-problem { font-size:15px; }.capability-primary-cta { width:100%;justify-content:space-between; }
+          .capability-scene-head { min-height:62px; }.capability-scene-canvas { height:470px; }.capability-stage-nav button { padding:9px 2px;font-size:7px; }.capability-stage-nav button span { font-size:7px; }
+          .audit-scene,.infrastructure-scene,.operations-scene,.proposal-scene { padding:18px; }.audit-pressure { display:block; }.audit-pressure strong { display:block;margin-top:7px; }.audit-matrix-head,.audit-row { grid-template-columns:1.3fr repeat(3,.75fr);gap:7px; }.audit-matrix-head { font-size:6px; }.audit-row > strong { font-size:8px; }.audit-recommendation { left:18px;right:18px;bottom:18px; }
+          .system-node { width:108px; }.system-node span { font-size:8px; }.system-node small { font-size:6px; }.foundation-core { width:138px; }.foundation-output strong { font-size:9px; }
+          .operations-scene { grid-template-columns:1fr;grid-template-rows:auto 1fr;gap:10px; }.operations-sources { flex-direction:row;justify-content:flex-start;overflow:hidden; }.operations-sources span { padding:8px 6px;font-size:7px;white-space:nowrap; }.operations-sources i { display:none; }.operating-brief { padding:12px; }.brief-metrics div { padding:8px; }
+          .proposal-scene { grid-template-columns:1fr 18px 1fr;padding:18px 18px 104px;gap:6px; }.rfp-document { min-height:250px;padding:10px; }.document-head { display:block; }.document-head small { display:block;margin-top:7px; }.rfp-document p { font-size:7px; }.precedent-stack > div { grid-template-columns:1fr;padding:7px; }.precedent-stack i { display:none; }.precedent-stack strong { font-size:7px; }.pursuit-package { left:18px;right:18px;bottom:18px; }
+          .capability-close { padding-top:26px; }.capability-deliverables { grid-template-columns:1fr; }.capability-deliverables article { display:grid;grid-template-columns:34px 1fr;align-items:center;min-height:58px;padding:8px 0;border-right:0;border-bottom:1px solid var(--theme-border); }.capability-deliverables h3 { margin:0; }.capability-close-action { display:block; }.capability-close-action a { width:100%;justify-content:center; }
         }
-
-        .capability-section-frame {
-          border: 1px solid var(--capability-readable-border);
-          background:
-            linear-gradient(180deg, color-mix(in srgb, var(--capability-readable-surface-muted) 92%, transparent) 0%, color-mix(in srgb, var(--capability-readable-surface) 96%, transparent) 100%);
-          box-shadow: var(--capability-readable-shadow);
-        }
-
-        .capability-progressive-section {
-          opacity: 0;
-          transform: translateY(18px);
-          transition:
-            opacity 680ms cubic-bezier(0.22, 1, 0.36, 1),
-            transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
-        }
-
-        .capability-progressive-section.is-visible {
-          opacity: 1;
-          transform: translateY(0);
-        }
-
-        .capability-workflow-module {
-          position: relative;
-          overflow: hidden;
-        }
-
-        .capability-workflow-module::before {
-          content: '';
-          position: absolute;
-          inset: 12px;
-          border: 1px solid color-mix(in srgb, var(--theme-accent) 18%, var(--capability-readable-border));
-          border-radius: 26px;
-          pointer-events: none;
-          opacity: 0.52;
-        }
-
-        .capability-value-intro,
-        .capability-process-intro,
-        .capability-value-card,
-        .capability-process-card {
-          border: 1px solid var(--capability-readable-border);
-          background: var(--capability-readable-surface);
-          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
-          color: var(--theme-text-primary);
-        }
-
-        :root[data-theme='light'] .capability-value-intro,
-        :root[data-theme='light'] .capability-process-intro,
-        :root[data-theme='light'] .capability-value-card,
-        :root[data-theme='light'] .capability-process-card {
-          box-shadow: 0 18px 48px rgba(28, 75, 150, 0.1);
-        }
-
-        .capability-value-card,
-        .capability-process-card {
-          transition:
-            border-color 220ms ease,
-            transform 220ms ease,
-            box-shadow 220ms ease,
-            background 220ms ease;
-        }
-
-        .capability-value-card:hover,
-        .capability-process-card:hover {
-          transform: translateY(-2px);
-          border-color: color-mix(in srgb, var(--theme-accent) 35%, var(--capability-readable-border));
-          background: color-mix(in srgb, var(--theme-accent-soft) 20%, var(--capability-readable-surface));
-          box-shadow: 0 22px 62px rgba(0, 0, 0, 0.14);
-        }
-
-        .capability-process-number {
-          color: var(--theme-accent);
-          border-color: color-mix(in srgb, var(--theme-accent) 36%, var(--capability-readable-border));
-          background: var(--theme-accent-soft);
-        }
-
-        .capability-transform-card {
-          border: 1px solid var(--capability-readable-border);
-          background: var(--capability-readable-surface);
-          color: var(--theme-text-primary);
-          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
-        }
-
-        .capability-transform-item {
-          opacity: 0.64;
-          transform: translateY(4px);
-          transition:
-            opacity 420ms ease,
-            transform 420ms ease,
-            border-color 420ms ease,
-            background 420ms ease;
-        }
-
-        .capability-transform-section.is-visible .capability-transform-item {
-          opacity: 1;
-          transform: translateY(0);
-        }
-
-        .capability-transform-before .capability-transform-item {
-          border-color: color-mix(in srgb, rgba(251, 191, 36, 0.3) 65%, var(--capability-readable-border));
-          background: color-mix(in srgb, rgba(251, 191, 36, 0.06) 45%, var(--capability-readable-surface));
-        }
-
-        .capability-transform-after .capability-transform-item {
-          border-color: color-mix(in srgb, rgba(74, 222, 128, 0.36) 70%, var(--capability-readable-border));
-          background: color-mix(in srgb, rgba(74, 222, 128, 0.09) 55%, var(--capability-readable-surface));
-        }
-
-        .capability-transform-bridge {
-          position: relative;
-          overflow: hidden;
-        }
-
-        .capability-transform-bridge::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          transform: translateX(-100%);
-          background: linear-gradient(90deg, transparent, var(--theme-accent-soft), transparent);
-          animation: capabilityBridgeFlow 4.8s ease-in-out infinite;
-        }
-
-        .capability-tone-accent {
-          color: var(--theme-text-primary);
-          border-color: color-mix(in srgb, var(--theme-accent) 38%, var(--theme-border));
-          background: color-mix(in srgb, var(--theme-accent-soft) 36%, var(--theme-surface-muted));
-        }
-
-        .capability-tone-success {
-          color: var(--theme-text-primary);
-          border-color: rgba(74, 222, 128, 0.35);
-          background: rgba(74, 222, 128, 0.1);
-        }
-
-        .capability-tone-warning {
-          color: var(--theme-text-primary);
-          border-color: rgba(251, 191, 36, 0.36);
-          background: rgba(251, 191, 36, 0.1);
-        }
-
-        .capability-step-rail,
-        .capability-detail-panel,
-        .capability-live-panel {
-          border: 1px solid var(--capability-readable-border);
-          background: var(--capability-readable-surface);
-          color: var(--theme-text-primary);
-          box-shadow: 0 16px 50px rgba(0, 0, 0, 0.12);
-        }
-
-        .capability-step-rail {
-          background: var(--capability-readable-surface-muted);
-        }
-
-        .capability-step-rail nav,
-        .capability-step-rail button,
-        .capability-detail-panel,
-        .capability-live-panel,
-        .capability-value-card,
-        .capability-process-card {
-          overflow-wrap: anywhere;
-        }
-
-        .capability-workflow-step {
-          transform: translateZ(0);
-          min-width: 0;
-          color: var(--theme-text-secondary);
-          background: var(--capability-readable-surface);
-        }
-
-        .capability-workflow-step.is-active {
-          border-color: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border-strong));
-          background: color-mix(in srgb, var(--theme-accent-soft) 32%, var(--capability-readable-surface));
-          box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
-          color: var(--theme-text-primary);
-        }
-
-        .capability-workflow-step.is-complete {
-          border-color: rgba(74, 222, 128, 0.34);
-          background: color-mix(in srgb, rgba(74, 222, 128, 0.09) 50%, var(--capability-readable-surface));
-        }
-
-        .capability-workflow-step.is-active .capability-step-dot {
-          background: var(--theme-accent);
-          box-shadow: 0 0 0 8px var(--theme-accent-soft), 0 0 34px var(--theme-accent-soft);
-        }
-
-        .capability-console-card {
-          animation: capabilityCardIn 420ms ease both;
-        }
-
-        .capability-detail-panel,
-        .capability-live-panel {
-          background: var(--capability-readable-surface);
-        }
-
-        :root[data-theme='light'] .capability-workflow-step.is-active,
-        :root[data-theme='light'] .capability-detail-panel,
-        :root[data-theme='light'] .capability-live-panel,
-        :root[data-theme='light'] .capability-value-card,
-        :root[data-theme='light'] .capability-process-card {
-          box-shadow: 0 18px 48px rgba(28, 75, 150, 0.11);
-        }
-
-        .capability-activity-line {
-          animation: capabilityCardIn 500ms ease both;
-        }
-
-        .capability-control-button:hover,
-        .capability-layer-row:hover {
-          transform: translateY(-1px);
-        }
-
-        .capability-progress-fill {
-          width: var(--capability-progress);
-          transition: width 420ms ease;
-        }
-
-        @keyframes capabilityScan {
-          from {
-            background-position: 180% 0, 0 0;
-          }
-          to {
-            background-position: -40% 0, 0 42px;
-          }
-        }
-
-        @keyframes capabilityCardIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes capabilityBridgeFlow {
-          0%,
-          30% {
-            transform: translateX(-100%);
-            opacity: 0;
-          }
-          42%,
-          68% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-        }
-
-        @media (max-width: 767px) {
-          .capability-private-header {
-            position: sticky;
-            top: 10px;
-            z-index: 20;
-          }
-
-          .capability-demo-grid {
-            gap: 12px;
-          }
-
-          .capability-section-frame {
-            padding: 12px;
-          }
-
-          .capability-workflow-module::before {
-            inset: 8px;
-            border-radius: 22px;
-          }
-        }
-
         @media (prefers-reduced-motion: reduce) {
-          .capability-progressive-section,
-          .capability-transform-item,
-          .capability-transform-bridge::after,
-          .capability-scanline,
-          .capability-console-card,
-          .capability-activity-line {
-            animation: none !important;
-            transition: none !important;
-            transform: none !important;
-            opacity: 1 !important;
-          }
+          .capability-page *, .capability-page *::before, .capability-page *::after { animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important; }
         }
       `}</style>
     </>
-  );
-};
-
-const useInViewOnce = <T extends HTMLElement>(threshold = 0.2) => {
-  const ref = useRef<T | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return undefined;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold },
-    );
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, isVisible };
-};
-
-const ProgressiveSection: React.FC<{
-  id?: string;
-  className: string;
-  children: React.ReactNode;
-}> = ({ id, className, children }) => {
-  const { ref, isVisible } = useInViewOnce<HTMLElement>(0.18);
-
-  return (
-    <section
-      ref={ref}
-      id={id}
-      className={`capability-progressive-section ${isVisible ? 'is-visible' : ''} ${className}`}
-    >
-      {children}
-    </section>
-  );
-};
-
-const TransformationSection: React.FC<{ mode: CapabilityExperience['mode'] }> = ({ mode }) => {
-  const { ref, isVisible } = useInViewOnce<HTMLElement>(0.22);
-  const transformationCopy = {
-    proposal: {
-      heading: 'From scattered pursuits to proposal intelligence.',
-      description: 'The system changes pursuit work from reactive searching into a structured intelligence workflow.',
-      beforeItems: [
-        'Manual opportunity scanning',
-        'Portfolio memory spread across files',
-        'Slow pursuit qualification',
-        'Proposal drafts start from a blank page',
-      ],
-      afterItems: [
-        'Structured opportunity queue',
-        'Searchable precedent intelligence',
-        'Explainable fit scoring',
-        'Draft support from verified material',
-      ],
-    },
-    operations: {
-      heading: 'From fragmented operations to coordinated intelligence.',
-      description: 'The system changes internal work from disconnected updates into a source-aware operating layer.',
-      beforeItems: [
-        'Disconnected CRM, tasks, calendar, and docs',
-        'Context buried in separate tools',
-        'Manual coordination loops',
-        'Leadership sees stale status',
-      ],
-      afterItems: [
-        'Connected operational memory',
-        'Agent-assisted retrieval and synthesis',
-        'Prepared tasks and schedule actions',
-        'Live dashboard intelligence',
-      ],
-    },
-    infrastructure: {
-      heading: 'From legacy fragments to AI-ready infrastructure.',
-      description: 'The system changes modernization from a vague technology goal into a mapped, governed operating foundation.',
-      beforeItems: [
-        'Data scattered across tools and files',
-        'Reports rebuilt manually from exports',
-        'No clear AI data foundation',
-        'Governance handled after the fact',
-      ],
-      afterItems: [
-        'System and workflow inventory',
-        'Normalized source-aware records',
-        'Governed AI-ready data layer',
-        'Clear audit path to first build',
-      ],
-    },
-    audit: {
-      heading: 'From AI uncertainty to a buildable readiness roadmap.',
-      description: 'The audit changes AI planning from broad ambition into ranked workflows, blockers, risks, and next-sprint recommendations.',
-      beforeItems: [
-        'AI goals are broad and hard to sequence',
-        'Data gaps are not visible',
-        'Governance risks are unclear',
-        'First build decision depends on guesswork',
-      ],
-      afterItems: [
-        'Workflows ranked by readiness and value',
-        'Data gaps and source trust scored',
-        'Risk gates and approvals mapped',
-        'First AI-ready sprint recommended',
-      ],
-    },
-  }[mode];
-
-  return (
-    <section
-      ref={ref}
-      className={`capability-transform-section capability-section-frame capability-progressive-section ${isVisible ? 'is-visible' : ''} rounded-[32px] p-[14px] max-md:rounded-[24px]`}
-    >
-      <div className="mb-[14px] flex flex-wrap items-end justify-between gap-[12px] px-[8px]">
-        <div className="min-w-0">
-          <span className="theme-chip">Before / After Transformation</span>
-          <h2 className="mt-[12px] break-words font-diatype text-[28px] font-semibold leading-[1.12] text-[var(--theme-text-primary)] max-md:text-[22px]">
-            {transformationCopy.heading}
-          </h2>
-          <p className="mt-[8px] max-w-[760px] break-words font-diatype text-[14px] leading-[1.6] text-[var(--theme-text-secondary)]">
-            {transformationCopy.description}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[1fr_76px_1fr] gap-[14px] max-lg:grid-cols-1">
-        <div className="capability-transform-card capability-transform-before min-w-0 rounded-[28px] p-[22px] max-md:rounded-[22px] max-md:p-[18px]">
-          <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Before</p>
-          <h3 className="mt-[10px] break-words font-diatype text-[22px] font-semibold leading-[1.15] text-[var(--theme-text-primary)]">
-            Fragmented and manual
-          </h3>
-          <div className="mt-[16px] space-y-[8px]">
-            {transformationCopy.beforeItems.map((item, index) => (
-              <div
-                key={item}
-                className="capability-transform-item rounded-[16px] border px-[12px] py-[10px]"
-                style={{ transitionDelay: `${index * 80}ms` }}
-              >
-                <p className="break-words font-diatype text-[13px] leading-[1.45] text-[var(--theme-text-secondary)]">{item}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-center max-lg:py-[2px]">
-          <div className="capability-transform-bridge flex h-full min-h-[220px] w-[54px] items-center justify-center rounded-full border border-[var(--capability-readable-border)] bg-[var(--theme-surface-muted)] max-lg:h-[54px] max-lg:min-h-0 max-lg:w-full">
-            <span className="relative z-[1] font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-accent)]">
-              Into
-            </span>
-          </div>
-        </div>
-
-        <div className="capability-transform-card capability-transform-after min-w-0 rounded-[28px] p-[22px] max-md:rounded-[22px] max-md:p-[18px]">
-          <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">After</p>
-          <h3 className="mt-[10px] break-words font-diatype text-[22px] font-semibold leading-[1.15] text-[var(--theme-text-primary)]">
-            Connected and explainable
-          </h3>
-          <div className="mt-[16px] space-y-[8px]">
-            {transformationCopy.afterItems.map((item, index) => (
-              <div
-                key={item}
-                className="capability-transform-item rounded-[16px] border px-[12px] py-[10px]"
-                style={{ transitionDelay: `${240 + index * 90}ms` }}
-              >
-                <p className="break-words font-diatype text-[13px] leading-[1.45] text-[var(--theme-text-secondary)]">{item}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const WorkflowRail: React.FC<{
-  steps: CapabilityStep[];
-  activeIndex: number;
-  onStepClick: (index: number) => void;
-}> = ({ steps, activeIndex, onStepClick }) => {
-  return (
-    <nav className="capability-step-rail rounded-[26px] p-[10px]" aria-label="Capability workflow steps">
-      <div className="flex flex-col gap-[8px] max-lg:grid max-lg:grid-cols-2 max-sm:grid-cols-1">
-        {steps.map((step, index) => {
-          const isActive = index === activeIndex;
-          const isComplete = index < activeIndex;
-
-          return (
-            <button
-              key={step.id}
-              type="button"
-              onClick={() => onStepClick(index)}
-              aria-current={isActive ? 'step' : undefined}
-              className={`capability-workflow-step rounded-[20px] border px-[14px] py-[13px] text-left transition ${
-                isActive ? 'is-active' : 'border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)]'
-              } ${isComplete ? 'is-complete' : ''}`}
-            >
-              <span className="flex items-center gap-[10px]">
-                <span className={`capability-step-dot h-[9px] w-[9px] rounded-full transition ${isComplete ? 'bg-[var(--theme-accent)]' : 'bg-[var(--theme-border-strong)]'}`} />
-                <span className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-              </span>
-              <span className="mt-[10px] block break-words font-diatype text-[15px] font-semibold leading-[1.2] text-[var(--theme-text-primary)]">
-                {step.label}
-              </span>
-              <span className="mt-[6px] line-clamp-2 block break-words font-diatype text-[12px] leading-[1.45] text-[var(--theme-text-muted)]">
-                {step.statusLabel}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
-};
-
-const DemoConsole: React.FC<{
-  activeStep: CapabilityStep;
-  activeIndex: number;
-  progress: number;
-  totalSteps: number;
-  mode: CapabilityExperience['mode'];
-}> = ({ activeStep, activeIndex, progress, totalSteps, mode }) => {
-  return (
-    <article key={activeStep.id} className="capability-console-card capability-detail-panel min-w-0 rounded-[26px] p-[20px]">
-      <div className="flex flex-wrap items-start justify-between gap-[14px]">
-        <div className="min-w-0 max-w-[720px]">
-          <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">
-            Step {String(activeIndex + 1).padStart(2, '0')} / {String(totalSteps).padStart(2, '0')}
-          </p>
-          <h2 className="mt-[10px] break-words font-diatype text-[30px] font-semibold leading-[1.08] text-[var(--theme-text-primary)] max-md:text-[24px]">
-            {activeStep.headline}
-          </h2>
-          <p className="mt-[12px] break-words font-diatype text-[15px] leading-[1.62] text-[var(--theme-text-secondary)]">
-            {activeStep.description}
-          </p>
-        </div>
-        <div className="min-w-[142px] rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface-muted)] p-[15px] text-right max-md:w-full max-md:text-left">
-          <p className="break-words font-diatype text-[32px] font-semibold leading-none text-[var(--theme-text-primary)]">{activeStep.metric}</p>
-          <p className="mt-[7px] font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">{activeStep.metricLabel}</p>
-        </div>
-      </div>
-
-      <div className="mt-[18px] h-[8px] overflow-hidden rounded-full bg-[var(--theme-surface-muted)]">
-        <div
-          className="capability-progress-fill h-full rounded-full bg-[var(--theme-accent)]"
-          style={{ '--capability-progress': `${progress}%` } as React.CSSProperties}
-        />
-      </div>
-
-      <div className="mt-[20px] grid grid-cols-[1fr_0.8fr] gap-[14px] max-md:grid-cols-1">
-        <div className="rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface-muted)] p-[16px]">
-          <div className="mb-[12px] flex items-center justify-between gap-[12px]">
-            <span className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">
-              {modeArtifactLabel[mode]}
-            </span>
-            <span className="rounded-full border border-[var(--theme-border)] px-[9px] py-[5px] font-diatype text-[10px] uppercase tracking-m3p text-[var(--theme-text-muted)]">
-              {activeStep.statusLabel}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-[10px] max-sm:grid-cols-1">
-            {activeStep.artifacts.map((artifact) => (
-              <div key={`${activeStep.id}-${artifact.label}-${artifact.value}`} className={`min-w-0 rounded-[16px] border px-[12px] py-[12px] ${toneClass(artifact.tone)}`}>
-                <p className="font-diatype text-[10px] uppercase tracking-m3p opacity-70">{artifact.label}</p>
-                <p className="mt-[8px] break-words font-diatype text-[13px] font-semibold leading-[1.28]">{artifact.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface-muted)] p-[16px]">
-          <span className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Quality gates</span>
-          <div className="mt-[12px] space-y-[8px]">
-            {activeStep.checklist.map((item) => (
-              <div key={`${activeStep.id}-${item}`} className="flex items-center gap-[9px] rounded-[14px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-[11px] py-[9px]">
-                <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[var(--theme-accent-soft)] text-[10px] text-[var(--theme-accent)]">OK</span>
-                <span className="font-diatype text-[12px] text-[var(--theme-text-secondary)]">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-[14px] rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface-muted)] p-[16px]">
-        <span className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">System trace</span>
-        <div className="mt-[12px] space-y-[8px]">
-          {activeStep.activity.map((line, index) => (
-            <p
-              key={`${activeStep.id}-${line}`}
-              className="capability-activity-line flex gap-[10px] font-diatype text-[13px] leading-[1.5] text-[var(--theme-text-secondary)]"
-              style={{ animationDelay: `${index * 70}ms` }}
-            >
-              <span className="mt-[8px] h-[5px] w-[5px] shrink-0 rounded-full bg-[var(--theme-accent)]" />
-              {line}
-            </p>
-          ))}
-        </div>
-      </div>
-    </article>
-  );
-};
-
-const LiveOutcomePanel: React.FC<{
-  activeStep: CapabilityStep;
-  nextStep: CapabilityStep;
-  mode: CapabilityExperience['mode'];
-}> = ({ activeStep, nextStep, mode }) => {
-  return (
-    <aside className="capability-live-panel min-w-0 rounded-[26px] p-[18px] max-xl:col-span-2 max-lg:col-span-1">
-      <div className="flex h-full flex-col gap-[14px]">
-        <div className="rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-[16px]">
-          <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">
-            {modeStateLabel[mode]}
-          </p>
-          <p className="mt-[14px] font-diatype text-[24px] font-semibold leading-[1.05] text-[var(--theme-text-primary)]">
-            {activeStep.statusLabel}
-          </p>
-          <p className="mt-[10px] font-diatype text-[13px] leading-[1.55] text-[var(--theme-text-secondary)]">
-            Current step output is staged for review and ready to feed the next part of the workflow.
-          </p>
-        </div>
-
-        <div className="rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-[16px]">
-          <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Next movement</p>
-          <p className="mt-[12px] font-diatype text-[16px] font-semibold leading-[1.25] text-[var(--theme-text-primary)]">{nextStep.label}</p>
-          <p className="mt-[8px] font-diatype text-[13px] leading-[1.5] text-[var(--theme-text-secondary)]">{nextStep.statusLabel}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-[10px]">
-          <div className="rounded-[18px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-[14px]">
-            <p className="font-diatype text-[20px] font-semibold text-[var(--theme-text-primary)]">0</p>
-            <p className="mt-[6px] font-diatype text-[10px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Auto sends</p>
-          </div>
-          <div className="rounded-[18px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-[14px]">
-            <p className="font-diatype text-[20px] font-semibold text-[var(--theme-text-primary)]">100%</p>
-            <p className="mt-[6px] font-diatype text-[10px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Human gated</p>
-          </div>
-        </div>
-
-        <div className="mt-auto rounded-[22px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-[16px]">
-          <p className="font-diatype text-[11px] uppercase tracking-m3p text-[var(--theme-text-muted)]">Build note</p>
-          <p className="mt-[10px] font-diatype text-[13px] leading-[1.55] text-[var(--theme-text-secondary)]">
-            This direct-link demo is a mocked capability experience. A production build would connect approved sources, data models, and review rules.
-          </p>
-        </div>
-      </div>
-    </aside>
   );
 };
 
