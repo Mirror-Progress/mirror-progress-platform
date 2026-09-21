@@ -10,6 +10,7 @@ Updated 2026-09-21. Production has not been changed.
 - AWS root CLI authentication renewed through the user-provided login code.
 - Dedicated local PostgreSQL 17 Docker instance healthy on loopback port 55432.
 - Baseline authorization, PKCE and JWKS suites: 13 passed, zero failed.
+- Verified application archive passes TypeScript checking with Node 24.
 - Current production Cognito pool inventory: three enabled, confirmed accounts.
 - ChatGPT assigned the standalone Better Auth implementation and CI batch.
 
@@ -17,7 +18,15 @@ Updated 2026-09-21. Production has not been changed.
 
 - ChatGPT code artifact; its environment reports npm registry access is blocked.
   Codex must verify dependencies, actual API compatibility, migrations and tests.
+- Separate ChatGPT batches cover identity-infra/ and identity-bridge/; integration
+  remains sequential after their isolated tests pass.
 - Application integration will use the verified production baseline, not old main.
+- ChatGPT service source handoff failed after its container changed. Execution
+  records show earlier source generation, but no original service ZIP is available
+  locally. Reconstruction from records is requested. Do not count those files as
+  delivered or earlier isolated tests as full-service validation.
+- Provider/bridge assurance contracts conflict with current Better Auth reserved
+  claim behavior; see PROVIDER-CONTRACT-REVIEW.md. Reconciliation is mandatory.
 
 ## Cutover blockers
 
