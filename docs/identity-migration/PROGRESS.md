@@ -35,6 +35,12 @@ Updated 2026-09-21. Production has not been changed.
   receive enrollment email. Resolve an approved transactional delivery path.
 - New service, app integration, staging rehearsal, privileged enrollment and
   independent security review are not complete.
+- A registry audit of the verified application's production dependency lock
+  reports five affected package entries: Next (critical), nodemailer, nanoid and
+  sharp (high), postcss (moderate). This is dependency advisory evidence, not proof
+  of exploitability. Assess applicability and patch/test the reconciled release
+  before approving its security gate. Do not confuse this with the much larger
+  advisory count on the obsolete GitHub default branch.
 
 ## Validation limits
 
@@ -43,6 +49,13 @@ repository-wide tests. A broader portal suite had 18 passes and one missing-file
 failure (infra/lib/platform-stack.ts); this is not a complete release test pass.
 The initial install used an old default Node; dependencies were reinstalled with
 Node 24 before the successful focused baseline test run.
+
+Additional baseline checks: lint fails with 38 pre-existing errors in three
+operational scripts. Build passes compilation/type validation/static generation
+but fails during build tracing with ENOSPC. The Mac data volume had about 126 MiB
+available before cleanup. Only the task-created `.next/cache` (188 MiB) was
+removed; it is regenerable. Do not claim a successful full build. Additional disk
+capacity is required for reliable full builds and container/staging work.
 
 Do not mark the migration complete, deploy generated code, disable Cognito or send
 enrollment email based on the preparatory evidence in this document.

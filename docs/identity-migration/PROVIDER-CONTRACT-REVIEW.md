@@ -16,6 +16,20 @@ Source: https://better-auth.com/docs/plugins/oauth-provider (Claims and Advertis
 Metadata sections). Confirm these behaviors against the pinned installed package
 and real integration tests; documentation alone is not executable evidence.
 
+The registry tarball for `@better-auth/oauth-provider@1.7.5` was downloaded and
+inspected locally (SHA-256
+`9ec52a71ed89a45fcb2c47e686c91b23fa4a01d403ecf842246989fa46e6e212`).
+Its `createIdToken` implementation sets `acr: "0"` and filters custom reserved
+claims. Its type declarations show that `customIdTokenClaims` receives user,
+scopes and client metadata, but no session identifier. Do not look up the user's
+latest MFA record there: that could mix evidence across simultaneous sessions.
+
+The supported `OAuthProviderExtension.claims.idToken` callback DOES receive a
+possibly absent `sessionId`, plus user, client and grant type. This is the
+candidate integration point for a namespaced ceremony claim. Missing session,
+deleted/unlinked session or missing durable evidence must fail closed. Both
+authorization-code and refresh behavior require real provider tests.
+
 ## Required resolution
 
 Do not weaken the bridge to accept `acr=0` as MFA proof, overwrite reserved claims,
