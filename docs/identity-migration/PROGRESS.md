@@ -27,6 +27,10 @@ Updated 2026-09-21. Production has not been changed.
   delivered or earlier isolated tests as full-service validation.
 - Provider/bridge assurance contracts conflict with current Better Auth reserved
   claim behavior; see PROVIDER-CONTRACT-REVIEW.md. Reconciliation is mandatory.
+- The bridge conversation returned a 27-file artifact and reports 60 isolated
+  utility tests. Full dependency-backed checks are unrun. The in-app browser did
+  not expose its download to the local workspace; user handoff requested. No
+  generated service/bridge/infrastructure source is committed at this point.
 
 ## Cutover blockers
 
