@@ -1,0 +1,220 @@
+import type {
+  GetServerSidePropsContext,
+  GetServerSidePropsResult,
+  NextApiRequest,
+  NextApiResponse,
+} from 'next';
+import { findAccountById, isAdminRole, type StoredAccount } from './accounts';
+import { getSessionUserFromCookieHeader, getSessionUserFromRequest } from './session';
+import { resolveOpaqueAuthorizationSession } from './state-kernel/authorization/session';
+import { cognitoIsRequired } from './state-kernel/authorization/cognito';
+import { authorizationContractForAdminRequest } from './state-kernel/authorization/contracts';
+import {
+  evaluateAuthorizationRequest,
+  getAuthorizationAuthorityMode,
+  unavailableAuthorizationResponse,
+} from './state-kernel/authorization/service';
+import type { AuthorizationResourceContract } from './state-kernel/types';
+import { resolveProductLandingRoute } from './product-access';
+
+export async function getAuthenticatedAccountFromRequest(req: NextApiRequest) {
+  const authorizationSession = await resolveOpaqueAuthorizationSession(req).catch(() => null);
+  if (authorizationSession) {
+    const { principal, membership, assignments } = authorizationSession;
+    const role = membership.roles[0] ?? 'client';
+    return {
+      id: principal.principalId,
+      name: principal.displayName,
+      email: principal.email,
+      emailLower: principal.email.toLowerCase(),
+      company: 'Mirror Progress',
+      passwordHash: '',
+      createdAt: principal.createdAt,
+      role,
+      status: principal.status,
+      clientId: membership.tenantId.startsWith('tenant:client:')
+        ? membership.tenantId.slice('tenant:client:'.length)
+        : null,
+      assignedProjectIds: assignments
+        .filter((item) => item.resourceType === 'project')
+        .map((item) => item.resourceId),
+      inviteStatus: principal.status === 'invited' ? 'ready_to_send' : 'accepted',
+      lastLoginAt: authorizationSession.session.lastSeenAt,
+    } satisfies StoredAccount;
+  }
+  const sessionUser = getSessionUserFromRequest(req);
+
+  if (!sessionUser) {
+    return null;
+  }
+
+  return findAccountById(sessionUser.id);
+}
+
+export async function requireAdminApiAccount(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  resourceContract: AuthorizationResourceContract = authorizationContractForAdminRequest(req)
+) {
+  const authoritative = getAuthorizationAuthorityMode() === 'authoritative';
+  const account = await getAuthenticatedAccountFromRequest(req);
+
+  if (!account) {
+    res.status(authoritative ? 404 : 401).json(
+      authoritative ? unavailableAuthorizationResponse() : { error: 'Authentication required.' }
+    );
+    return null;
+  }
+
+  if (!isAdminRole(account.role)) {
+    res.status(authoritative ? 404 : 403).json(
+      authoritative ? unavailableAuthorizationResponse() : { error: 'Admin access required.' }
+    );
+    return null;
+  }
+
+  if (account.status !== 'active') {
+    res.status(authoritative ? 404 : 403).json(
+      authoritative ? unavailableAuthorizationResponse() : { error: 'Account access is disabled.' }
+    );
+    return null;
+  }
+
+  const authorization = await evaluateAuthorizationRequest(req, resourceContract);
+  if (!authorization.effectiveAllowed) {
+    res.status(404).json(unavailableAuthorizationResponse());
+    return null;
+  }
+
+  return account;
+}
+
+export async function requirePortalApiAccount(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  resourceContract: AuthorizationResourceContract,
+  projectId?: string
+) {
+  const account = await getAuthenticatedAccountFromRequest(req);
+  const authoritative = getAuthorizationAuthorityMode() === 'authoritative';
+  if (!account || account.role !== 'client' || account.status !== 'active') {
+    res.status(authoritative ? 404 : 401).json(
+      authoritative ? unavailableAuthorizationResponse() : { error: 'Authentication required.' }
+    );
+    return null;
+  }
+  if (!account.clientId || (projectId && !account.assignedProjectIds.includes(projectId))) {
+    res.status(404).json(unavailableAuthorizationResponse());
+    return null;
+  }
+  const authorization = await evaluateAuthorizationRequest(req, resourceContract);
+  const legacyAllowed = !authoritative && Boolean(
+    account.clientId && (!projectId || account.assignedProjectIds.includes(projectId))
+  );
+  if (!(authoritative ? authorization.decision.allowed : legacyAllowed)) {
+    res.status(404).json(unavailableAuthorizationResponse());
+    return null;
+  }
+  return account;
+}
+
+export async function getSessionAccountFromContext(
+  context: GetServerSidePropsContext
+) {
+  if (cognitoIsRequired()) {
+    return getAuthenticatedAccountFromRequest(context.req as NextApiRequest);
+  }
+  const sessionUser = getSessionUserFromCookieHeader(context.req.headers.cookie);
+
+  if (!sessionUser) {
+    return null;
+  }
+
+  return findAccountById(sessionUser.id);
+}
+
+export async function requireAdminPageAccess<T>(
+  context: GetServerSidePropsContext,
+  resourceContract?: AuthorizationResourceContract
+): Promise<
+  | { account: StoredAccount; redirect?: undefined }
+  | { account?: undefined; redirect: GetServerSidePropsResult<T> }
+> {
+  const account = await getSessionAccountFromContext(context);
+
+  if (!account) {
+    return {
+      redirect: {
+        redirect: {
+          destination: cognitoIsRequired()
+            ? '/api/auth/cognito/start'
+            : '/?auth=login&next=/admin',
+          permanent: false,
+        },
+      },
+    };
+  }
+
+  if (!isAdminRole(account.role) || account.status !== 'active') {
+    const destination = account.status === 'active'
+      ? await resolveProductLandingRoute(account.id, '/workspace')
+      : '/workspace';
+    return {
+      redirect: {
+        redirect: {
+          destination,
+          permanent: false,
+        },
+      },
+    };
+  }
+
+  if (resourceContract) {
+    const authorization = await evaluateAuthorizationRequest(context.req as NextApiRequest, resourceContract);
+    if (!authorization.effectiveAllowed) {
+      return { redirect: { notFound: true } };
+    }
+  }
+
+  return { account };
+}
+
+export async function requirePortalPageAccess(
+  context: GetServerSidePropsContext,
+  resourceContract: AuthorizationResourceContract,
+  projectId?: string
+) {
+  const account = await getSessionAccountFromContext(context);
+  if (!account) {
+    const destination = cognitoIsRequired()
+      ? '/api/auth/cognito/start'
+      : `/?auth=login&next=${encodeURIComponent(context.resolvedUrl || '/workspace')}`;
+    return {
+      account: undefined,
+      response: { redirect: { destination, permanent: false } } as const,
+    };
+  }
+  if (
+    account.role !== 'client' ||
+    account.status !== 'active' ||
+    !account.clientId ||
+    (projectId && !account.assignedProjectIds.includes(projectId))
+  ) {
+    if (account.status === 'active' && account.role === 'client') {
+      const destination = await resolveProductLandingRoute(account.id, '');
+      if (destination) {
+        return {
+          account: undefined,
+          response: { redirect: { destination, permanent: false } } as const,
+        };
+      }
+    }
+    return { account: undefined, response: { notFound: true } as const };
+  }
+  const authorization = await evaluateAuthorizationRequest(context.req as NextApiRequest, resourceContract);
+  const allowed = getAuthorizationAuthorityMode() === 'authoritative'
+    ? authorization.decision.allowed
+    : true;
+  if (!allowed) return { account: undefined, response: { notFound: true } as const };
+  return { account, response: undefined };
+}

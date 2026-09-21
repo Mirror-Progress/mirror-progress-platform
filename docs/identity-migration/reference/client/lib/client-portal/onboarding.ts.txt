@@ -1,0 +1,537 @@
+import crypto from 'crypto';
+import {
+  AdminCreateUserCommand,
+  AdminDisableUserCommand,
+  AdminEnableUserCommand,
+  AdminGetUserCommand,
+  AdminSetUserMFAPreferenceCommand,
+  AdminUserGlobalSignOutCommand,
+  CognitoIdentityProviderClient,
+} from '@aws-sdk/client-cognito-identity-provider';
+import { getDb, getMongoClient } from '../mongodb';
+import { createPortalClientProject } from '../platform-store';
+import { stateContentHash } from '../state-kernel/hash';
+import { stateKernelRecordContext, stateKernelStorageId } from '../state-kernel/scope';
+import { authorizationCollectionNames } from '../state-kernel/authorization/store';
+import type {
+  ActivePolicyHead,
+  AuthorizationPolicyDefinition,
+  AuthorizationPolicyRevision,
+  IdentityPrincipal,
+  ResourceAssignment,
+  TenantMembership,
+} from '../state-kernel/types';
+import { clientPortalPolicyContractIds } from './contracts';
+import {
+  appendPortalNotification,
+  getOnboardingByCognitoSubject,
+  getOnboardingById,
+  getOnboardingByIdempotencyKey,
+  insertOnboarding,
+  updateOnboarding,
+} from './store';
+import type { ClientPortalOnboarding } from './types';
+
+type Stored<T> = T & { _id: string };
+
+function cognitoConfig() {
+  const userPoolId = `${process.env.COGNITO_USER_POOL_ID ?? ''}`.trim();
+  return userPoolId ? { userPoolId, client: new CognitoIdentityProviderClient({}) } : null;
+}
+
+function cognitoAttribute(attributes: Array<{ Name?: string; Value?: string }> | undefined, name: string) {
+  return attributes?.find((item) => item.Name === name)?.Value ?? '';
+}
+
+function clientPolicy(tenantId: string): AuthorizationPolicyDefinition {
+  return {
+    policyId: `policy:client-portal:${tenantId}`,
+    tenantId,
+    label: 'Client portal collaboration',
+    allowedRoles: ['client'],
+    allowedPurposes: ['client_project_collaboration'],
+    allowedActions: ['workspace:read', 'submission:create', 'file:upload'],
+    allowedDomains: ['client_workspace'],
+    allowedEntityTypes: [],
+    allowedFields: {},
+    allowedRelationshipTypes: [],
+    allowedContractIds: clientPortalPolicyContractIds,
+    maximumSensitivity: 'sensitive',
+    requireAssignment: true,
+    declassificationRules: [],
+  };
+}
+
+async function ensureCognitoUser(email: string, displayName: string, enableExisting = false) {
+  const config = cognitoConfig();
+  if (!config) {
+    return { username: email, subject: `local:${stateContentHash(email.toLowerCase()).slice(0, 24)}` };
+  }
+  try {
+    const existing = await config.client.send(new AdminGetUserCommand({
+      UserPoolId: config.userPoolId,
+      Username: email,
+    }));
+    if (enableExisting && existing.Enabled === false) {
+      await config.client.send(new AdminEnableUserCommand({
+        UserPoolId: config.userPoolId,
+        Username: existing.Username ?? email,
+      }));
+    }
+    return { username: existing.Username ?? email, subject: cognitoAttribute(existing.UserAttributes, 'sub') };
+  } catch (error) {
+    if ((error as { name?: string }).name !== 'UserNotFoundException') throw error;
+  }
+  const created = await config.client.send(new AdminCreateUserCommand({
+    UserPoolId: config.userPoolId,
+    Username: email,
+    MessageAction: 'SUPPRESS',
+    UserAttributes: [
+      { Name: 'email', Value: email },
+      { Name: 'email_verified', Value: 'true' },
+      { Name: 'name', Value: displayName },
+    ],
+  }));
+  return {
+    username: created.User?.Username ?? email,
+    subject: cognitoAttribute(created.User?.Attributes, 'sub'),
+  };
+}
+
+async function provisionAuthorization(record: ClientPortalOnboarding) {
+  if (!record.cognitoSubject) throw new Error('cognito_subject_required');
+  const client = await getMongoClient();
+  const session = client.startSession();
+  const scope = { tenantId: record.tenantId, workspaceId: record.workspaceId };
+  const now = new Date().toISOString();
+  const context = stateKernelRecordContext(scope);
+  const policy = clientPolicy(record.tenantId);
+  const definitionHash = stateContentHash(policy);
+  const policyRevisionId = `policy-revision:${definitionHash.slice(0, 32)}`;
+  const principal: IdentityPrincipal = {
+    ...context,
+    principalId: record.principalId,
+    cognitoSubject: record.cognitoSubject,
+    email: record.email,
+    displayName: record.contactName,
+    status: 'invited',
+    authorizationEpoch: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const membership: TenantMembership = {
+    ...context,
+    membershipId: record.membershipId,
+    principalId: record.principalId,
+    roles: ['client'],
+    attributes: { clientId: [record.clientId] },
+    status: 'invited',
+    membershipRevision: `membership:${stateContentHash({ principalId: record.principalId, projectId: record.projectId }).slice(0, 24)}`,
+    sensitivityCeiling: 'sensitive',
+    createdAt: now,
+    updatedAt: now,
+  };
+  const assignment: ResourceAssignment = {
+    ...context,
+    assignmentId: `assignment:${record.principalId}:${record.projectId}`,
+    principalId: record.principalId,
+    resourceType: 'project',
+    resourceId: record.projectId,
+    actions: ['workspace:read', 'submission:create', 'file:upload'],
+    status: 'active',
+    revision: `assignment:${stateContentHash({ principalId: record.principalId, projectId: record.projectId }).slice(0, 24)}`,
+  };
+  const revision: AuthorizationPolicyRevision = {
+    ...context,
+    policyRevisionId,
+    policyId: policy.policyId,
+    revisionNumber: 1,
+    definition: policy,
+    definitionHash,
+    approvedBy: record.createdBy,
+    approvedAt: now,
+    createdAt: now,
+  };
+  const head: ActivePolicyHead = {
+    ...context,
+    headId: 'active-policy',
+    policyId: policy.policyId,
+    policyRevisionId,
+    policyRevisionNumber: 1,
+    updatedAt: now,
+    updatedBy: record.createdBy,
+  };
+  try {
+    session.startTransaction();
+    const db = await getDb();
+    await db.collection<Stored<IdentityPrincipal>>(authorizationCollectionNames.principals).updateOne(
+      { principalId: principal.principalId },
+      { $setOnInsert: { _id: stateKernelStorageId(scope, principal.principalId), ...principal } },
+      { upsert: true, session }
+    );
+    await db.collection<Stored<TenantMembership>>(authorizationCollectionNames.memberships).updateOne(
+      { ...scope, principalId: principal.principalId },
+      { $setOnInsert: { _id: stateKernelStorageId(scope, membership.membershipId), ...membership } },
+      { upsert: true, session }
+    );
+    await db.collection<Stored<ResourceAssignment>>(authorizationCollectionNames.assignments).updateOne(
+      { ...scope, assignmentId: assignment.assignmentId },
+      { $setOnInsert: { _id: stateKernelStorageId(scope, assignment.assignmentId), ...assignment } },
+      { upsert: true, session }
+    );
+    await db.collection<Stored<AuthorizationPolicyRevision>>(authorizationCollectionNames.policies).updateOne(
+      { ...scope, policyRevisionId },
+      { $setOnInsert: { _id: stateKernelStorageId(scope, policyRevisionId), ...revision } },
+      { upsert: true, session }
+    );
+    await db.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).updateOne(
+      scope,
+      { $setOnInsert: { _id: stateKernelStorageId(scope, 'active-policy'), ...head } },
+      { upsert: true, session }
+    );
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction().catch(() => undefined);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
+
+export async function provisionClientPortal(input: {
+  idempotencyKey: string;
+  companyName: string;
+  contactName: string;
+  email: string;
+  projectName: string;
+  description: string;
+  startDate: string;
+  targetCompletionDate: string;
+  internalLead: string;
+  actorId: string;
+  actorLabel: string;
+}) {
+  const existing = await getOnboardingByIdempotencyKey(input.idempotencyKey);
+  if (existing && ['ready_to_invite', 'invited', 'active'].includes(existing.status)) return existing;
+  if (existing?.status === 'disabled') throw new Error('portal_onboarding_disabled');
+  const now = new Date().toISOString();
+  const clientId = existing?.clientId ?? crypto.randomUUID();
+  const projectId = existing?.projectId ?? crypto.randomUUID();
+  let record: ClientPortalOnboarding = existing ?? {
+    onboardingId: crypto.randomUUID(),
+    idempotencyKey: input.idempotencyKey,
+    tenantId: `tenant:client:${clientId}`,
+    workspaceId: `workspace:client:${clientId}`,
+    clientId,
+    projectId,
+    principalId: `principal:client:${crypto.randomUUID()}`,
+    membershipId: `membership:client:${crypto.randomUUID()}`,
+    email: input.email.trim().toLowerCase(),
+    contactName: input.contactName.trim(),
+    companyName: input.companyName.trim(),
+    projectDraft: {
+      projectName: input.projectName.trim(),
+      description: input.description.trim(),
+      startDate: input.startDate,
+      targetCompletionDate: input.targetCompletionDate,
+      internalLead: input.internalLead.trim(),
+    },
+    status: 'provisioning',
+    completedSteps: [],
+    createdBy: input.actorId,
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (!existing) {
+    await insertOnboarding(record);
+  } else {
+    record = await updateOnboarding(record.onboardingId, {
+      status: 'provisioning',
+      failureCode: undefined,
+    }) as ClientPortalOnboarding;
+  }
+  try {
+    if (!record.completedSteps.includes('organization_and_project')) {
+      await createPortalClientProject({
+        actorLabel: input.actorLabel,
+        clientId,
+        projectId,
+        companyName: record.companyName,
+        primaryContact: record.contactName,
+        email: record.email,
+        projectName: input.projectName,
+        description: input.description,
+        startDate: input.startDate,
+        targetCompletionDate: input.targetCompletionDate,
+        internalLead: input.internalLead,
+      });
+      record = await updateOnboarding(record.onboardingId, {
+        completedSteps: [...record.completedSteps, 'organization_and_project'],
+      }) as ClientPortalOnboarding;
+    }
+    if (!record.completedSteps.includes('cognito_user')) {
+      const identity = await ensureCognitoUser(record.email, record.contactName, existing?.status === 'failed');
+      record = await updateOnboarding(record.onboardingId, {
+        cognitoUsername: identity.username,
+        cognitoSubject: identity.subject,
+        completedSteps: [...record.completedSteps, 'cognito_user'],
+      }) as ClientPortalOnboarding;
+    } else if (existing?.status === 'failed') {
+      await ensureCognitoUser(record.email, record.contactName, true);
+    }
+    if (!record.completedSteps.includes('authorization')) {
+      await provisionAuthorization(record);
+      record = await updateOnboarding(record.onboardingId, {
+        completedSteps: [...record.completedSteps, 'authorization'],
+      }) as ClientPortalOnboarding;
+    }
+    return await updateOnboarding(record.onboardingId, {
+      status: 'ready_to_invite',
+      failureCode: undefined,
+    }) as ClientPortalOnboarding;
+  } catch (error) {
+    await updateOnboarding(record.onboardingId, {
+      status: 'failed',
+      completedSteps: record.completedSteps,
+      cognitoUsername: record.cognitoUsername,
+      cognitoSubject: record.cognitoSubject,
+      failureCode: error instanceof Error ? error.message.slice(0, 120) : 'portal_provisioning_failed',
+    });
+    if (record.cognitoUsername && cognitoConfig()) {
+      await cognitoConfig()!.client.send(new AdminDisableUserCommand({
+        UserPoolId: cognitoConfig()!.userPoolId,
+        Username: record.cognitoUsername,
+      })).catch(() => undefined);
+    }
+    throw error;
+  }
+}
+
+export async function retryClientPortalProvisioning(input: {
+  onboardingId: string;
+  actorId: string;
+  actorLabel: string;
+}) {
+  const record = await getOnboardingById(input.onboardingId);
+  if (!record || record.status !== 'failed') throw new Error('portal_repair_unavailable');
+  if (!record.projectDraft?.projectName) throw new Error('portal_repair_context_unavailable');
+  return provisionClientPortal({
+    idempotencyKey: record.idempotencyKey,
+    companyName: record.companyName,
+    contactName: record.contactName,
+    email: record.email,
+    projectName: record.projectDraft.projectName,
+    description: record.projectDraft.description,
+    startDate: record.projectDraft.startDate,
+    targetCompletionDate: record.projectDraft.targetCompletionDate,
+    internalLead: record.projectDraft.internalLead,
+    actorId: input.actorId,
+    actorLabel: input.actorLabel,
+  });
+}
+
+export async function sendClientPortalInvitation(onboardingId: string) {
+  const record = await getOnboardingById(onboardingId);
+  if (!record || !['ready_to_invite', 'invited'].includes(record.status)) throw new Error('invitation_unavailable');
+  const config = cognitoConfig();
+  if (config) {
+    await config.client.send(new AdminCreateUserCommand({
+      UserPoolId: config.userPoolId,
+      Username: record.cognitoUsername ?? record.email,
+      MessageAction: 'RESEND',
+      DesiredDeliveryMediums: ['EMAIL'],
+    }));
+  }
+  const invitedAt = new Date().toISOString();
+  await appendPortalNotification({
+    notificationId: crypto.randomUUID(),
+    tenantId: record.tenantId,
+    workspaceId: record.workspaceId,
+    type: 'invitation',
+    recipient: record.email,
+    status: config ? 'sent' : 'pending',
+    bindingId: record.onboardingId,
+    createdAt: invitedAt,
+    sentAt: config ? invitedAt : undefined,
+  });
+  return updateOnboarding(record.onboardingId, { status: 'invited', invitedAt });
+}
+
+export async function activateInvitedPortalIdentity(cognitoSubject: string) {
+  const record = await getOnboardingByCognitoSubject(cognitoSubject);
+  if (!record || !['invited', 'active'].includes(record.status)) return null;
+  if (record.status === 'active') return record;
+  const now = new Date().toISOString();
+  const client = await getMongoClient();
+  const session = client.startSession();
+  try {
+    session.startTransaction();
+    const db = await getDb();
+    const principal = await db.collection(authorizationCollectionNames.principals).updateOne(
+      { principalId: record.principalId, status: 'invited' },
+      { $set: { status: 'active', updatedAt: now } },
+      { session }
+    );
+    const membership = await db.collection(authorizationCollectionNames.memberships).updateOne(
+      { membershipId: record.membershipId, status: 'invited' },
+      { $set: { status: 'active', updatedAt: now } },
+      { session }
+    );
+    const onboarding = await db.collection('client_portal_onboardings').updateOne(
+      { onboardingId: record.onboardingId, status: 'invited' },
+      { $set: { status: 'active', activatedAt: now, updatedAt: now } },
+      { session }
+    );
+    if (principal.modifiedCount !== 1 || membership.modifiedCount !== 1 || onboarding.modifiedCount !== 1) {
+      throw new Error('portal_activation_conflict');
+    }
+    await db.collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.outbox).insertOne({
+      _id: crypto.randomUUID(),
+      ...stateKernelRecordContext({ tenantId: record.tenantId, workspaceId: record.workspaceId }),
+      eventType: 'portal_identity_activated',
+      principalId: record.principalId,
+      membershipId: record.membershipId,
+      status: 'pending',
+      createdAt: now,
+    }, { session });
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction().catch(() => undefined);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+  return getOnboardingById(record.onboardingId);
+}
+
+export async function disableClientPortalMembership(onboardingId: string, actorId: string) {
+  const record = await getOnboardingById(onboardingId);
+  if (!record) throw new Error('membership_unavailable');
+  const now = new Date().toISOString();
+  const config = cognitoConfig();
+  if (config) {
+    await config.client.send(new AdminDisableUserCommand({ UserPoolId: config.userPoolId, Username: record.cognitoUsername ?? record.email }));
+    await config.client.send(new AdminUserGlobalSignOutCommand({ UserPoolId: config.userPoolId, Username: record.cognitoUsername ?? record.email })).catch(() => undefined);
+  }
+  const client = await getMongoClient();
+  const session = client.startSession();
+  try {
+    session.startTransaction();
+    const db = await getDb();
+    await db.collection(authorizationCollectionNames.principals).updateOne(
+      { principalId: record.principalId },
+      { $inc: { authorizationEpoch: 1 }, $set: { status: 'disabled', updatedAt: now } },
+      { session }
+    );
+    await db.collection(authorizationCollectionNames.memberships).updateOne(
+      { membershipId: record.membershipId },
+      { $set: { status: 'disabled', updatedAt: now } },
+      { session }
+    );
+    await db.collection(authorizationCollectionNames.sessions).updateMany(
+      { principalId: record.principalId, revokedAt: { $exists: false } },
+      { $set: { revokedAt: now, revokedBy: actorId, revocationReason: 'portal_membership_disabled' } },
+      { session }
+    );
+    await db.collection('client_portal_onboardings').updateOne(
+      { onboardingId: record.onboardingId },
+      { $set: { status: 'disabled', updatedAt: now } },
+      { session }
+    );
+    const auditId = `portal-membership-disable:${crypto.randomUUID()}`;
+    await db.collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.audits).insertOne({
+      _id: auditId,
+      ...stateKernelRecordContext({ tenantId: record.tenantId, workspaceId: record.workspaceId }),
+      auditId,
+      principalId: record.principalId,
+      action: 'portal:administer',
+      resourceContractId: 'route:admin:portal-ops:administer',
+      allowed: true,
+      reasonCode: 'portal_membership_disabled',
+      createdAt: now,
+    }, { session });
+    await db.collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.outbox).insertOne({
+      _id: crypto.randomUUID(),
+      ...stateKernelRecordContext({ tenantId: record.tenantId, workspaceId: record.workspaceId }),
+      eventType: 'portal_membership_disabled',
+      principalId: record.principalId,
+      status: 'pending',
+      createdAt: now,
+    }, { session });
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction().catch(() => undefined);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+  return getOnboardingById(record.onboardingId);
+}
+
+export async function resetClientPortalMfa(onboardingId: string, actorId: string) {
+  const record = await getOnboardingById(onboardingId);
+  const config = cognitoConfig();
+  if (!record || !config) throw new Error('mfa_reset_unavailable');
+  await config.client.send(new AdminSetUserMFAPreferenceCommand({
+    UserPoolId: config.userPoolId,
+    Username: record.cognitoUsername ?? record.email,
+    SoftwareTokenMfaSettings: { Enabled: false, PreferredMfa: false },
+  }));
+  await config.client.send(new AdminUserGlobalSignOutCommand({
+    UserPoolId: config.userPoolId,
+    Username: record.cognitoUsername ?? record.email,
+  }));
+  const now = new Date().toISOString();
+  const auditId = `portal-mfa-reset:${crypto.randomUUID()}`;
+  await (await getDb()).collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.audits).insertOne({
+    _id: auditId,
+    ...stateKernelRecordContext({ tenantId: record.tenantId, workspaceId: record.workspaceId }),
+    auditId,
+    principalId: record.principalId,
+    action: 'portal:administer',
+    resourceContractId: 'route:admin:portal-ops:administer',
+    allowed: true,
+    reasonCode: `portal_mfa_reset_by:${actorId}`,
+    createdAt: now,
+  });
+  return { ok: true };
+}
+
+export async function assignProjectToClientPortal(input: {
+  onboardingId: string;
+  projectId: string;
+  actorId: string;
+}) {
+  const record = await getOnboardingById(input.onboardingId);
+  if (!record || record.status === 'disabled') throw new Error('membership_unavailable');
+  const scope = { tenantId: record.tenantId, workspaceId: record.workspaceId };
+  const assignmentId = `assignment:${record.principalId}:${input.projectId}`;
+  const assignment: ResourceAssignment = {
+    ...stateKernelRecordContext(scope),
+    assignmentId,
+    principalId: record.principalId,
+    resourceType: 'project',
+    resourceId: input.projectId,
+    actions: ['workspace:read', 'submission:create', 'file:upload'],
+    status: 'active',
+    revision: `assignment:${stateContentHash({ principalId: record.principalId, projectId: input.projectId }).slice(0, 24)}`,
+  };
+  const db = await getDb();
+  await db.collection<Stored<ResourceAssignment>>(authorizationCollectionNames.assignments).updateOne(
+    { ...scope, assignmentId },
+    { $setOnInsert: { _id: stateKernelStorageId(scope, assignmentId), ...assignment } },
+    { upsert: true }
+  );
+  await db.collection(authorizationCollectionNames.outbox).insertOne({
+    eventId: crypto.randomUUID(),
+    ...stateKernelRecordContext(scope),
+    eventType: 'portal_project_assignment_added',
+    assignmentId,
+    principalId: record.principalId,
+    projectId: input.projectId,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    createdBy: input.actorId,
+  });
+  return assignment;
+}

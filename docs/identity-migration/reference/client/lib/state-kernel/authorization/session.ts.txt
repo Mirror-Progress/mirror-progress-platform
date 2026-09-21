@@ -1,0 +1,143 @@
+import crypto from 'crypto';
+import { DecryptCommand, EncryptCommand, KMSClient } from '@aws-sdk/client-kms';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { AuthorizationStore } from './store';
+import { stateContentHash } from '../hash';
+import type { AuthorizationContext, AuthorizationSession, StateKernelScope } from '../types';
+
+const ABSOLUTE_TTL_MS = 8 * 60 * 60 * 1000;
+const IDLE_TTL_MS = 60 * 60 * 1000;
+const PROD_COOKIE = '__Host-mp_session';
+const LOCAL_COOKIE = 'mp_authorization_session';
+
+export function opaqueTokenDigest(token: string) {
+  return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+function cookieName() {
+  return process.env.NODE_ENV === 'production' ? PROD_COOKIE : LOCAL_COOKIE;
+}
+
+function cookieHeader(value: string, maxAge: number) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `${cookieName()}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+function appendCookie(res: NextApiResponse, value: string) {
+  const existing = res.getHeader('Set-Cookie');
+  const values = Array.isArray(existing)
+    ? existing.map(String)
+    : existing
+      ? [String(existing)]
+      : [];
+  res.setHeader('Set-Cookie', [...values, value]);
+}
+
+function readCookie(req: NextApiRequest, name: string) {
+  return `${req.headers.cookie ?? ''}`.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))?.slice(name.length + 1);
+}
+
+async function encryptRefreshMaterial(value: string) {
+  const keyId = `${process.env.AUTH_SESSION_KMS_KEY_ID ?? ''}`.trim();
+  if (!keyId) {
+    if (process.env.NODE_ENV === 'production') throw new Error('AUTH_SESSION_KMS_KEY_ID is required.');
+    return `local:${Buffer.from(value, 'utf8').toString('base64url')}`;
+  }
+  const result = await new KMSClient({}).send(new EncryptCommand({ KeyId: keyId, Plaintext: Buffer.from(value, 'utf8'), EncryptionContext: { service: 'mirror-progress-authorization-session' } }));
+  return Buffer.from(result.CiphertextBlob ?? []).toString('base64');
+}
+
+export async function decryptRefreshMaterial(value: string) {
+  if (value.startsWith('local:') && process.env.NODE_ENV !== 'production') return Buffer.from(value.slice(6), 'base64url').toString('utf8');
+  const result = await new KMSClient({}).send(new DecryptCommand({ CiphertextBlob: Buffer.from(value, 'base64'), EncryptionContext: { service: 'mirror-progress-authorization-session' } }));
+  return Buffer.from(result.Plaintext ?? []).toString('utf8');
+}
+
+export async function createOpaqueAuthorizationSession(input: {
+  res: NextApiResponse;
+  principalId: string;
+  membershipId: string;
+  scope: StateKernelScope;
+  policyRevisionId: string;
+  authorizationEpoch: number;
+  refreshMaterial?: string;
+  mfaVerifiedAt?: string;
+}) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const now = Date.now();
+  const session: AuthorizationSession = {
+    ...input.scope,
+    schemaVersion: 'mirror-progress-state-kernel.v2',
+    policyVersion: 'mirror-progress-policy.v2',
+    sessionId: `auth-session:${crypto.randomUUID()}`,
+    tokenDigest: opaqueTokenDigest(token),
+    principalId: input.principalId,
+    membershipId: input.membershipId,
+    policyRevisionId: input.policyRevisionId,
+    authorizationEpoch: input.authorizationEpoch,
+    encryptedRefreshMaterial: input.refreshMaterial ? await encryptRefreshMaterial(input.refreshMaterial) : undefined,
+    createdAt: new Date(now).toISOString(),
+    lastSeenAt: new Date(now).toISOString(),
+    idleExpiresAt: new Date(now + IDLE_TTL_MS).toISOString(),
+    absoluteExpiresAt: new Date(now + ABSOLUTE_TTL_MS).toISOString(),
+    mfaVerifiedAt: input.mfaVerifiedAt,
+  };
+  await new AuthorizationStore().createSession(session);
+  appendCookie(input.res, cookieHeader(token, Math.floor(ABSOLUTE_TTL_MS / 1000)));
+  return session;
+}
+
+export function clearOpaqueAuthorizationSession(res: NextApiResponse) {
+  appendCookie(res, cookieHeader('', 0));
+}
+
+export async function resolveOpaqueAuthorizationSession(req: NextApiRequest) {
+  const token = readCookie(req, cookieName());
+  if (!token) return null;
+  const store = new AuthorizationStore();
+  const session = await store.findSessionByDigest(opaqueTokenDigest(token));
+  if (!session || session.revokedAt) return null;
+  const now = Date.now();
+  if (Date.parse(session.absoluteExpiresAt) <= now || Date.parse(session.idleExpiresAt) <= now) return null;
+  const principal = await store.getPrincipal(session.principalId);
+  if (!principal || principal.status !== 'active' || principal.authorizationEpoch !== session.authorizationEpoch) return null;
+  const scope = { tenantId: session.tenantId, workspaceId: session.workspaceId };
+  const membership = await store.getMembership(session.principalId, scope);
+  const head = await store.getActivePolicyHead(scope);
+  if (!membership || membership.status !== 'active' || !head || head.policyRevisionId !== session.policyRevisionId) return null;
+  if (head.breakGlassExpiresAt && Date.parse(head.breakGlassExpiresAt) <= now) return null;
+  const idleExpiresAt = new Date(Math.min(now + IDLE_TTL_MS, Date.parse(session.absoluteExpiresAt))).toISOString();
+  await store.touchSession(session.sessionId, new Date(now).toISOString(), idleExpiresAt);
+  return { session, principal, membership, head, assignments: await store.listAssignments(principal.principalId, scope) };
+}
+
+export function buildAuthorizationContext(input: {
+  resolved: NonNullable<Awaited<ReturnType<typeof resolveOpaqueAuthorizationSession>>>;
+  purpose: string;
+  action: AuthorizationContext['action'];
+}) {
+  const { session, principal, membership, assignments, head } = input.resolved;
+  const issuedAt = new Date().toISOString();
+  const contextValue = {
+    principalId: principal.principalId,
+    tenantId: membership.tenantId,
+    workspaceId: membership.workspaceId,
+    membershipId: membership.membershipId,
+    roles: membership.roles,
+    assignments: assignments.map((item) => item.assignmentId),
+    purpose: input.purpose,
+    action: input.action,
+    policyRevisionId: head.policyRevisionId,
+    membershipRevision: membership.membershipRevision,
+    authorizationEpoch: principal.authorizationEpoch,
+    sensitivityCeiling: membership.sensitivityCeiling,
+  };
+  return {
+    ...contextValue,
+    attributes: membership.attributes,
+    assignments,
+    issuedAt,
+    expiresAt: session.idleExpiresAt,
+    contextHash: stateContentHash(contextValue),
+  } satisfies AuthorizationContext;
+}

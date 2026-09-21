@@ -1,0 +1,569 @@
+import type { StateWarning } from '../platform-state/types';
+
+export const STATE_KERNEL_SCHEMA_VERSION = 'mirror-progress-state-kernel.v2';
+export const STATE_KERNEL_POLICY_VERSION = 'mirror-progress-policy.v2';
+export const MIRROR_PROGRESS_INTERNAL_TENANT_ID = 'tenant:mirror-progress';
+export const MIRROR_PROGRESS_INTERNAL_WORKSPACE_ID =
+  'workspace:mirror-progress:internal';
+
+export type StateKernelMode = 'legacy' | 'shadow' | 'authoritative';
+export type StateKernelStorageProvider = 'mongodb';
+export type StateKernelArtifactProvider = 'local' | 's3';
+export type StateKernelIdentityProvider = 'local_session' | 'cognito';
+export type StateKernelDomain =
+  | 'identity_access'
+  | 'delivery'
+  | 'client_workspace'
+  | 'notion_intelligence'
+  | 'import_governance'
+  | 'business_development'
+  | 'governance'
+  | 'external_reference'
+  | 'content_publication'
+  | 'runtime_health'
+  | 'future_apps'
+  | 'customer_discovery'
+  | 'inbound_pipeline'
+  | 'business'
+  | 'system';
+export type StateKernelSensitivity =
+  | 'public'
+  | 'internal'
+  | 'sensitive'
+  | 'restricted';
+export type AuthorizationRole =
+  | 'super_admin'
+  | 'admin'
+  | 'project_lead'
+  | 'client';
+export type AuthorizationAction =
+  | 'state:read'
+  | 'projection:read'
+  | 'lineage:read'
+  | 'contract:read'
+  | 'job:read'
+  | 'admin:read'
+  | 'admin:write'
+  | 'identity:administer'
+  | 'policy:propose'
+  | 'policy:activate'
+  | 'session:revoke'
+  | 'workspace:read'
+  | 'submission:create'
+  | 'file:upload'
+  | 'portal:administer'
+  | 'submission:review';
+export interface StateKernelScope {
+  tenantId: string;
+  workspaceId: string;
+}
+
+export interface StateKernelScopedRecord extends StateKernelScope {
+  schemaVersion: string;
+  policyVersion: string;
+}
+
+export interface IdentityPrincipal extends StateKernelScopedRecord {
+  principalId: string;
+  cognitoSubject: string;
+  email: string;
+  displayName: string;
+  status: 'active' | 'disabled' | 'invited';
+  authorizationEpoch: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantMembership extends StateKernelScopedRecord {
+  membershipId: string;
+  principalId: string;
+  roles: AuthorizationRole[];
+  attributes: Record<string, string[]>;
+  status: 'active' | 'disabled' | 'invited';
+  membershipRevision: string;
+  sensitivityCeiling: StateKernelSensitivity;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResourceAssignment extends StateKernelScopedRecord {
+  assignmentId: string;
+  principalId: string;
+  resourceType: 'client' | 'project' | 'domain';
+  resourceId: string;
+  actions: AuthorizationAction[];
+  status: 'active' | 'revoked';
+  revision: string;
+}
+
+export interface AuthorizationPolicyDefinition {
+  policyId: string;
+  tenantId: string;
+  label: string;
+  allowedRoles: AuthorizationRole[];
+  allowedPurposes: string[];
+  allowedActions: AuthorizationAction[];
+  allowedDomains: StateKernelDomain[];
+  allowedEntityTypes: StateKernelEntityType[];
+  allowedFields: Record<string, string[]>;
+  allowedRelationshipTypes: string[];
+  allowedContractIds: string[];
+  maximumSensitivity: StateKernelSensitivity;
+  requireAssignment: boolean;
+  declassificationRules: [];
+}
+
+export interface AuthorizationPolicyRevision extends StateKernelScopedRecord {
+  policyRevisionId: string;
+  policyId: string;
+  revisionNumber: number;
+  definition: AuthorizationPolicyDefinition;
+  definitionHash: string;
+  sourceArtifactHash?: string;
+  approvedBy: string;
+  approvedAt: string;
+  createdAt: string;
+}
+
+export interface ActivePolicyHead extends StateKernelScopedRecord {
+  headId: string;
+  policyId: string;
+  policyRevisionId: string;
+  policyRevisionNumber: number;
+  updatedAt: string;
+  updatedBy: string;
+  breakGlassGrantId?: string;
+  breakGlassExpiresAt?: string;
+}
+
+export interface AuthorizationSession extends StateKernelScopedRecord {
+  sessionId: string;
+  tokenDigest: string;
+  principalId: string;
+  membershipId: string;
+  policyRevisionId: string;
+  authorizationEpoch: number;
+  encryptedRefreshMaterial?: string;
+  createdAt: string;
+  lastSeenAt: string;
+  idleExpiresAt: string;
+  absoluteExpiresAt: string;
+  mfaVerifiedAt?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  revocationReason?: string;
+}
+
+export interface AuthorizationContext extends StateKernelScope {
+  principalId: string;
+  membershipId: string;
+  roles: AuthorizationRole[];
+  attributes: Record<string, string[]>;
+  assignments: ResourceAssignment[];
+  purpose: string;
+  action: AuthorizationAction;
+  policyRevisionId: string;
+  membershipRevision: string;
+  authorizationEpoch: number;
+  sensitivityCeiling: StateKernelSensitivity;
+  issuedAt: string;
+  expiresAt: string;
+  contextHash: string;
+}
+
+export interface AuthorizationResourceContract {
+  contractId: string;
+  action: AuthorizationAction;
+  purpose: string;
+  domain: StateKernelDomain;
+  resourceType: string;
+  sensitivity: StateKernelSensitivity;
+  assignmentConstrained: boolean;
+  rowConstrained: boolean;
+}
+
+export interface AuthorizationDecision {
+  decisionId: string;
+  allowed: boolean;
+  reasonCode: string;
+  principalId?: string;
+  tenantId?: string;
+  workspaceId?: string;
+  policyRevisionId?: string;
+  authorizationViewRevisionId?: string;
+  contextHash?: string;
+  resourceContractId: string;
+  action: AuthorizationAction;
+  decidedAt: string;
+}
+
+export interface PolicyActivationProposal extends StateKernelScopedRecord {
+  proposalId: string;
+  policyId: string;
+  candidateDefinition: AuthorizationPolicyDefinition;
+  candidateHash: string;
+  source: 'manual' | 'business_state_compiler';
+  sourceArtifactHash?: string;
+  validationEvidence: string[];
+  status: 'draft' | 'awaiting_approval' | 'approved' | 'rejected' | 'activated';
+  createdBy: string;
+  createdAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  activatedRevisionId?: string;
+}
+
+export interface AuthorizationAuditRecord extends StateKernelScopedRecord {
+  auditId: string;
+  decisionId?: string;
+  principalId?: string;
+  action: AuthorizationAction;
+  resourceContractId: string;
+  allowed: boolean;
+  reasonCode: string;
+  policyRevisionId?: string;
+  contextHash?: string;
+  createdAt: string;
+}
+export type StateKernelEntityType =
+  | 'account'
+  | 'stakeholder'
+  | 'discovery_request'
+  | 'outreach_interaction'
+  | 'interview'
+  | 'interview_response'
+  | 'discovery_insight'
+  | 'follow_up'
+  | 'assessment_candidate'
+  | 'interview_appointment'
+  | 'revenue_goal'
+  | 'revenue_event'
+  | 'platform_domain'
+  | 'source_health'
+  | 'operator_result'
+  | 'projection_summary'
+  | 'inbound_lead';
+
+export type StateKernelAuthorityMode =
+  | 'legacy_authoritative'
+  | 'kernel_shadow'
+  | 'kernel_authoritative';
+
+export type StateKernelMigrationStatus =
+  | 'observed'
+  | 'shadow_compiled'
+  | 'parity_verification'
+  | 'authoritative';
+
+export interface StateKernelDomainManifest {
+  domain: StateKernelDomain;
+  label: string;
+  authorityMode: StateKernelAuthorityMode;
+  migrationStatus: StateKernelMigrationStatus;
+  sourceIds: string[];
+  mutationOwners: string[];
+  dependsOn: StateKernelDomain[];
+  projectionIds: string[];
+  sensitivity: StateKernelSensitivity;
+  publicExposure: 'none' | 'projection_only' | 'public_projection';
+  notes: string;
+}
+
+export interface ProductionMigrationCollectionResult {
+  collectionName: string;
+  sourceCount: number;
+  stagedCount: number;
+  mergedCount: number;
+  contentHash: string;
+  activeImport: boolean;
+  targetDatabase: 'mirror_progress' | 'mirror_progress_public' | 'archive_only';
+  status: 'pending' | 'staged' | 'verified' | 'merged' | 'conflict' | 'failed';
+  warnings: string[];
+}
+
+export interface ProductionMigrationManifest {
+  manifestVersion: 'mirror-progress-production-migration.v1';
+  migrationId: string;
+  sourceDatabase: string;
+  exportedAt: string;
+  expiresAt: string;
+  sourceCollectionCount: number;
+  sourceDocumentCount: number;
+  manifestContentHash: string;
+  signingKeyId?: string;
+  signature?: string;
+  collections: ProductionMigrationCollectionResult[];
+}
+
+export interface DomainAuthorityRevision extends StateKernelScopedRecord {
+  authorityRevisionId: string;
+  domain: StateKernelDomain;
+  authorityMode: StateKernelAuthorityMode;
+  migrationStatus: StateKernelMigrationStatus;
+  revisionNumber: number;
+  evidenceHashes: string[];
+  definitionHash: string;
+  approvedBy: string;
+  approvedAt: string;
+  createdAt: string;
+}
+
+export interface ActiveDomainAuthorityHead extends StateKernelScopedRecord {
+  headId: string;
+  domain: StateKernelDomain;
+  authorityRevisionId: string;
+  authorityRevisionNumber: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+export interface DomainAuthorityReadResult {
+  authorityRevisionId: string;
+  authorityMode: StateKernelAuthorityMode;
+  migrationStatus: StateKernelMigrationStatus;
+  source: 'active_head' | 'registry_default';
+}
+
+export interface ProductionCutoverEvidence {
+  evidenceVersion: 'mirror-progress-production-cutover.v1';
+  status: 'pending' | 'observing' | 'passed' | 'rolled_back';
+  generatedAt: string;
+  releaseHash: string;
+  migrationManifestHash: string;
+  customerDiscoveryAuthorityRevisionId: string;
+  platformObservationStartedAt?: string;
+  platformObservationCompletedAt?: string;
+  publicDnsCutoverAt?: string;
+  rollbackAt?: string;
+  checks: Record<string, boolean | number | string>;
+}
+
+export interface StateKernelDomainObservation {
+  domain: StateKernelDomain;
+  semanticHash: string;
+  status: string;
+  recordCount: number;
+  sourceRecordIds: string[];
+  operatorIds: string[];
+  projectionIds: string[];
+  dependencyDomains: StateKernelDomain[];
+  warningCount: number;
+  authorityMode: StateKernelAuthorityMode;
+  migrationStatus: StateKernelMigrationStatus;
+}
+
+export interface PlatformKernelObservation {
+  tenantId: string;
+  workspaceId: string;
+  semanticRevisionId: string;
+  platformRuntimeRevisionId: string;
+  generatedAt: string;
+  schemaVersion: string;
+  policyVersion: string;
+  mode: 'shadow';
+  persisted: false;
+  domainManifests: StateKernelDomainManifest[];
+  domainObservations: StateKernelDomainObservation[];
+  sourceRecords: SourceRecordEnvelope[];
+  coverage: {
+    registeredDomainCount: number;
+    observedDomainCount: number;
+    kernelAuthoritativeCount: number;
+    shadowDomainCount: number;
+    unobservedDomains: StateKernelDomain[];
+  };
+  warnings: StateWarning[];
+}
+
+export interface SourceRecordEnvelope extends StateKernelScopedRecord {
+  sourceRecordId: string;
+  sourceId: string;
+  domain: StateKernelDomain;
+  recordType: string;
+  observedAt: string;
+  sourceUpdatedAt?: string;
+  contentHash: string;
+  sensitivity: StateKernelSensitivity;
+  payload: Record<string, unknown>;
+}
+
+export interface CanonicalStateEntity extends StateKernelScopedRecord {
+  entityId: string;
+  entityType: StateKernelEntityType;
+  domain: StateKernelDomain;
+  sensitivity: StateKernelSensitivity;
+  sourceRecordIds: string[];
+  data: Record<string, unknown>;
+  contentHash: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CanonicalStateRelationship extends StateKernelScopedRecord {
+  relationshipId: string;
+  domain: StateKernelDomain;
+  fromEntityId: string;
+  toEntityId: string;
+  relationshipType: string;
+  contentHash: string;
+}
+
+export interface StateDependencyEdge extends StateKernelScopedRecord {
+  edgeId: string;
+  domain: StateKernelDomain;
+  fromEntityId: string;
+  toEntityId: string;
+  dependencyType: 'derived_from' | 'blocks' | 'supports' | 'relates_to';
+}
+
+export interface StateEvidenceReference {
+  evidenceId: string;
+  sourceId: string;
+  label: string;
+  href?: string;
+  observedAt?: string;
+  confidence: number;
+}
+
+export interface StateClaimRecord extends StateKernelScopedRecord {
+  claimId: string;
+  domain: StateKernelDomain;
+  statement: string;
+  confidence: number;
+  evidenceIds: string[];
+  status: 'supported' | 'weak' | 'missing' | 'rejected';
+}
+
+export interface StateDecisionContract extends StateKernelScopedRecord {
+  contractId: string;
+  domain: StateKernelDomain;
+  version: string;
+  question: string;
+  requiredEntityTypes: StateKernelEntityType[];
+  approvalRequired: boolean;
+  externalEffectsAllowed: false;
+}
+
+export interface StateEvent extends StateKernelScopedRecord {
+  eventId: string;
+  domain: StateKernelDomain;
+  eventType: string;
+  idempotencyKey: string;
+  actorId: string;
+  actorType: 'admin' | 'public' | 'system';
+  commandId: string;
+  parentRevisionId: string | null;
+  payloadHash: string;
+  payload: Record<string, unknown>;
+  affectedEntityIds: string[];
+  evidenceRefs: StateEvidenceReference[];
+  createdAt: string;
+}
+
+export interface StateRevision extends StateKernelScopedRecord {
+  revisionId: string;
+  parentRevisionId: string | null;
+  domain: StateKernelDomain;
+  eventIds: string[];
+  entityHashes: Array<{ entityId: string; contentHash: string }>;
+  relationshipHashes: Array<{ relationshipId: string; contentHash: string }>;
+  semanticHash: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface StateHead extends StateKernelScopedRecord {
+  headId: string;
+  domain: StateKernelDomain;
+  revisionId: string;
+  updatedAt: string;
+}
+
+export interface StateCheckpoint extends StateKernelScopedRecord {
+  checkpointId: string;
+  domain: StateKernelDomain;
+  revisionId: string;
+  entityCount: number;
+  relationshipCount: number;
+  artifactRef?: string;
+  createdAt: string;
+}
+
+export interface StateTransitionProposal {
+  tenantId: string;
+  workspaceId: string;
+  schemaVersion: string;
+  policyVersion: string;
+  proposalId: string;
+  domain: StateKernelDomain;
+  baseRevisionId: string;
+  commandType: string;
+  status: 'draft' | 'awaiting_approval' | 'approved' | 'rejected' | 'expired';
+  requiresApproval: true;
+  executable: false;
+  createdAt: string;
+}
+
+export interface StateCommand<
+  TPayload extends Record<string, unknown> = Record<string, unknown>,
+> {
+  tenantId: string;
+  workspaceId: string;
+  schemaVersion: string;
+  policyVersion: string;
+  commandId: string;
+  commandType: string;
+  domain: StateKernelDomain;
+  expectedRevisionId?: string | null;
+  idempotencyKey: string;
+  actorId: string;
+  actorType: 'admin' | 'public' | 'system';
+  payload: TPayload;
+  evidenceRefs?: StateEvidenceReference[];
+}
+
+export interface StateKernelSnapshot {
+  tenantId: string;
+  workspaceId: string;
+  revisionId: string | null;
+  generatedAt: string;
+  schemaVersion: string;
+  policyVersion: string;
+  mode: StateKernelMode;
+  stale: boolean;
+  entities: CanonicalStateEntity[];
+  relationships: CanonicalStateRelationship[];
+  dependencies: StateDependencyEdge[];
+  claims: StateClaimRecord[];
+  contracts: StateDecisionContract[];
+  warnings: StateWarning[];
+}
+
+export interface StateKernelRuntimeStatus {
+  tenantId: string;
+  workspaceId: string;
+  cacheKey: string;
+  mode: StateKernelMode;
+  cacheStatus: 'cold' | 'warm' | 'stale' | 'refreshing' | 'error';
+  currentRevisionId?: string;
+  generatedAt?: string;
+  lastRefreshAt?: string;
+  nextRefreshDueAt?: string;
+  snapshotTtlMs: number;
+  cacheHits: number;
+  cacheMisses: number;
+  refreshCount: number;
+  warnings: StateWarning[];
+}
+
+export interface StateKernelReadResult<T> {
+  tenantId: string;
+  workspaceId: string;
+  revisionId: string | null;
+  generatedAt: string;
+  cacheHit: boolean;
+  stale: boolean;
+  mode: StateKernelMode;
+  warnings: StateWarning[];
+  data: T;
+}

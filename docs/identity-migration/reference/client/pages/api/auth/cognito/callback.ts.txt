@@ -1,0 +1,52 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import {
+  completeCognitoAuthorization,
+  recoverCognitoAuthorization,
+} from '../../../../lib/state-kernel/authorization/cognito';
+import { createOpaqueAuthorizationSession } from '../../../../lib/state-kernel/authorization/session';
+import { AuthorizationStore } from '../../../../lib/state-kernel/authorization/store';
+import { activateInvitedPortalIdentity } from '../../../../lib/client-portal/onboarding';
+import { activateInvitedStudioIqIdentity } from '../../../../lib/studioiq-account-provisioning';
+import { resolveProductLandingRoute } from '../../../../lib/product-access';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'method_not_allowed' });
+  if (`${process.env.SITE_SURFACE ?? ''}` === 'campaign') return res.status(404).end('Not Found');
+  try {
+    const identity = await completeCognitoAuthorization(req, res);
+    const store = new AuthorizationStore();
+    let principal = await store.findPrincipalBySubject(identity.subject);
+    let studioIqActivation = null;
+    if (principal?.status === 'invited') {
+      await activateInvitedPortalIdentity(identity.subject);
+      studioIqActivation = await activateInvitedStudioIqIdentity(identity.subject);
+      principal = await store.findPrincipalBySubject(identity.subject);
+    }
+    if (!studioIqActivation && principal?.status === 'active') {
+      studioIqActivation = await activateInvitedStudioIqIdentity(identity.subject);
+    }
+    if (!principal || principal.status !== 'active') return res.status(404).end('Not Found');
+    const scope = { tenantId: principal.tenantId, workspaceId: principal.workspaceId };
+    const membership = await store.getMembership(principal.principalId, scope);
+    const head = await store.getActivePolicyHead(scope);
+    if (!membership || membership.status !== 'active' || !head) return res.status(404).end('Not Found');
+    await createOpaqueAuthorizationSession({ res, principalId: principal.principalId, membershipId: membership.membershipId, scope, policyRevisionId: head.policyRevisionId, authorizationEpoch: principal.authorizationEpoch, refreshMaterial: identity.refreshToken, mfaVerifiedAt: identity.mfaVerifiedAt });
+    const defaultDestination = membership.roles.includes('client')
+      ? await resolveProductLandingRoute(principal.principalId, '/workspace')
+      : '/admin';
+    const destination = identity.returnTo || (studioIqActivation ? '/apps/studioiq' : defaultDestination);
+    return res.redirect(302, destination);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'oauth_callback_failed';
+    console.warn(JSON.stringify({
+      event: 'cognito_callback_failed',
+      reason,
+      occurredAt: new Date().toISOString(),
+    }));
+    if (reason.startsWith('oauth_')) {
+      const recoveryDestination = recoverCognitoAuthorization(req, res);
+      if (recoveryDestination) return res.redirect(302, recoveryDestination);
+    }
+    return res.status(404).end('Not Found');
+  }
+}

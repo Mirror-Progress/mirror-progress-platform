@@ -1,0 +1,291 @@
+import crypto from 'crypto';
+import type { ClientSession, Db } from 'mongodb';
+import { getDb, getMongoClient } from '../../mongodb';
+import { stateContentHash } from '../hash';
+import { stateKernelRecordContext, stateKernelStorageId } from '../scope';
+import type {
+  ActivePolicyHead,
+  AuthorizationAuditRecord,
+  AuthorizationPolicyRevision,
+  AuthorizationSession,
+  IdentityPrincipal,
+  PolicyActivationProposal,
+  StateKernelScope,
+  TenantMembership,
+  ResourceAssignment,
+} from '../types';
+
+export const authorizationCollectionNames = {
+  principals: 'authorization_principals',
+  memberships: 'authorization_memberships',
+  assignments: 'authorization_assignments',
+  policies: 'authorization_policy_revisions',
+  policyHeads: 'authorization_policy_heads',
+  proposals: 'authorization_policy_proposals',
+  sessions: 'authorization_sessions',
+  audits: 'authorization_audits',
+  outbox: 'authorization_outbox',
+} as const;
+
+let indexesPromise: Promise<void> | null = null;
+
+async function ensureIndexes(db: Db) {
+  if (indexesPromise) return indexesPromise;
+  const n = authorizationCollectionNames;
+  indexesPromise = Promise.all([
+    db.collection(n.principals).createIndex({ cognitoSubject: 1 }, { unique: true }),
+    db.collection(n.memberships).createIndex({ tenantId: 1, workspaceId: 1, principalId: 1 }, { unique: true }),
+    db.collection(n.assignments).createIndex({ tenantId: 1, workspaceId: 1, principalId: 1, status: 1 }),
+    db.collection(n.policies).createIndex({ tenantId: 1, workspaceId: 1, policyId: 1, revisionNumber: -1 }, { unique: true }),
+    db.collection(n.policyHeads).createIndex({ tenantId: 1, workspaceId: 1, policyId: 1 }, { unique: true }),
+    db.collection(n.proposals).createIndex({ tenantId: 1, workspaceId: 1, status: 1, createdAt: -1 }),
+    db.collection(n.sessions).createIndex({ tokenDigest: 1 }, { unique: true }),
+    db.collection(n.sessions).createIndex({ principalId: 1, revokedAt: 1, absoluteExpiresAt: 1 }),
+    db.collection(n.audits).createIndex({ tenantId: 1, workspaceId: 1, createdAt: -1 }),
+    db.collection(n.outbox).createIndex({ status: 1, createdAt: 1 }),
+  ]).then(() => undefined).catch((error) => {
+    indexesPromise = null;
+    throw error;
+  });
+  return indexesPromise;
+}
+
+async function db() {
+  const value = await getDb();
+  await ensureIndexes(value);
+  return value;
+}
+
+function scopeFilter(scope: StateKernelScope) {
+  return { tenantId: scope.tenantId, workspaceId: scope.workspaceId };
+}
+
+function clean<T>(record: (T & { _id?: unknown }) | null): T | null {
+  if (!record) return null;
+  const { _id, ...value } = record;
+  void _id;
+  return value as T;
+}
+
+type Stored<T> = T & { _id: string };
+
+export class AuthorizationStore {
+  async findPrincipalBySubject(cognitoSubject: string) {
+    return clean<IdentityPrincipal>(await (await db()).collection<Stored<IdentityPrincipal>>(authorizationCollectionNames.principals).findOne({ cognitoSubject }));
+  }
+
+  async getPrincipal(principalId: string) {
+    return clean<IdentityPrincipal>(await (await db()).collection<Stored<IdentityPrincipal>>(authorizationCollectionNames.principals).findOne({ principalId }));
+  }
+
+  async getMembership(principalId: string, scope: StateKernelScope) {
+    return clean<TenantMembership>(await (await db()).collection<Stored<TenantMembership>>(authorizationCollectionNames.memberships).findOne({ ...scopeFilter(scope), principalId }));
+  }
+
+  async listAssignments(principalId: string, scope: StateKernelScope) {
+    return (await (await db()).collection<Stored<ResourceAssignment>>(authorizationCollectionNames.assignments).find({ ...scopeFilter(scope), principalId, status: 'active' }).toArray()).map((item) => clean<ResourceAssignment>(item)!);
+  }
+
+  async getActivePolicyHead(scope: StateKernelScope) {
+    return clean<ActivePolicyHead>(await (await db()).collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).findOne(scopeFilter(scope)));
+  }
+
+  async getPolicyRevision(policyRevisionId: string, scope: StateKernelScope) {
+    return clean<AuthorizationPolicyRevision>(await (await db()).collection<Stored<AuthorizationPolicyRevision>>(authorizationCollectionNames.policies).findOne({ ...scopeFilter(scope), policyRevisionId }));
+  }
+
+  async listPolicyRevisions(scope: StateKernelScope, limit = 50) {
+    return (await (await db()).collection<Stored<AuthorizationPolicyRevision>>(authorizationCollectionNames.policies).find(scopeFilter(scope)).sort({ revisionNumber: -1 }).limit(Math.min(100, limit)).toArray()).map((item) => clean<AuthorizationPolicyRevision>(item)!);
+  }
+
+  async createProposal(proposal: PolicyActivationProposal) {
+    await (await db()).collection<Stored<PolicyActivationProposal>>(authorizationCollectionNames.proposals).insertOne({ _id: stateKernelStorageId(proposal, proposal.proposalId), ...proposal });
+    return proposal;
+  }
+
+  async listProposals(scope: StateKernelScope, limit = 50) {
+    return (await (await db()).collection<Stored<PolicyActivationProposal>>(authorizationCollectionNames.proposals).find(scopeFilter(scope)).sort({ createdAt: -1 }).limit(Math.min(100, limit)).toArray()).map((item) => clean<PolicyActivationProposal>(item)!);
+  }
+
+  async getProposal(proposalId: string, scope: StateKernelScope, session?: ClientSession) {
+    return clean<PolicyActivationProposal>(await (await db()).collection<Stored<PolicyActivationProposal>>(authorizationCollectionNames.proposals).findOne({ ...scopeFilter(scope), proposalId }, session ? { session } : undefined));
+  }
+
+  async activateProposal(input: { proposalId: string; scope: StateKernelScope; approvedBy: string }) {
+    const client = await getMongoClient();
+    const session = client.startSession();
+    try {
+      session.startTransaction();
+      const database = await db();
+      const proposal = await this.getProposal(input.proposalId, input.scope, session);
+      if (!proposal || proposal.status !== 'awaiting_approval') throw new Error('policy_proposal_unavailable');
+      const head = await database.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).findOne(scopeFilter(input.scope), { session });
+      const revisionNumber = Number(head?.policyRevisionNumber ?? 0) + 1;
+      const now = new Date().toISOString();
+      const policyRevisionId = `policy-revision:${stateContentHash({ candidateHash: proposal.candidateHash, revisionNumber }).slice(0, 32)}`;
+      const revision: AuthorizationPolicyRevision = {
+        ...stateKernelRecordContext(input.scope),
+        policyRevisionId,
+        policyId: proposal.policyId,
+        revisionNumber,
+        definition: proposal.candidateDefinition,
+        definitionHash: proposal.candidateHash,
+        sourceArtifactHash: proposal.sourceArtifactHash,
+        approvedBy: input.approvedBy,
+        approvedAt: now,
+        createdAt: now,
+      };
+      await database.collection<Stored<AuthorizationPolicyRevision>>(authorizationCollectionNames.policies).insertOne({ _id: stateKernelStorageId(input.scope, policyRevisionId), ...revision }, { session });
+      const nextHead: ActivePolicyHead = { ...stateKernelRecordContext(input.scope), headId: 'active-policy', policyId: proposal.policyId, policyRevisionId, policyRevisionNumber: revisionNumber, updatedAt: now, updatedBy: input.approvedBy };
+      const headResult = head
+        ? await database.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).updateOne({ ...scopeFilter(input.scope), policyRevisionId: head.policyRevisionId }, { $set: nextHead }, { session })
+        : await database.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).insertOne({ _id: stateKernelStorageId(input.scope, 'active-policy'), ...nextHead }, { session });
+      if ('matchedCount' in headResult && headResult.matchedCount !== 1) throw new Error('policy_head_conflict');
+      await database.collection(authorizationCollectionNames.proposals).updateOne({ ...scopeFilter(input.scope), proposalId: proposal.proposalId, status: 'awaiting_approval' }, { $set: { status: 'activated', approvedBy: input.approvedBy, approvedAt: now, activatedRevisionId: policyRevisionId } }, { session });
+      await database.collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.outbox).insertOne({ _id: crypto.randomUUID(), ...stateKernelRecordContext(input.scope), eventType: 'authorization_policy_activated', policyRevisionId, status: 'pending', createdAt: now }, { session });
+      await session.commitTransaction();
+      return revision;
+    } catch (error) {
+      await session.abortTransaction().catch(() => undefined);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async rollbackToApprovedRevision(input: {
+    targetPolicyRevisionId: string;
+    expectedCurrentPolicyRevisionId: string;
+    scope: StateKernelScope;
+    approvedBy: string;
+    reason: string;
+  }) {
+    const client = await getMongoClient();
+    const session = client.startSession();
+    try {
+      session.startTransaction();
+      const database = await db();
+      const [head, target] = await Promise.all([
+        database.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).findOne(scopeFilter(input.scope), { session }),
+        database.collection<Stored<AuthorizationPolicyRevision>>(authorizationCollectionNames.policies).findOne({ ...scopeFilter(input.scope), policyRevisionId: input.targetPolicyRevisionId }, { session }),
+      ]);
+      if (!head || head.policyRevisionId !== input.expectedCurrentPolicyRevisionId) throw new Error('policy_head_conflict');
+      if (!target || !target.approvedBy || !target.approvedAt || target.policyId !== head.policyId) throw new Error('approved_policy_revision_unavailable');
+      if (target.policyRevisionId === head.policyRevisionId) throw new Error('policy_revision_already_active');
+      const now = new Date().toISOString();
+      const result = await database.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).updateOne(
+        { ...scopeFilter(input.scope), policyRevisionId: input.expectedCurrentPolicyRevisionId },
+        {
+          $set: {
+            policyRevisionId: target.policyRevisionId,
+            policyRevisionNumber: target.revisionNumber,
+            updatedAt: now,
+            updatedBy: input.approvedBy,
+          },
+          $unset: { breakGlassGrantId: '', breakGlassExpiresAt: '' },
+        },
+        { session }
+      );
+      if (result.modifiedCount !== 1) throw new Error('policy_head_conflict');
+      await database.collection<Stored<AuthorizationAuditRecord>>(authorizationCollectionNames.audits).insertOne({
+        _id: crypto.randomUUID(),
+        ...stateKernelRecordContext(input.scope),
+        auditId: `authorization-policy-rollback:${crypto.randomUUID()}`,
+        principalId: input.approvedBy,
+        action: 'policy:activate',
+        resourceContractId: 'route:admin:policy:rollback',
+        allowed: true,
+        reasonCode: input.reason,
+        policyRevisionId: target.policyRevisionId,
+        createdAt: now,
+      }, { session });
+      await database.collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.outbox).insertOne({
+        _id: crypto.randomUUID(),
+        ...stateKernelRecordContext(input.scope),
+        eventType: 'authorization_policy_rolled_back',
+        previousPolicyRevisionId: head.policyRevisionId,
+        policyRevisionId: target.policyRevisionId,
+        status: 'pending',
+        createdAt: now,
+      }, { session });
+      await session.commitTransaction();
+      return clean<AuthorizationPolicyRevision>(target)!;
+    } catch (error) {
+      await session.abortTransaction().catch(() => undefined);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async createSession(session: AuthorizationSession) {
+    await (await db()).collection<Stored<AuthorizationSession>>(authorizationCollectionNames.sessions).insertOne({ _id: session.sessionId, ...session });
+    return session;
+  }
+
+  async findSessionByDigest(tokenDigest: string) {
+    return clean<AuthorizationSession>(await (await db()).collection<Stored<AuthorizationSession>>(authorizationCollectionNames.sessions).findOne({ tokenDigest }));
+  }
+
+  async listSessions(scope: StateKernelScope, limit = 100) {
+    return (await (await db()).collection<Stored<AuthorizationSession>>(authorizationCollectionNames.sessions).find(scopeFilter(scope)).sort({ createdAt: -1 }).limit(Math.min(100, limit)).toArray()).map((item) => {
+      const cleanItem = clean<AuthorizationSession>(item)!;
+      return { ...cleanItem, tokenDigest: '', encryptedRefreshMaterial: undefined };
+    });
+  }
+
+  async touchSession(sessionId: string, lastSeenAt: string, idleExpiresAt: string) {
+    await (await db()).collection(authorizationCollectionNames.sessions).updateOne({ sessionId, revokedAt: { $exists: false } }, { $set: { lastSeenAt, idleExpiresAt } });
+  }
+
+  async revokeSession(sessionId: string, actorId: string, reason: string) {
+    const now = new Date().toISOString();
+    return (await db()).collection(authorizationCollectionNames.sessions).updateOne({ sessionId, revokedAt: { $exists: false } }, { $set: { revokedAt: now, revokedBy: actorId, revocationReason: reason } });
+  }
+
+  async revokePrincipalSessionsBySession(sessionId: string, actorId: string, reason: string) {
+    const client = await getMongoClient();
+    const session = client.startSession();
+    try {
+      session.startTransaction();
+      const database = await db();
+      const target = await database.collection<Stored<AuthorizationSession>>(authorizationCollectionNames.sessions).findOne({ sessionId, revokedAt: { $exists: false } }, { session });
+      if (!target) throw new Error('authorization_session_unavailable');
+      const now = new Date().toISOString();
+      const principalUpdate = await database.collection(authorizationCollectionNames.principals).updateOne(
+        { principalId: target.principalId, status: 'active' },
+        { $inc: { authorizationEpoch: 1 }, $set: { updatedAt: now } },
+        { session }
+      );
+      if (principalUpdate.modifiedCount !== 1) throw new Error('authorization_principal_unavailable');
+      await database.collection(authorizationCollectionNames.sessions).updateMany(
+        { principalId: target.principalId, revokedAt: { $exists: false } },
+        { $set: { revokedAt: now, revokedBy: actorId, revocationReason: reason } },
+        { session }
+      );
+      await database.collection<Record<string, unknown> & { _id: string }>(authorizationCollectionNames.outbox).insertOne({
+        _id: crypto.randomUUID(),
+        ...stateKernelRecordContext({ tenantId: target.tenantId, workspaceId: target.workspaceId }),
+        eventType: 'principal_authorization_epoch_advanced',
+        principalId: target.principalId,
+        status: 'pending',
+        createdAt: now,
+      }, { session });
+      await session.commitTransaction();
+      return { principalId: target.principalId };
+    } catch (error) {
+      await session.abortTransaction().catch(() => undefined);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async appendAudit(record: AuthorizationAuditRecord) {
+    await (await db()).collection<Stored<AuthorizationAuditRecord>>(authorizationCollectionNames.audits).insertOne({ _id: record.auditId, ...record });
+  }
+
+  async listAudits(scope: StateKernelScope, limit = 100) {
+    return (await (await db()).collection<Stored<AuthorizationAuditRecord>>(authorizationCollectionNames.audits).find(scopeFilter(scope)).sort({ createdAt: -1 }).limit(Math.min(250, limit)).toArray()).map((item) => clean<AuthorizationAuditRecord>(item)!);
+  }
+}

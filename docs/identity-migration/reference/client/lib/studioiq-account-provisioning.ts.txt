@@ -1,0 +1,238 @@
+import crypto from 'crypto';
+import {
+  AdminCreateUserCommand,
+  AdminGetUserCommand,
+  CognitoIdentityProviderClient,
+} from '@aws-sdk/client-cognito-identity-provider';
+import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
+import { getDb, getMongoClient } from './mongodb';
+import { stateContentHash } from './state-kernel/hash';
+import { authorizationCollectionNames } from './state-kernel/authorization/store';
+import { stateKernelRecordContext, stateKernelStorageId } from './state-kernel/scope';
+import type { IdentityPrincipal, TenantMembership } from './state-kernel/types';
+import type { StudioIqWorkspaceRole } from './studioiq-collaboration-types';
+import { activateProductEntitlementTrialInSession } from './product-commercial';
+
+type Stored<T> = T & { _id: string };
+
+interface StudioIqIdentityInvitation {
+  id: string;
+  invitationId: string;
+  cognitoSubject: string;
+  principalId: string;
+  membershipId: string;
+  memberId: string;
+  mirrorClientId: string;
+  externalOrganizationId: string;
+  externalUserId: string;
+  email: string;
+  displayName: string;
+  role: StudioIqWorkspaceRole;
+  status: 'invited' | 'active' | 'revoked';
+  createdAt: string;
+  activatedAt: string | null;
+}
+
+function normalizedEmail(value: unknown) {
+  const email = `${value ?? ''}`.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('A valid invitation email is required.');
+  return email;
+}
+
+function displayNameFromEmail(email: string) {
+  return email.split('@')[0].split(/[._-]+/).filter(Boolean).map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`).join(' ') || email;
+}
+
+function scopeForClient(clientId: string) {
+  return { tenantId: `tenant:client:${clientId}`, workspaceId: `workspace:client:${clientId}` };
+}
+
+function cognitoAttribute(attributes: Array<{ Name?: string; Value?: string }> | undefined, name: string) {
+  return attributes?.find((item) => item.Name === name)?.Value ?? '';
+}
+
+async function ensureCognitoIdentity(email: string, displayName: string) {
+  const userPoolId = `${process.env.COGNITO_USER_POOL_ID ?? ''}`.trim();
+  if (!userPoolId) {
+    if (process.env.NODE_ENV === 'production') throw new Error('Prospect Cognito provisioning is not configured.');
+    return { subject: `local:${stateContentHash(email).slice(0, 24)}`, created: true };
+  }
+  const client = new CognitoIdentityProviderClient({});
+  try {
+    const existing = await client.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
+    return { subject: cognitoAttribute(existing.UserAttributes, 'sub'), created: false };
+  } catch (error) {
+    if ((error as { name?: string }).name !== 'UserNotFoundException') throw error;
+  }
+  const created = await client.send(new AdminCreateUserCommand({
+    UserPoolId: userPoolId,
+    Username: email,
+    DesiredDeliveryMediums: ['EMAIL'],
+    UserAttributes: [
+      { Name: 'email', Value: email },
+      { Name: 'email_verified', Value: 'true' },
+      { Name: 'name', Value: displayName },
+    ],
+  }));
+  return { subject: cognitoAttribute(created.User?.Attributes, 'sub'), created: true };
+}
+
+async function sendProductInvitation(email: string, organizationName: string) {
+  const fromEmail = `${process.env.PORTAL_FROM_EMAIL ?? ''}`.trim();
+  const baseUrl = `${process.env.PLATFORM_BASE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ''}`.replace(/\/$/, '');
+  if (!fromEmail || !baseUrl) return 'pending';
+  const startUrl = `${baseUrl}/api/auth/cognito/start?next=${encodeURIComponent('/apps/studioiq')}`;
+  try {
+    await new SESv2Client({}).send(new SendEmailCommand({
+      FromEmailAddress: `Mirror Progress <${fromEmail}>`,
+      Destination: { ToAddresses: [email] },
+      Content: { Simple: {
+        Subject: { Data: `Join ${organizationName} in Prospect`, Charset: 'UTF-8' },
+        Body: { Text: { Data: `${organizationName} invited you to its Prospect pursuit workspace. Sign in with your Mirror Progress account: ${startUrl}`, Charset: 'UTF-8' } },
+      } },
+      ReplyToAddresses: ['hello@mirrorprogress.com'],
+    }));
+    return 'sent';
+  } catch {
+    return 'failed';
+  }
+}
+
+export async function provisionStudioIqWorkspaceInvite(input: {
+  invitationId: string;
+  email: unknown;
+  role: StudioIqWorkspaceRole;
+  mirrorClientId: string;
+  externalOrganizationId: string;
+}) {
+  const email = normalizedEmail(input.email);
+  const displayName = displayNameFromEmail(email);
+  const scope = scopeForClient(input.mirrorClientId);
+  const db = await getDb();
+  const existingIdentityInvitation = await db.collection<Stored<StudioIqIdentityInvitation>>('studioiq_identity_invitations').findOne({ invitationId: input.invitationId });
+  if (existingIdentityInvitation?.status === 'active') {
+    return { principal_id: existingIdentityInvitation.principalId, cognito_user_created: false, delivery_status: 'already_active' };
+  }
+  const principals = await db.collection<Stored<IdentityPrincipal>>(authorizationCollectionNames.principals).find({ email }).limit(2).toArray();
+  if (principals.length > 1) throw new Error('Invitation email maps to multiple Mirror principals.');
+  const identity = principals[0]
+    ? { subject: principals[0].cognitoSubject, created: false }
+    : await ensureCognitoIdentity(email, displayName);
+  if (!identity.subject) throw new Error('Cognito did not return a stable user subject.');
+  const principalId = principals[0]?.principalId || `principal:studioiq:${stateContentHash(email).slice(0, 24)}`;
+  const membershipId = `membership:${principalId}`;
+  const memberId = `studioiq_member_${stateContentHash(`${principalId}:${input.mirrorClientId}`).slice(0, 24)}`;
+  const externalUserId = `mirror:${principalId}`;
+  const now = new Date().toISOString();
+  const context = stateKernelRecordContext(scope);
+  const existingPrincipal = principals[0];
+  if (existingPrincipal && (existingPrincipal.tenantId !== scope.tenantId || existingPrincipal.workspaceId !== scope.workspaceId)) {
+    throw new Error('Mirror principal belongs to a different organization.');
+  }
+  const policyHead = await db.collection(authorizationCollectionNames.policyHeads).findOne(scope);
+  if (!policyHead) throw new Error('The organization authorization policy is not active.');
+
+  const client = await getMongoClient();
+  const session = client.startSession();
+  try {
+    session.startTransaction();
+    if (!existingPrincipal) {
+      const principal: IdentityPrincipal = { ...context, principalId, cognitoSubject: identity.subject, email, displayName, status: 'invited', authorizationEpoch: 0, createdAt: now, updatedAt: now };
+      await db.collection<Stored<IdentityPrincipal>>(authorizationCollectionNames.principals).insertOne({ _id: stateKernelStorageId(scope, principalId), ...principal }, { session });
+    }
+    const existingMembership = await db.collection<Stored<TenantMembership>>(authorizationCollectionNames.memberships).findOne({ principalId, ...scope }, { session });
+    if (!existingMembership) {
+      const membership: TenantMembership = { ...context, membershipId, principalId, roles: ['client'], attributes: { clientId: [input.mirrorClientId], products: ['studioiq'] }, status: existingPrincipal?.status === 'active' ? 'active' : 'invited', membershipRevision: `membership:${stateContentHash({ principalId, clientId: input.mirrorClientId }).slice(0, 24)}`, sensitivityCeiling: 'sensitive', createdAt: now, updatedAt: now };
+      await db.collection<Stored<TenantMembership>>(authorizationCollectionNames.memberships).insertOne({ _id: stateKernelStorageId(scope, membershipId), ...membership }, { session });
+    }
+    const accessId = `studioiq_access_${stateContentHash(principalId).slice(0, 24)}`;
+    await db.collection('product_access').updateOne(
+      { productId: 'studioiq', mirrorAccountId: principalId },
+      { $set: { productId: 'studioiq', mirrorAccountId: principalId, mirrorClientId: input.mirrorClientId, externalUserId, externalOrganizationId: input.externalOrganizationId, status: 'invited', updatedAt: now, metadata: { identityAuthority: 'mirror_progress', invitationId: input.invitationId, workspaceRole: input.role } }, $setOnInsert: { _id: accessId, id: accessId, createdAt: now } },
+      { upsert: true, session }
+    );
+    const record: StudioIqIdentityInvitation = { id: existingIdentityInvitation?.id || `studioiq_identity_invite_${crypto.randomUUID()}`, invitationId: input.invitationId, cognitoSubject: identity.subject, principalId, membershipId, memberId, mirrorClientId: input.mirrorClientId, externalOrganizationId: input.externalOrganizationId, externalUserId, email, displayName, role: input.role, status: 'invited', createdAt: existingIdentityInvitation?.createdAt || now, activatedAt: null };
+    await db.collection<Stored<StudioIqIdentityInvitation>>('studioiq_identity_invitations').updateOne(
+      { invitationId: input.invitationId },
+      { $set: record, $setOnInsert: { _id: record.id } },
+      { upsert: true, session }
+    );
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction().catch(() => undefined);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+  const organization = await db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients').findOne({ id: input.mirrorClientId });
+  const deliveryStatus = identity.created
+    ? 'sent_by_cognito'
+    : await sendProductInvitation(email, organization?.companyName || organization?.name || organization?.company || 'your firm');
+  return { principal_id: principalId, cognito_user_created: identity.created, delivery_status: deliveryStatus };
+}
+
+export async function activateInvitedStudioIqIdentity(cognitoSubject: string) {
+  const db = await getDb();
+  const invitation = await db.collection<Stored<StudioIqIdentityInvitation>>('studioiq_identity_invitations').findOne({ cognitoSubject, status: 'invited' });
+  if (!invitation) return null;
+  const scope = scopeForClient(invitation.mirrorClientId);
+  const client = await getMongoClient();
+  const session = client.startSession();
+  const now = new Date().toISOString();
+  try {
+    session.startTransaction();
+    await db.collection(authorizationCollectionNames.principals).updateOne({ principalId: invitation.principalId, status: 'invited' }, { $set: { status: 'active', updatedAt: now } }, { session });
+    await db.collection(authorizationCollectionNames.memberships).updateOne({ principalId: invitation.principalId, ...scope, status: 'invited' }, { $set: { status: 'active', updatedAt: now } }, { session });
+    const access = await db.collection('product_access').updateOne({ productId: 'studioiq', mirrorAccountId: invitation.principalId, mirrorClientId: invitation.mirrorClientId, status: 'invited' }, { $set: { status: 'active', updatedAt: now } }, { session });
+    if (access.modifiedCount !== 1) throw new Error('Prospect product access activation conflict.');
+    await db.collection('studioiq_workspace_memberships').updateOne(
+      { mirrorClientId: invitation.mirrorClientId, mirrorAccountId: invitation.principalId },
+      { $set: { productId: 'studioiq', mirrorClientId: invitation.mirrorClientId, externalOrganizationId: invitation.externalOrganizationId, mirrorAccountId: invitation.principalId, externalUserId: invitation.externalUserId, displayName: invitation.displayName, email: invitation.email, emailLower: invitation.email, role: invitation.role, status: 'active', joinedAt: now, updatedAt: now }, $setOnInsert: { _id: invitation.memberId, id: invitation.memberId, createdAt: now } },
+      { upsert: true, session }
+    );
+    await db.collection('studioiq_workspace_invitations').updateOne({ id: invitation.invitationId, status: 'pending' }, { $set: { status: 'accepted', acceptedByMemberId: invitation.memberId, acceptedExternalUserId: invitation.externalUserId, acceptedMirrorAccountId: invitation.principalId, acceptedAt: now, updatedAt: now } }, { session });
+    await db.collection<Stored<StudioIqIdentityInvitation>>('studioiq_identity_invitations').updateOne({ _id: invitation._id, status: 'invited' }, { $set: { status: 'active', activatedAt: now } }, { session });
+    const entitlement = invitation.role === 'owner'
+      ? await activateProductEntitlementTrialInSession({
+          db,
+          session,
+          productId: 'studioiq',
+          mirrorClientId: invitation.mirrorClientId,
+          activatedAt: now,
+        })
+      : null;
+    const auditId = crypto.randomUUID();
+    await db.collection<Record<string, unknown> & { _id: string }>('audit_events').insertOne({ _id: auditId, id: auditId, actorUserId: invitation.principalId, action: 'studioiq_product_access_activated_from_cognito', entityType: 'ProductAccess', entityId: invitation.principalId, sourceSystem: 'platform', metadata: { mirrorClientId: invitation.mirrorClientId, invitationId: invitation.invitationId }, createdAt: now }, { session });
+    if (entitlement) {
+      await db.collection('studioiq_founder_pilots').updateOne(
+        { mirrorClientId: invitation.mirrorClientId, status: 'invited' },
+        { $set: { status: 'active', updatedAt: now } },
+        { session }
+      );
+      const trialAuditId = crypto.randomUUID();
+      await db.collection<Record<string, unknown> & { _id: string }>('audit_events').insertOne({
+        _id: trialAuditId,
+        id: trialAuditId,
+        actorUserId: invitation.principalId,
+        action: 'product_entitlement_trial_activated',
+        entityType: 'ProductEntitlement',
+        entityId: entitlement.id,
+        sourceSystem: 'platform',
+        metadata: {
+          productId: 'studioiq',
+          mirrorClientId: invitation.mirrorClientId,
+          trialStartsAt: entitlement.trialStartsAt,
+          trialEndsAt: entitlement.trialEndsAt,
+        },
+        createdAt: now,
+      }, { session });
+    }
+    await session.commitTransaction();
+    return { ...invitation, status: 'active' as const, activatedAt: now };
+  } catch (error) {
+    await session.abortTransaction().catch(() => undefined);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
