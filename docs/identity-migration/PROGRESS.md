@@ -32,6 +32,16 @@ Updated 2026-09-21. Production has not been changed.
   not expose its download to the local workspace; user handoff requested. No
   generated service/bridge/infrastructure source is committed at this point.
 
+## Download handoff received
+
+The user downloaded identity-bridge.zip. Its 27-file source has now been imported
+under identity-bridge/ only, disconnected from all application routes. Actual
+Node 24 dependency-backed typecheck, build and 206 tests passed locally. A fresh
+registry-resolved integrity lock and synthetic GitHub Actions checks were added.
+See identity-bridge/INTEGRATION-STATUS.md for unresolved integration blockers.
+The separately downloaded mirror-progress-wp1-recovered.zip is unrelated to this
+authentication package and was not applied.
+
 ## Cutover blockers
 
 - SES in us-east-1 has productionAccess=false and review status DENIED. Only a
