@@ -42,6 +42,14 @@ See identity-bridge/INTEGRATION-STATUS.md for unresolved integration blockers.
 The separately downloaded mirror-progress-wp1-recovered.zip is unrelated to this
 authentication package and was not applied.
 
+GitHub check at implementation commit 927ff1203c6b650a3df2a64ca4953c19c77ba228
+could not start: run 35623112518 has no executed steps and its check annotation
+states the account is locked due to a billing issue. This is not a test failure
+and is not a CI pass. Local Node 24 checks were repeated after regenerating the
+registry integrity lock: typecheck/build/206 tests pass, zero skipped. No billing
+settings were modified. Service source still requires the correct reconstructed
+authentication ZIP from the original ChatGPT conversation.
+
 ## Cutover blockers
 
 - SES in us-east-1 has productionAccess=false and review status DENIED. Only a
