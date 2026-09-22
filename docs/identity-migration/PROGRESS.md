@@ -22,8 +22,12 @@ production configuration is correctly rejected by its current guard.
 The provider/bridge correction has been reported complete by ChatGPT, but the
 artifact is not yet verified or imported. It now reportedly uses precise decimal
 string epochs; its reported isolated tests are not local integration evidence.
-The enrollment run failed before delivering source; bounded artifact recovery was
-requested. Infrastructure source transfer also remains incomplete. Do not apply
+The corrected bridge's two-part compressed transfer failed actual local gzip
+validation (`invalid distance too far back`); no code was imported. Enrollment
+recovery now reports a 28-file archive, but it has not been received or verified
+locally and its historical test claims are not new evidence. Recovery, email
+changes and full session-management UI remain subsequent implementation batches.
+Infrastructure source transfer also remains incomplete. Do not apply
 truncated or reconstructed-by-guessing authentication patches. No production
 resources, accounts or emails have been changed.
 
