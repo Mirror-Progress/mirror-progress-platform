@@ -30,7 +30,8 @@ Node 24.19.0, pinned Better Auth 1.7.5, local isolated PostgreSQL 17:
 - ARM64 Docker build passes. Image `7029c9738e7c11e99257798c8c10080fede16036d862540393ea4c581d65583e`
   runs as UID 1000 under a read-only filesystem, dropped capabilities and no
   network for its configuration smoke test. Production configuration is rejected.
-  This does not prove ECS deployment or container-to-database connectivity.
+  A subsequent isolated container-to-PostgreSQL readiness check and bad Host
+  rejection pass. This does not prove ECS deployment or external ingress.
 
 An initial integration run found shared `no-trusted-ip` throttling. A repeated
 test run also exposed the local harness incorrectly changing the encryption
