@@ -1,0 +1,47 @@
+name: Identity synthetic checks
+on:
+  pull_request:
+    paths: ['identity/**', '.github/workflows/identity-ci.yml']
+  push:
+    branches: [codex/mirror-identity-migration]
+    paths: ['identity/**', '.github/workflows/identity-ci.yml']
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: identity
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: mirror_identity_synthetic
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic_ci_owner_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mirror_identity_synthetic"
+          --health-interval 5s --health-timeout 5s --health-retries 15
+    env:
+      IDENTITY_MODE: synthetic
+      IDENTITY_ORIGIN: http://localhost:3040
+      IDENTITY_RUNTIME_DB_PASSWORD: synthetic_ci_runtime_password_only
+      DATABASE_URL: postgresql://mirror_identity_runtime:synthetic_ci_runtime_password_only@127.0.0.1:5432/mirror_identity_synthetic
+      MIGRATION_DATABASE_URL: postgresql://postgres:synthetic_ci_owner_password@127.0.0.1:5432/mirror_identity_synthetic
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Generate ephemeral synthetic secret
+        run: node -e 'console.log("BETTER_AUTH_SECRET=" + require("node:crypto").randomBytes(48).toString("hex"))' >> "$GITHUB_ENV"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run build && npm test
+      - run: npm run migrate && npm run migrate
+      - run: npm run test:integration
+      - run: npm audit --omit=dev --audit-level=high

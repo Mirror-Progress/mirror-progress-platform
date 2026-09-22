@@ -1,0 +1,9 @@
+node_modules
+dist
+.policy-build
+.git
+.env
+.env.*
+artifacts
+synthetic-invitation.json
+*.log

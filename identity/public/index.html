@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mirror Identity · Local laboratory</title>
+  <link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header><a class="brand" href="/" aria-label="Mirror Identity home"><span class="mark">M</span> MIRROR <span class="quiet">IDENTITY</span></a><span class="pill">LOCAL · SYNTHETIC ONLY</span></header>
+  <main>
+    <section class="intro"><p class="eyebrow">YOUR IDENTITY. A CLEAR BOUNDARY.</p><h1>One identity.<br>A deliberate entrance.</h1><p>Sign in, enroll a factor, and verify it. An account or a registered authenticator alone does not unlock access.</p></section>
+    <aside class="notice"><strong>Migration laboratory—not production.</strong> This service sends no email, connects to no production accounts, and never enables privileged enrollment. Your applications are not connected yet.</aside>
+    <section class="status"><div><span class="eyebrow">SESSION ASSURANCE</span><p id="session-status">No active verified session.</p></div><div class="actions"><button id="refresh" class="secondary" type="button">Check session</button><a id="resume" class="button" hidden>Continue to application</a></div></section>
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+    <div class="grid">
+      <section class="card"><p class="step">01 / ENTER</p><h2>Sign in</h2><p>Use your password, then complete TOTP when prompted. Or authenticate with a registered passkey.</p>
+        <form id="login"><label>Email<input name="email" type="email" autocomplete="username" required placeholder="ordinary@example.invalid"></label><label>Password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="current-password" required></label><button type="submit">Continue with password</button></form>
+        <button id="passkey-signin" type="button" class="secondary wide">Authenticate with a passkey</button>
+      </section>
+      <section class="card"><p class="step">02 / VERIFY</p><h2>Complete your factor</h2><p>Enter your authenticator code. If a verification attempt fails, begin a fresh password login.</p>
+        <form id="verify"><label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label><button type="submit">Verify TOTP</button></form>
+        <details><summary>Use a recovery code</summary><p>Batch 1 consumes the code and revokes all Identity sessions. It does not grant MFA or install a replacement factor. Assisted recovery and downstream delivery remain blocked release gates.</p><form id="recovery"><label>Single-use recovery code<input name="code" type="password" autocomplete="off" required></label><button class="secondary" type="submit">Consume code &amp; revoke sessions</button></form></details>
+      </section>
+      <section class="card"><p class="step">03 / SET UP</p><h2>Register a factor</h2><p>Initial setup requires a recent password login. Changing credentials after enrollment requires recent completed MFA.</p>
+        <form id="totp-setup"><label>Confirm password<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label><button type="submit">Set up authenticator</button></form>
+        <button id="passkey-register" type="button" class="secondary wide">Register this passkey</button>
+        <p class="small">After registration, perform a fresh authentication. Registration never raises session assurance.</p>
+        <pre id="setup-material" hidden></pre><button id="clear-material" class="secondary" type="button" hidden>Clear setup material</button>
+      </section>
+      <section class="card"><p class="step">INVITATION ONLY</p><h2>Enroll a synthetic identity</h2><p>The invitation fixes your Mirror principal and login email. Neither identity nor privilege comes from this form.</p>
+        <form id="enroll"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label><label>Display name<input name="name" maxlength="120" autocomplete="name" required></label><label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label><button type="submit">Accept synthetic invitation</button></form>
+      </section>
+    </div>
+    <section class="exit"><div><h2>End your session</h2><p>Global logout revokes Identity sessions and queues an epoch-change event. No downstream dispatcher exists in this batch.</p></div><div class="actions"><button id="signout" class="secondary" type="button">Sign out here</button><button id="global-logout" class="secondary" type="button">Revoke all Identity sessions</button></div></section>
+  </main><footer>Mirror Progress · Identity migration foundation · localhost:3040</footer>
+</body></html>

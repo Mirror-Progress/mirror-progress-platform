@@ -1,0 +1,33 @@
+{
+  "name": "@mirror-progress/identity",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/browser/app.ts --bundle --format=esm --target=es2022 --outfile=public/app.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node --env-file-if-exists=.env dist/src/server.js",
+    "migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.operator dist/scripts/migrate.js",
+    "seed:synthetic": "node --env-file-if-exists=.env --env-file-if-exists=.env.operator dist/scripts/seed-synthetic.js",
+    "test": "node --test dist/test/unit/*.test.js",
+    "test:integration": "node --env-file-if-exists=.env --env-file-if-exists=.env.operator --test --test-concurrency=1 dist/test/integration/*.test.js",
+    "test:policy": "tsc -p tsconfig.policy.json && node --test .policy-build/test/unit/*.test.js",
+    "lock:resolve": "node scripts/resolve-lock.mjs"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.5",
+    "@better-auth/passkey": "1.7.5",
+    "better-auth": "1.7.5",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/pg": "8.15.5",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3",
+    "jose": "6.2.3"
+  }
+}
