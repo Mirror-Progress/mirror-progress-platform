@@ -1,5 +1,31 @@
 # Migration progress
 
+## September 22 verified update (supersedes older status below)
+
+Service source and registry lock are published at aceaa31. TypeScript/browser
+build, 77 unit tests and 17 actual PostgreSQL integration tests pass locally.
+Schema creation and repeat application pass. Transport-owned IP forwarding fixes
+the shared library throttle bucket, with a regression against forged headers.
+Local synthetic backup/restore matches all 24 tables by counts and row digests.
+Native HTTP health, invalid Host denial and initial unauthenticated browser UI pass.
+This is not production readiness or a completed passkey browser ceremony.
+
+The verified application archive now completes a full build after disk cleanup.
+An isolated dependency-update candidate passes typecheck/build, 13 authorization
+regressions, image encode/decode smoke checks and production dependency audit
+(zero reported vulnerabilities). It is not deployed. A durable application flow
+replay-store candidate separately passes four real MongoDB integration tests.
+
+ChatGPT implementation batches are active for the provider/bridge contract and
+staging enrollment/privileged onboarding. Infrastructure source transfer is also
+pending. No production resources, accounts or emails have been changed.
+
+AWS credentials expired; interactive reauthentication is pending. GitHub run
+35769080234/check106885916831 again has no executed steps: the account is locked
+for billing. Local test passes are not CI passes. SES delivery, production account
+mapping, recovery, staging, independent review and administrator enrollment remain
+cutover dependencies.
+
 Updated 2026-09-21. Production has not been changed.
 
 ## Completed
