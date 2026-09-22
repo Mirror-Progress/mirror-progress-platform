@@ -14,7 +14,10 @@ The verified application archive now completes a full build after disk cleanup.
 An isolated dependency-update candidate passes typecheck/build, 13 authorization
 regressions, image encode/decode smoke checks and production dependency audit
 (zero reported vulnerabilities). It is not deployed. A durable application flow
-replay-store candidate separately passes four real MongoDB integration tests.
+replay-store candidate separately passes six real MongoDB integration tests.
+Credential-free candidate source is in `candidate/`, disconnected from routes.
+The service ARM64 container builds and runs a non-root read-only smoke test;
+production configuration is correctly rejected by its current guard.
 
 ChatGPT implementation batches are active for the provider/bridge contract and
 staging enrollment/privileged onboarding. Infrastructure source transfer is also

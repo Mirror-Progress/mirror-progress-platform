@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import { test, before, after } from 'node:test';
+import { MongoClient } from 'mongodb';
+import { createIdentityFlowConsumer } from '../../lib/state-kernel/authorization/identity-flow-store';
+
+const uri = process.env.IDENTITY_TEST_MONGO_URI;
+if (uri !== 'mongodb://127.0.0.1:55433/mirror_identity_synthetic') {
+  throw new Error('This integration suite requires the explicit isolated synthetic MongoDB URL');
+}
+const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+const db = client.db('mirror_identity_synthetic');
+const signal = new AbortController().signal;
+const key = () => `identity-bridge:v1:${randomBytes(32).toString('base64url')}`;
+const expiry = () => Math.floor(Date.now() / 1000) + 300;
+before(async () => { await client.connect(); });
+after(async () => { await client.close(); });
+
+test('independent app instances permit exactly one flow consumption', async () => {
+  const first = createIdentityFlowConsumer(async () => db);
+  const second = createIdentityFlowConsumer(async () => db);
+  const shared = key();
+  const results = await Promise.all(Array.from({ length: 24 }, (_, i) =>
+    (i % 2 ? first : second)(shared, expiry(), signal)));
+  assert.equal(results.filter(Boolean).length, 1);
+  assert.equal(await createIdentityFlowConsumer(async () => db)(shared, expiry(), signal), false);
+});
+test('different flows remain independent and records contain no browser tokens', async () => {
+  const consume = createIdentityFlowConsumer(async () => db);
+  const first = key(), second = key(), expiresAt = expiry();
+  assert.equal(await consume(first, expiresAt, signal), true);
+  assert.equal(await consume(second, expiresAt, signal), true);
+  const record = await db.collection<{ _id: string; flowExpiresAt: Date; retireAt: Date }>('authorization_identity_flow_consumptions').findOne({ _id: first });
+  assert.deepEqual(Object.keys(record!).sort(), ['_id', 'flowExpiresAt', 'retireAt']);
+  assert.equal(record!.retireAt.getTime(), (expiresAt + 86400) * 1000);
+});
+test('expired, oversized and malformed flows never reach the database', async () => {
+  const consume = createIdentityFlowConsumer(async () => { throw new Error('must not access database'); });
+  for (const [k, exp] of [[key(), 0], [key(), expiry()+7200], [key(), NaN], [key(), 1.5], ['raw-state', expiry()]] as Array<[string,number]>) {
+    await assert.rejects(consume(k,exp,signal), /invalid_identity_flow_consumption/);
+  }
+});
+test('aborted and failed storage operations cannot authorize a callback', async () => {
+  const controller = new AbortController(); controller.abort();
+  const consume = createIdentityFlowConsumer(async () => db);
+  await assert.rejects(consume(key(), expiry(), controller.signal));
+  const unavailable = createIdentityFlowConsumer(async () => { throw new Error('unavailable'); });
+  await assert.rejects(unavailable(key(), expiry(), signal), /unavailable/);
+});
+
+test('a flow expiring during the write stays consumed but never authorizes', async () => {
+  const shared = key(), expiresAt = expiry();
+  let clockReads = 0;
+  const consume = createIdentityFlowConsumer(async () => db,
+    () => (++clockReads === 1 ? expiresAt - 1 : expiresAt) * 1000);
+  await assert.rejects(consume(shared, expiresAt, signal), /identity_flow_expired/);
+  assert.equal(await createIdentityFlowConsumer(async () => db)(shared, expiresAt, signal), false);
+});
+
+test('abort while acquiring the database cannot create a consumption record', async () => {
+  const controller = new AbortController(), shared = key();
+  const consume = createIdentityFlowConsumer(async () => { controller.abort(); return db; });
+  await assert.rejects(consume(shared, expiry(), controller.signal));
+  assert.equal(await createIdentityFlowConsumer(async () => db)(shared, expiry(), signal), true);
+});

@@ -27,6 +27,10 @@ Node 24.19.0, pinned Better Auth 1.7.5, local isolated PostgreSQL 17:
 - Schema creation and repeated migration pass.
 - 17 real database/library integration tests pass, zero skipped.
 - Production npm dependency audit reports zero vulnerabilities.
+- ARM64 Docker build passes. Image `7029c9738e7c11e99257798c8c10080fede16036d862540393ea4c581d65583e`
+  runs as UID 1000 under a read-only filesystem, dropped capabilities and no
+  network for its configuration smoke test. Production configuration is rejected.
+  This does not prove ECS deployment or container-to-database connectivity.
 
 An initial integration run found shared `no-trusted-ip` throttling. A repeated
 test run also exposed the local harness incorrectly changing the encryption
