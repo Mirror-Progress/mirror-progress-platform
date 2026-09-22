@@ -19,9 +19,13 @@ Credential-free candidate source is in `candidate/`, disconnected from routes.
 The service ARM64 container builds and runs a non-root read-only smoke test;
 production configuration is correctly rejected by its current guard.
 
-ChatGPT implementation batches are active for the provider/bridge contract and
-staging enrollment/privileged onboarding. Infrastructure source transfer is also
-pending. No production resources, accounts or emails have been changed.
+The provider/bridge correction has been reported complete by ChatGPT, but the
+artifact is not yet verified or imported. It now reportedly uses precise decimal
+string epochs; its reported isolated tests are not local integration evidence.
+The enrollment run failed before delivering source; bounded artifact recovery was
+requested. Infrastructure source transfer also remains incomplete. Do not apply
+truncated or reconstructed-by-guessing authentication patches. No production
+resources, accounts or emails have been changed.
 
 AWS credentials expired; interactive reauthentication is pending. GitHub run
 35769080234/check106885916831 again has no executed steps: the account is locked
