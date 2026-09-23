@@ -99,6 +99,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
     const state = await api("/api/identity/session");
     passkeyRegistered = state.passkeyRegistered === true;
     node<HTMLElement>("passkey-step").hidden = false;
+    node<HTMLElement>("session-status").hidden = false;
     node<HTMLElement>("session-status").textContent = state.mfaCompleted === true ? "You’re signed in." :
       passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
     if (state.mfaCompleted === true) {
@@ -111,6 +112,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
     return state;
   } catch {
     node<HTMLElement>("passkey-step").hidden = true;
+    node<HTMLElement>("session-status").hidden = true;
     node<HTMLElement>("session-status").textContent = "Sign in with your password to continue.";
     return null;
   }
