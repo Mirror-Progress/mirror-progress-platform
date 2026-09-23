@@ -35,7 +35,7 @@ The resulting lockfile stays with the private verified release. Dockerfiles pin
 Node 24.21.0 / Debian 13 by image manifest digest. The public RDS CA bundle is SHA-256
 `e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3`.
 
-The application passes typechecking, a full Next build and 26 checks: 13 existing
+The application passes typechecking, a full Next build and 29 checks: three configuration/administration guards, 13 existing
 authorization tests plus 13 real MongoDB checks (seven session/mapping and six
 flow-consumption checks). Service responses are injected in the app tests; the
 real status endpoint is separately checked with PostgreSQL/provider sessions.
@@ -52,7 +52,7 @@ Optional new-account provisioning, invitation sends and legacy MFA resets now
 fail before any database or Cognito operation in Mirror mode. Existing-user MFA
 recovery uses the separately tested operator workflow. Membership disabling still
 revokes State Kernel access and sessions, while Mirror mode skips Cognito mutations.
-Two guard tests pass; extending new-account self-service is deferred. Runtime mapping
+Three guard/configuration tests pass; extending new-account self-service is deferred. Runtime mapping
 writes must be restricted to reviewed operator imports. Live delivery, operator
 enrollment, independent review, infrastructure/service readiness and tested
 cutover/rollback remain. No live mapping import, email or cutover has occurred.

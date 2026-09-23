@@ -11,8 +11,9 @@ const config: ServiceConfig = {
   isolatedSubnetIds: ['subnet-02b1377a7fd9ed705', 'subnet-054a4ac95c78dd159'],
   publicSubnetIds: ['subnet-0f500f037def53793', 'subnet-09542b160134e4415'],
   publicSubnetCidrs: ['10.0.0.0/24', '10.0.1.0/24'], hostedZoneId: 'Z0789473A6S6HO6JIQO1',
-  postgresVersion: '17.11', imageDigest: process.env.IDENTITY_IMAGE_DIGEST ?? '', desiredCount: 0,
+  postgresVersion: '17.11', imageDigest: process.env.IDENTITY_IMAGE_DIGEST ?? '', desiredCount: process.argv.includes('--start-service') ? 1 : 0,
 };
+if (process.argv.includes('--start-service') && !process.argv.includes('--service')) throw new Error('service_required');
 const app = new App({ outdir: fileURLToPath(new URL('../../cdk.out-staging', import.meta.url)) });
 const foundation = new IdentityFoundation(app, 'MirrorIdentityStagingFoundation', config);
 if (process.argv.includes('--service')) new IdentityService(app, 'MirrorIdentityStagingService', config, foundation);

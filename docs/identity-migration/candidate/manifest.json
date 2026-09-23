@@ -5,7 +5,7 @@
     {
       "path": "Dockerfile",
       "baselineSha256": "3f0be51e9bec6075909e43f482cd004b2cc61fa4cb009a14cdbc6cb46fde54f6",
-      "sha256": "5efba18e76a81015decee2715bb918d56b02782af29af06e81a46b801df3086d"
+      "sha256": "89d86dadf62e2828edb81c0bc25548d3bcbf0bf21f79d70b19a5330eae03e5b9"
     },
     {
       "path": "certs/aws-rds-global-bundle.pem",

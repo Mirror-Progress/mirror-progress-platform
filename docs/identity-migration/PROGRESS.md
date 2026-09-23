@@ -1,3 +1,8 @@
+> Current September 23 checkpoint: see [live AWS rehearsal](ALB-STAGING-REHEARSAL.md).
+> Historical blockers and baseline failures below are retained as chronology; current
+> builds and local checks pass, and the staged identity service is live. Production
+> cutover, real-user enrollment, delivery and independent review remain incomplete.
+
 # Migration progress
 
 ## Essential cutover path: staged container — September 22
