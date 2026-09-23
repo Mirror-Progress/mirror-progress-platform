@@ -30,7 +30,9 @@ and offline infrastructure compiler are now implemented and locally tested. See
 This is not deployed production readiness. The corrected image is now published
 and deployed to staging with the verified-email token fix; production is unchanged.
 
-Production inventory, separately provisioned resources/credentials, independent
+Read-only production network/account aggregates and stopped offline synthesis are
+now recorded in [production inventory](PRODUCTION-INVENTORY.md). Confidential live
+account reconciliation, separately provisioned resources/credentials, independent
 image/code review and production deployment are still outstanding. Do not point the live
 app at staging or reuse staging secrets, roles or data. Production application
 permissions remain unchanged.

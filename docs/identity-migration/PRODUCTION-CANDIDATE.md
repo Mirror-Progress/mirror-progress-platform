@@ -31,8 +31,9 @@ this preparation; starting it remains a reviewed release change after migration.
 The application integration grants only scoped flow/status secrets and image pull.
 It changes no existing app service, DNS, listener rule or Cognito resource.
 `identity-infra/src/synth-production.ts` is an offline compiler requiring an explicit
-inventory JSON and immutable digest. No real production inventory or deployment
-was inferred from staging network resources.
+inventory JSON and immutable digest. It has now compiled the read-only verified
+production network inventory with desiredCount zero. No deployment was performed
+or production network values inferred from staging. See PRODUCTION-INVENTORY.md.
 
 ## Callback defect found and fixed locally
 
