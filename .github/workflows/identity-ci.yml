@@ -41,6 +41,8 @@ jobs:
       - name: Generate ephemeral synthetic secret
         run: node -e 'console.log("BETTER_AUTH_SECRET=" + require("node:crypto").randomBytes(48).toString("hex"))' >> "$GITHUB_ENV"
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build pinned bridge for provider interoperability test
+        run: npm --prefix ../identity-bridge ci --ignore-scripts --no-audit --no-fund && npm --prefix ../identity-bridge run build
       - run: npm run typecheck && npm run build && npm test
       - run: npm run migrate && npm run migrate
       - run: npm run test:integration

@@ -37,10 +37,12 @@ and consumed atomically. Use distributed rate limiting and durable email deliver
 Document actual storage semantics; do not claim hashed/encrypted storage unless
 implemented and tested. Runtime database access uses a least-privilege role.
 
-ChatGPT implements bounded batches on branches and submits draft PRs against
-codex/mirror-identity-migration. Codex reviews, tests and integrates. Do not merge
-to main, deploy, send customer email, change repository permissions or handle
-production data in a coding batch. CI uses synthetic data and no AWS credentials.
+Updated September 22: the user authorized Codex to implement, correct, review,
+test and integrate locally without waiting for ChatGPT/Pro or GitHub Actions.
+Actions quota is exhausted; documented equivalent local checks are the release
+validation path. AWS deployment remains authorized only after the actual gates
+below pass. Coding tests use synthetic data, fake mail delivery and no AWS
+credentials. Do not replace production from this branch's obsolete client tree.
 
 ## Release gates
 

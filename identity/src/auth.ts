@@ -19,6 +19,7 @@ export function createAuth(config: Config, store: Store) {
       "https://mirrorprogress.com/principal_id": principal.id,
       "https://mirrorprogress.com/authorization_epoch": principal.epoch,
       "https://mirrorprogress.com/assurance": {
+        version: 1, session_id: sessionId,
         method: evidence.factor, verified_at: Math.floor(evidence.mfaAt! / 1000),
         password_verified_at: evidence.passwordAt === null ? null : Math.floor(evidence.passwordAt / 1000),
         expires_at: Math.floor(evidence.expiresAt / 1000),
@@ -36,14 +37,14 @@ export function createAuth(config: Config, store: Store) {
     emailAndPassword: {
       enabled: true, disableSignUp: true, minPasswordLength: 14, maxPasswordLength: 128,
       // Synthetic enrollment never claims mailbox ownership. Production start is blocked.
-      requireEmailVerification: false,
+      requireEmailVerification: config.mode === "staging",
     },
     account: { accountLinking: { enabled: false } },
     session: { expiresIn: 8 * 60 * 60, updateAge: 60 * 60, cookieCache: { enabled: false } },
     advanced: {
       // Only the transport-owned address injected by createApp is trusted.
       ipAddress: { ipAddressHeaders: ["x-mirror-transport-ip"] },
-      cookiePrefix: "mirror_identity", useSecureCookies: false,
+      cookiePrefix: "mirror_identity", useSecureCookies: config.mode === "staging",
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
       crossSubDomainCookies: { enabled: false },
     },
@@ -57,7 +58,7 @@ export function createAuth(config: Config, store: Store) {
         backupCodeOptions: { amount: 10, length: 20, storeBackupCodes: "encrypted" },
       }),
       passkey({
-        rpID: "localhost", rpName: "Mirror Identity", origin: config.origin,
+        rpID: config.staging?.rpId ?? "localhost", rpName: "Mirror Identity", origin: config.origin,
         authenticatorSelection: { residentKey: "required", userVerification: "required" },
         registration: { requireSession: true },
         authentication: {

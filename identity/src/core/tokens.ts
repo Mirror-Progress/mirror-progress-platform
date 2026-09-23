@@ -40,7 +40,7 @@ export function cleanAuthHeaders(input: Headers, freshLogin = false): Headers {
   const cookies = (headers.get("cookie") ?? "").split(";").filter((pair) => {
     const name = pair.trim().split("=")[0] ?? "";
     return !name.includes("trust_device") &&
-      (!freshLogin || !name.startsWith("mirror_identity."));
+      (!freshLogin || !name.replace(/^__(?:Secure|Host)-/, "").startsWith("mirror_identity."));
   });
   headers.set("cookie", cookies.join(";"));
   return headers;

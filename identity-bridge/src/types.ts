@@ -5,11 +5,15 @@ export type SigningAlgorithm = 'RS256' | 'PS256' | 'ES256' | 'EdDSA';
 export type VerifiedAssurance = Readonly<{
   kind: 'passkey-uv' | 'pwd-otp';
   /** Exact, server-allowlisted, issuer-defined authentication context. */
-  acr: string;
+  acr: string | null;
 }>;
 
 /** Authentication only. No principal, tenant, role, membership, or session is created. */
 export interface Identity {
+  /** Signed assertions; the application must compare these with its authoritative mapping. */
+  readonly principalId?: string;
+  readonly authorizationEpoch?: string;
+  readonly identitySessionId?: string;
   readonly issuer: string;
   readonly subject: string;
   /** Exact signed address, or null when omitted. Never a linking key. */
@@ -25,6 +29,8 @@ export interface Identity {
 }
 
 export interface AssurancePolicy {
+  /** Exact versioned Mirror ceremony claim; cannot be combined with standard ACR policies. */
+  readonly mirrorV1?: true;
   readonly passkeyUv?: {
     readonly acrValues: readonly string[];
     /** Two distinct issuer-defined event markers; neither means mere enrollment. */
@@ -43,7 +49,7 @@ export interface OidcClientConfig {
   readonly discoveryUrl: string;
   readonly clientId: string;
   readonly clientSecret: string;
-  readonly tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post';
+  readonly tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none';
   /** A single server-selected URI, checked against the exact allowlist below. */
   readonly redirectUri: string;
   readonly allowedRedirectUris: readonly string[];
@@ -86,6 +92,9 @@ export interface AuthorizationStart {
 }
 
 export interface VerificationContext {
+  readonly accessToken?: string;
+  readonly code?: string;
+  readonly state?: string;
   /** Trusted expectation from the authenticated flow, not the ID token itself. */
   readonly nonce: string;
   readonly returnTo: string;

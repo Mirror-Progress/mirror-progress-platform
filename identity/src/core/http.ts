@@ -1,10 +1,13 @@
 import { createServer } from "node:http";
-import type { Server } from "node:http";
+import type { RequestListener, Server } from "node:http";
+import { createServer as createTlsServer } from "node:https";
+import type { ServerOptions, Server as TlsServer } from "node:https";
 export type IdentityHandler = (request: Request, ip: string) => Promise<Response>;
 /** The same native HTTP transport is used by the service and the offline transport tests. */
-export function createIdentityHttpServer(origin: string, handler: IdentityHandler): Server {
+export function createIdentityHttpServer(origin: string, handler: IdentityHandler, tls?: ServerOptions): Server | TlsServer {
+  if ((new URL(origin).protocol === "https:") !== Boolean(tls)) throw new Error("TLS must match the configured origin");
   const expectedHost = new URL(origin).host;
-  const server = createServer(async (incoming, outgoing) => {
+  const listener: RequestListener = async (incoming, outgoing) => {
     const deny = (status: number, code: string) => {
       outgoing.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", connection: "close" });
       outgoing.end(JSON.stringify({ error: code }));
@@ -40,7 +43,8 @@ export function createIdentityHttpServer(origin: string, handler: IdentityHandle
       if (!outgoing.headersSent) deny(500, "request_failed");
       else outgoing.destroy();
     }
-  });
+  };
+  const server = tls ? createTlsServer({ ...tls, minVersion: "TLSv1.2" }, listener) : createServer(listener);
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
   server.maxHeadersCount = 50;

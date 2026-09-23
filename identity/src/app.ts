@@ -4,17 +4,14 @@ import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } fr
 import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
 import type { Config } from "./core/config.js";
-import { PolicyError, assertOrdinaryPrincipal, validateAuthorizationQuery } from "./core/policy.js";
-import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest } from "./core/tokens.js";
+import { PolicyError, validateAuthorizationQuery } from "./core/policy.js";
+import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest } from "./core/tokens.js";
 import { ceremony } from "./auth.js";
 import type { MirrorAuth } from "./auth.js";
 import { Store } from "./db.js";
 import type { SessionIdentity } from "./db.js";
+import { StagingStore } from "./staging/store.js";
 
-const FLOW_COOKIE = "mirror_identity.password_flow";
-const TWO_FACTOR_COOKIE = "mirror_identity.two_factor";
-const flowCookie = (value: string, maxAge = 300): string =>
-  `${FLOW_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 function json(data: unknown, status = 200, headers?: Headers): Response {
   const h = new Headers(headers);
   h.delete("content-length");
@@ -26,8 +23,9 @@ function errorResponse(error: unknown): Response {
   // Never emit exception text, PostgreSQL errors, credentials, URLs, or tokens.
   return json({ error: "request_failed" }, 500);
 }
-function harden(response: Response): Response {
+function harden(response: Response, secure = false): Response {
   const headers = new Headers(response.headers);
+  if (secure) headers.set("strict-transport-security", "max-age=31536000");
   headers.set("cache-control", "no-store");
   headers.set("pragma", "no-cache");
   headers.set("referrer-policy", "no-referrer");
@@ -54,6 +52,12 @@ function stringField(body: Record<string, unknown>, key: string, min = 1, max = 
   return v;
 }
 export function createApp(config: Config, store: Store, auth: MirrorAuth) {
+  const staging = config.mode === "staging";
+  if (staging !== (store instanceof StagingStore)) throw new Error("Store policy must match service mode");
+  const FLOW_COOKIE = `${staging ? "__Host-" : ""}mirror_identity.password_flow`;
+  const TWO_FACTOR_COOKIE = `${staging ? "__Secure-" : ""}mirror_identity.two_factor`;
+  const flowCookie = (value: string, maxAge = 300): string =>
+    `${FLOW_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${staging ? "; Secure" : ""}`;
   const openIdMetadata = oauthProviderOpenIdConfigMetadata(auth);
   const oauthMetadata = oauthProviderAuthServerMetadata(auth);
   const getSession = async (headers: Headers): Promise<SessionIdentity | null> => {
@@ -63,7 +67,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
   const requiredSession = async (headers: Headers): Promise<SessionIdentity> => {
     const session = await getSession(headers);
     if (!session) throw new PolicyError("session_required", 401);
-    assertOrdinaryPrincipal(await store.principal(session.user.id));
+    store.assertCredentialPrincipal(await store.principal(session.user.id));
     return session;
   };
   const credentialManagement = async (identity: SessionIdentity): Promise<void> => {
@@ -87,17 +91,17 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     const url = new URL(request.url);
     if (url.origin !== config.origin) throw new PolicyError("invalid_origin", 400);
     if (request.method === "GET" && ["/", "/consent", "/app.js", "/style.css"].includes(url.pathname)) {
-      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/style.css" ? "style.css" : "index.html";
+      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/style.css" ? "style.css" : staging ? "staging.html" : "index.html";
       const data = await readFile(join(process.cwd(), "public", file));
       return new Response(new Uint8Array(data), { headers: {
         "content-type": file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html; charset=utf-8",
       } });
     }
-    if (request.method === "GET" && url.pathname === "/health/live") return json({ status: "live", mode: "synthetic" });
+    if (request.method === "GET" && url.pathname === "/health/live") return json({ status: "live", mode: staging ? "staging" : "synthetic" });
     if (request.method === "GET" && url.pathname === "/health/ready") {
       await store.pool.query('SELECT id FROM "user" LIMIT 0');
       await store.pool.query("SELECT session_id FROM mirror_assurance LIMIT 0");
-      return json({ status: "local-foundation", productionReady: false });
+      return json({ status: staging ? "staging-review-required" : "local-foundation", productionReady: false });
     }
     await store.rateLimit(`ip:${ip}`, 60);
     const origin = request.headers.get("origin");
@@ -109,17 +113,29 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     if (request.headers.get("sec-fetch-site") === "cross-site" && !tokenExchange && request.method !== "GET") {
       throw new PolicyError("cross_site_request_denied");
     }
+    if (staging && request.method === "POST" && url.pathname === "/api/identity/request-mailbox") {
+      const body = await readObject(request);
+      if (Object.keys(body).some(key => key !== "invitation")) throw new PolicyError("unexpected_enrollment_field", 400);
+      await store.rateLimit(`mailbox-ip:${ip}`, 5, 900_000);
+      await store.rateLimit(`mailbox-invite:${tokenDigest(body.invitation)}`, 3, 900_000);
+      await (store as StagingStore).requestMailbox(body.invitation);
+      return json({ delivery: "queued-or-already-requested", emailVerified: false, mfaCompleted: false }, 202);
+    }
+    if (staging && url.pathname === "/api/auth/two-factor/verify-backup-code") {
+      throw new PolicyError("recovery_not_in_this_batch", 404);
+    }
     if (request.method === "POST" && url.pathname === "/api/identity/enroll") {
       const body = await readObject(request);
-      if (Object.keys(body).some((key) => !["invitation", "name", "password"].includes(key))) {
+      if (Object.keys(body).some((key) => !["invitation", "name", "password", ...(staging ? ["mailboxToken"] : [])].includes(key))) {
         throw new PolicyError("unexpected_enrollment_field", 400);
       }
       const password = stringField(body, "password", 14, 128);
       const name = stringField(body, "name", 1, 120).trim();
       if (!name) throw new PolicyError("invalid_name", 400);
       await store.rateLimit(`enroll:${ip}`, 5);
-      await store.enroll(body.invitation, name, await hashPassword(password));
-      return json({ enrolled: true, mfaCompleted: false, emailVerified: false,
+      if (staging) await (store as StagingStore).enrollWithMailbox(body.invitation, body.mailboxToken, name, await hashPassword(password));
+      else await store.enroll(body.invitation, name, await hashPassword(password));
+      return json({ enrolled: true, mfaCompleted: false, emailVerified: staging,
         next: "Sign in with your password, enroll TOTP or a passkey, then perform a fresh authentication." }, 201);
     }
     if (request.method === "GET" && url.pathname === "/api/identity/session") {
@@ -207,6 +223,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     }
     if (request.method === "POST" && url.pathname === "/api/auth/two-factor/enable") {
       const identity = await requiredSession(request.headers);
+      if (staging && (await store.principal(identity.user.id)).privileged) throw new PolicyError("privileged_passkey_required");
       await credentialManagement(identity);
       const body = await readObject(request);
       return invoke(request, url.pathname, { password: stringField(body, "password", 1, 128), method: "totp", issuer: "Mirror Identity" });
@@ -240,6 +257,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       }
       await store.recordEvidence(identity, "password_totp", flow.passwordAt, Date.now(), flow.epoch,
         verifiedTotpDigest(config.secret, identity.user.id, code));
+      if (staging) await store.authorize(identity.session.id, identity.user.id);
       return json({ authenticated: true, mfaCompleted: true }, 200, headers);
     }
     const passkeyPaths = new Map([
@@ -251,9 +269,27 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     if (passkeyPaths.get(url.pathname) === request.method) {
       const registration = url.pathname.includes("register-options") || url.pathname.endsWith("verify-registration");
       if (registration) await credentialManagement(await requiredSession(request.headers));
-      const body = request.method === "POST" ? await readObject(request) : undefined;
+      let body = request.method === "POST" ? await readObject(request) : undefined;
+      if (staging) {
+        if (request.headers.get("sec-fetch-site") === "cross-site") throw new PolicyError("cross_site_request_denied");
+        for (const key of url.searchParams.keys()) {
+          if (!registration || !["name", "authenticatorAttachment"].includes(key) || url.searchParams.getAll(key).length !== 1) {
+            throw new PolicyError("unsupported_passkey_parameter", 400);
+          }
+        }
+        if (body) {
+          const allowed = registration ? ["response", "name", "createSession"] : ["response"];
+          if (Object.keys(body).some(key => !allowed.includes(key)) ||
+              (body.createSession !== undefined && body.createSession !== false)) throw new PolicyError("unsupported_passkey_parameter", 400);
+          if (registration) body = { response: body.response, name: body.name, createSession: false };
+        }
+      }
       const scope: { passkeyVerifiedAt?: number } = {};
       const response = await ceremony.run(scope, () => invoke(request, url.pathname + url.search, body));
+      if (staging && response.ok && url.pathname.endsWith("generate-authenticate-options")) {
+        // v1.7.5 emits "preferred" here. Request UV explicitly; the verified-result hook also enforces it.
+        return json({ ...await response.json() as Record<string, unknown>, userVerification: "required" }, 200, response.headers);
+      }
       if (response.ok && url.pathname.endsWith("verify-authentication")) {
         if (scope.passkeyVerifiedAt === undefined) throw new PolicyError("verified_passkey_ceremony_missing", 401);
         const identity = await requiredSession(responseCookies(request.headers, response.headers));
@@ -277,7 +313,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     return json({ error: "route_not_exposed" }, 404);
   };
   return async (request: Request, ip = "127.0.0.1"): Promise<Response> => {
-    try { return harden(await handle(request, ip)); }
-    catch (error) { return harden(errorResponse(error)); }
+    try { return harden(await handle(request, ip), staging); }
+    catch (error) { return harden(errorResponse(error), staging); }
   };
 }

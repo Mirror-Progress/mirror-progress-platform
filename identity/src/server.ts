@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { StagingStore } from "./staging/store.js";
+import { assertStagingRuntime } from "./staging/runtime.js";
 import { createIdentityHttpServer } from "./core/http.js";
 import { loadConfig, assertRuntimeEnvironment } from "./core/config.js";
 import { createPool, Store } from "./db.js";
@@ -15,10 +18,13 @@ const role = roles[0];
 if (!role || role.rolsuper || role.rolcreatedb || role.rolcreaterole || role.can_activate || role.can_create) {
   await pool.end(); throw new Error("Use the documented least-privilege runtime database role");
 }
-const app = createApp(config, new Store(pool), createAuth(config, new Store(pool)));
-const server = createIdentityHttpServer(config.origin, app);
+if (config.mode === "staging") await assertStagingRuntime(pool);
+const store = config.mode === "staging" ? new StagingStore(pool, config) : new Store(pool);
+const app = createApp(config, store, createAuth(config, store));
+const tls = config.staging ? { cert: await readFile(config.staging.certFile), key: await readFile(config.staging.keyFile) } : undefined;
+const server = createIdentityHttpServer(config.origin, app, tls);
 server.listen(config.port, config.bindHost, () => {
-  console.info("Mirror Identity synthetic service: http://localhost:3040 (not production-ready)");
+  console.info(`Mirror Identity ${config.mode ?? "synthetic"} service (production startup/cutover BLOCKED)`);
 });
 for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
   server.close(() => { void pool.end().then(() => process.exit(0)); });

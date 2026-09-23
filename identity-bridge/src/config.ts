@@ -9,7 +9,7 @@ export interface Config {
   readonly discoveryUrl: string;
   readonly clientId: string;
   readonly clientSecret: string;
-  readonly tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post';
+  readonly tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none';
   readonly redirectUri: string;
   readonly callbackPath: string;
   readonly endpointOrigins: readonly string[];
@@ -55,6 +55,10 @@ function integer(value: unknown, fallback: number, min: number, max: number): nu
 
 function assurancePolicy(input: AssurancePolicy): { policy: AssurancePolicy; acrValues: readonly string[] } {
   if (!input || typeof input !== 'object') fail('configuration_invalid');
+  if (input.mirrorV1 !== undefined) {
+    if (input.mirrorV1 !== true || Object.keys(input).length !== 1) fail('configuration_invalid');
+    return { policy: Object.freeze({ mirrorV1: true }), acrValues: Object.freeze([]) };
+  }
   const policy: { passkeyUv?: NonNullable<AssurancePolicy['passkeyUv']>; passwordOtp?: NonNullable<AssurancePolicy['passwordOtp']> } = {};
   const acrValues: string[] = [];
   if (input.passkeyUv) {
@@ -96,8 +100,12 @@ export function validateConfig(input: OidcClientConfig): Config {
     const redirect = serverUrl(input.redirectUri, allowHttp, 'configuration_invalid');
     if (redirect.pathname === '/') fail('configuration_invalid');
     if (!boundedString(input.clientId, 128)) fail('configuration_invalid');
-    if (typeof input.clientSecret !== 'string' || Buffer.byteLength(input.clientSecret) < 32 || Buffer.byteLength(input.clientSecret) > 4096 || /[\u0000-\u001f\u007f-\u009f]/u.test(input.clientSecret)) fail('configuration_invalid');
-    if (input.tokenEndpointAuthMethod !== 'client_secret_basic' && input.tokenEndpointAuthMethod !== 'client_secret_post') fail('configuration_invalid');
+    if (input.tokenEndpointAuthMethod === 'none') {
+      if (input.clientSecret !== '' || input.assurance?.mirrorV1 !== true) fail('configuration_invalid');
+    } else {
+      if (typeof input.clientSecret !== 'string' || Buffer.byteLength(input.clientSecret) < 32 || Buffer.byteLength(input.clientSecret) > 4096 || /[\u0000-\u001f\u007f-\u009f]/u.test(input.clientSecret)) fail('configuration_invalid');
+      if (input.tokenEndpointAuthMethod !== 'client_secret_basic' && input.tokenEndpointAuthMethod !== 'client_secret_post') fail('configuration_invalid');
+    }
     if (!(input.flowCookieSecret instanceof Uint8Array) || input.flowCookieSecret.length < 32 || input.flowCookieSecret.length > 64 || new Set(input.flowCookieSecret).size < 8) fail('configuration_invalid');
     const algorithms = strings(input.idTokenAlgorithms, 4, 16);
     if (!algorithms.every((alg) => ['RS256', 'PS256', 'ES256', 'EdDSA'].includes(alg))) fail('configuration_invalid');

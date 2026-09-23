@@ -38,7 +38,7 @@ export function createIdentityBridge(input: OidcClientConfig, dependencies: Brid
       const metadata = await provider.metadata();
       const flow = createFlow(config, returnTo, now());
       const url = new URL(metadata.authorizationEndpoint);
-      url.search = new URLSearchParams({
+      const parameters = new URLSearchParams({
         response_type: 'code',
         response_mode: 'query',
         client_id: config.clientId,
@@ -55,7 +55,11 @@ export function createIdentityBridge(input: OidcClientConfig, dependencies: Brid
           amr: { essential: true },
           acr: { essential: true, values: config.acrValues },
         } }),
-      }).toString();
+      });
+      if (config.assurance.mirrorV1) {
+        for (const key of ['response_mode', 'max_age', 'acr_values', 'claims']) parameters.delete(key);
+      }
+      url.search = parameters.toString();
       writeFlowCookie(config, cookies, flow.state, sealFlow(config, flow));
       return Object.freeze({ authorizationUrl: url.href, state: flow.state });
     },
@@ -83,12 +87,13 @@ export function createIdentityBridge(input: OidcClientConfig, dependencies: Brid
         headers.set('authorization', `Basic ${Buffer.from(credentials, 'utf8').toString('base64')}`);
       } else {
         body.set('client_id', config.clientId);
-        body.set('client_secret', config.clientSecret);
+        if (config.tokenEndpointAuthMethod !== 'none') body.set('client_secret', config.clientSecret);
       }
       const tokens = await fetchJson(fetcher, metadata.tokenEndpoint, { method: 'POST', headers, body: body.toString() }, config.requestTimeoutMs, 'token_exchange_failed', 32768);
       if (Object.hasOwn(tokens, 'error') || !boundedString(tokens.id_token, 16384) || !boundedString(tokens.access_token, 8192) ||
           typeof tokens.token_type !== 'string' || tokens.token_type.toLowerCase() !== 'bearer') fail('token_exchange_failed');
-      const identity = await verifyToken(config, tokens.id_token, { nonce: flow.nonce, returnTo: flow.returnTo }, () => provider.resolver(metadata), now);
+      const identity = await verifyToken(config, tokens.id_token, { nonce: flow.nonce, returnTo: flow.returnTo,
+        accessToken: tokens.access_token, code: incoming.code, state: incoming.state }, () => provider.resolver(metadata), now);
       if (flow.expiresAt <= now()) fail('flow_expired');
       // Access/refresh tokens and all non-allowlisted claims are intentionally discarded.
       return identity;

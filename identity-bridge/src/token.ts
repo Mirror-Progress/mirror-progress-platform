@@ -1,4 +1,6 @@
 import { errors, jwtVerify } from 'jose';
+import { createHash } from 'node:crypto';
+import { mirrorAssurance } from './mirror-assurance.js';
 import type { JWTVerifyGetKey, JWTPayload } from 'jose';
 import type { Config } from './config.js';
 import { fail, IdentityBridgeError } from './errors.js';
@@ -58,6 +60,7 @@ export async function verifyToken(
   // Snapshot expectations before any await; callers cannot change the nonce during verification.
   const nonce = context.nonce;
   const returnTo = safeReturnTo(context.returnTo);
+  const hashInputs = { at_hash: context.accessToken, c_hash: context.code, s_hash: context.state };
   checkCompactToken(token, config);
   const resolver = await getResolver();
   const boundedResolver: JWTVerifyGetKey = (header, input) => deadline(async () => {
@@ -69,15 +72,18 @@ export async function verifyToken(
   }, config.requestTimeoutMs);
 
   let payload: JWTPayload;
+  let algorithm: string;
   try {
-    ({ payload } = await jwtVerify(token, boundedResolver, {
+    const verified = await jwtVerify(token, boundedResolver, {
       algorithms: [...config.idTokenAlgorithms],
       issuer: config.issuer,
       audience: config.clientId,
       requiredClaims: ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce'],
       clockTolerance: 0,
       currentDate: new Date(now() * 1000),
-    }));
+    });
+    payload = verified.payload;
+    algorithm = verified.protectedHeader.alg;
   } catch (error) {
     if (error instanceof IdentityBridgeError) throw error;
     fail('identity_token_invalid');
@@ -91,9 +97,17 @@ export async function verifyToken(
       timestamp - payload.iat > config.maxIdTokenLifetimeSeconds ||
       (payload.nbf !== undefined && (!numericDate(payload.nbf) || payload.nbf > timestamp || payload.nbf >= payload.exp))) fail('identity_token_invalid');
   validateAudiences(payload, config);
-  const evidence = assurance(payload, config);
-  if (!numericDate(payload.auth_time) || payload.auth_time > timestamp || payload.auth_time > payload.iat) fail('identity_token_invalid');
-  if (timestamp - payload.auth_time > config.maxAuthenticationAgeSeconds) fail('authentication_stale');
+  for (const [claim, input] of Object.entries(hashInputs)) {
+    if (payload[claim] === undefined) continue;
+    if (!boundedString(input, claim === 'at_hash' ? 8192 : 2048) || typeof payload[claim] !== 'string') fail('identity_token_invalid');
+    const hash = createHash(algorithm === 'EdDSA' ? 'sha512' : 'sha256').update(input).digest();
+    if (!constantTimeEqual(payload[claim], hash.subarray(0, hash.length / 2).toString('base64url'))) fail('identity_token_invalid');
+  }
+  const mirror = config.assurance.mirrorV1 ? mirrorAssurance(payload, config, timestamp) : undefined;
+  const evidence = mirror ?? assurance(payload, config);
+  const authTime = mirror?.authTime ?? payload.auth_time;
+  if (!numericDate(authTime) || authTime > timestamp || authTime > payload.iat) fail('identity_token_invalid');
+  if (timestamp - authTime > config.maxAuthenticationAgeSeconds) fail('authentication_stale');
 
   let email: string | null = null;
   if (payload.email !== undefined) {
@@ -109,10 +123,12 @@ export async function verifyToken(
     subject: payload.sub,
     email,
     emailVerified,
-    authTime: payload.auth_time,
+    authTime,
     amr: evidence.amr,
     assurance: evidence.assurance,
-    mfaVerifiedAt: new Date(payload.auth_time * 1000).toISOString(),
+    mfaVerifiedAt: new Date(authTime * 1000).toISOString(),
+    ...(mirror ? { principalId: mirror.principalId, authorizationEpoch: mirror.authorizationEpoch,
+      identitySessionId: mirror.identitySessionId } : {}),
     returnTo,
   });
 }

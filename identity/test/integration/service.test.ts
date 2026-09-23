@@ -9,6 +9,7 @@ import { createPool, Store } from "../../src/db.js";
 import { createAuth } from "../../src/auth.js";
 import { createApp } from "../../src/app.js";
 import { opaqueToken, digest, responseCookies, verifiedTotpDigest } from "../../src/core/tokens.js";
+import { pathToFileURL } from "node:url";
 const config = loadConfig();
 assertSyntheticDatabase(process.env.MIGRATION_DATABASE_URL ?? "");
 const owner = new Pool({ connectionString: process.env.MIGRATION_DATABASE_URL });
@@ -233,4 +234,32 @@ test("library rate limits use the transport peer, ignore spoofed headers, and is
   assert.equal((await other.request("/api/auth/sign-in/email",{email:f.email,password})).status,200);
   const {rows}=await owner.query('SELECT count FROM "rateLimit" WHERE key=$1',[`${f.browser.ip}|/sign-in/email`]);
   assert.equal(Number(rows[0].count),3);
+});
+
+test("real provider completes the corrected bridge code/PKCE flow and rejects callback replay", { timeout: 90_000 }, async () => {
+  // Build identity-bridge first. Its pinned jose dependency validates the real provider's signed token.
+  const { createIdentityBridge } = await import(new URL("../identity-bridge/dist/index.js", pathToFileURL(process.cwd() + "/")).href);
+  const f = await withTotp(); await completeTotp(f);
+  const consumed = new Set<string>(); // Synthetic single-process fixture only; app uses durable Mongo adapter.
+  const bridge = createIdentityBridge({ issuer: config.origin + "/api/auth",
+    discoveryUrl: config.origin + "/api/auth/.well-known/openid-configuration", clientId: config.oidcClientId,
+    clientSecret: "", tokenEndpointAuthMethod: "none", redirectUri: config.redirectUris[0], allowedRedirectUris: config.redirectUris,
+    idTokenAlgorithms: ["EdDSA"], flowCookieSecret: createHash("sha256").update(randomUUID()).digest(),
+    assurance: { mirrorV1: true }, maxAuthenticationAgeSeconds: 3600, allowInsecureLocalhost: true }, {
+    consumeFlow: async (key: string) => { if (consumed.has(key)) return false; consumed.add(key); return true; },
+    fetch: async (url: string, init: RequestInit) => app(new Request(url, init), "198.19.10.1"),
+  });
+  const cookies: string[] = [], writer = { appendSetCookie: (value: string) => cookies.push(value) };
+  const start = await bridge.beginAuthorization({ method: "GET", returnTo: "/workspace" }, writer);
+  const authorization = new URL(start.authorizationUrl);
+  const response = await f.browser.request(authorization.pathname + authorization.search);
+  assert.ok([302, 303].includes(response.status));
+  const callback = new URL(response.headers.get("location")!);
+  const flowCookie = bridge.readFlowCookie(cookies[0]!.split(";")[0], start.state);
+  const incoming = { method: "GET", rawUrl: callback.pathname + callback.search };
+  const identity = await bridge.completeAuthorization(incoming, flowCookie, writer);
+  assert.equal(identity.principalId, f.id); assert.equal(identity.authorizationEpoch, "0");
+  assert.equal(identity.assurance.kind, "pwd-otp"); assert.equal(identity.assurance.acr, null);
+  assert.ok(identity.identitySessionId); assert.ok(Date.parse(identity.mfaVerifiedAt) <= Date.now());
+  await assert.rejects(bridge.completeAuthorization(incoming, flowCookie, writer), /flow_replayed/);
 });

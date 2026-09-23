@@ -1,5 +1,13 @@
 # Integration status
 
+September 22 update: locally corrected the exact Mirror v1 signed ceremony
+profile and canonical decimal epoch handling. Typecheck/build/233 tests pass.
+A real service/PostgreSQL password-TOTP code/PKCE flow now completes through this
+bridge and callback replay is rejected. See
+../docs/identity-migration/ENROLLMENT-INTEGRATION.md. Application integration,
+recovery, downstream invalidation and release review remain open. The historical
+provider compatibility blocker below is resolved for the explicit Mirror profile.
+
 2026-09-21: isolated implementation candidate, NOT connected to the application.
 
 Source received from ChatGPT's `Write OIDC Identity Bridge` conversation as

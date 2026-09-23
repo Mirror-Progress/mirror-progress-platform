@@ -124,7 +124,8 @@ export async function fixture(options: { config?: Partial<OidcClientConfig>; rem
     const headers = new Headers(init.headers);
     const correctAuth = cfg.tokenEndpointAuthMethod === 'client_secret_basic'
       ? headers.get('authorization') === expectedBasic && !parameters.has('client_secret') && !parameters.has('client_id')
-      : !headers.has('authorization') && parameters.get('client_id') === cfg.clientId && parameters.get('client_secret') === cfg.clientSecret;
+      : !headers.has('authorization') && parameters.get('client_id') === cfg.clientId &&
+        (cfg.tokenEndpointAuthMethod === 'none' ? !parameters.has('client_secret') : parameters.get('client_secret') === cfg.clientSecret);
     const challenge = createHash('sha256').update(parameters.get('code_verifier') ?? '').digest('base64url');
     if (!correctAuth || init.method !== 'POST' || parameters.get('grant_type') !== 'authorization_code' || !grant || usedCodes.has(code) ||
         parameters.get('redirect_uri') !== grant.redirectUri || challenge !== grant.challenge) return json({ error: 'invalid_grant' }, 400);

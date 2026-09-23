@@ -1,5 +1,20 @@
 # Migration progress
 
+## Replacement task verified checkpoint — September 22
+
+Correct enrollment source received and integrated with reviewed baseline fixes.
+Locally implemented the provider/bridge correction rather than repairing the
+corrupt transfer. Full service build and 131 unit tests pass; 18 real PostgreSQL
+service tests pass including provider-to-bridge code/PKCE interoperability; seven
+real PostgreSQL enrollment tests pass; bridge typecheck/build/233 tests pass.
+See ENROLLMENT-INTEGRATION.md for exact scope, source hash and remaining gates.
+
+User now authorizes Codex to finish local coding/testing without ChatGPT/Pro or
+GitHub Actions; equivalent documented local checks replace Actions. Source
+transport is no longer a blocker. AWS staging/cutover gates remain unmet and
+production is unchanged. Earlier missing-enrollment/corrected-bridge notes below
+are historical, superseded by this checkpoint.
+
 ## September 22 verified update (supersedes older status below)
 
 Service source and registry lock are published at aceaa31. TypeScript/browser

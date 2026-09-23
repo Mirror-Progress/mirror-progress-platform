@@ -43,6 +43,11 @@ export function assertAuthorized(
   maxAgeMs = MFA_MAX_AGE_MS,
 ): Evidence {
   assertOrdinaryPrincipal(principal);
+  return assertSessionEvidence(principal, live, evidence, now, maxAgeMs);
+}
+/** Evidence validation only; callers must separately enforce principal/enrollment policy. */
+export function assertSessionEvidence(principal: Principal, live: LiveSession, evidence: Evidence | null,
+  now: number, maxAgeMs = MFA_MAX_AGE_MS): Evidence {
   if (!Number.isFinite(now) || !Number.isFinite(maxAgeMs) || maxAgeMs <= 0) throw new PolicyError("invalid_clock");
   if (!evidence || evidence.sessionId !== live.id || evidence.userId !== live.userId ||
       evidence.principalId !== principal.id || evidence.epoch !== principal.epoch) {

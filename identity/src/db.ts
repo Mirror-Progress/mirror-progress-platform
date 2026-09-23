@@ -10,11 +10,13 @@ export interface SessionIdentity { session: { id: string; userId: string; expire
 export function createPool(config: Config): Pool {
   return new Pool({ connectionString: config.databaseUrl, max: 10,
     connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000, statement_timeout: 10000,
-    application_name: "mirror-identity-synthetic" });
+    ssl: config.mode === "staging" ? { rejectUnauthorized: true } : undefined,
+    application_name: config.mode === "staging" ? "mirror-identity-staging" : "mirror-identity-synthetic" });
 }
 const millis = (value: unknown): number => new Date(value as string | Date).getTime();
 export class Store {
   constructor(readonly pool: Pool) {}
+  assertCredentialPrincipal(principal: Principal): void { assertOrdinaryPrincipal(principal); }
   async transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
     const db = await this.pool.connect();
     try { await db.query("BEGIN"); const result = await fn(db); await db.query("COMMIT"); return result; }
@@ -55,7 +57,7 @@ export class Store {
       const locked = await db.query<Principal>("SELECT * FROM mirror_lock_principal($1)", [principal.id]);
       const current = locked.rows[0];
       if (!current) throw new PolicyError("principal_binding_missing", 401);
-      assertOrdinaryPrincipal(current);
+      this.assertCredentialPrincipal(current);
       if (expectedEpoch !== undefined && current.epoch !== expectedEpoch) throw new PolicyError("authorization_epoch_changed", 401);
       if (factor === "password_totp") {
         if (expectedEpoch === undefined || !totpDigest) throw new PolicyError("totp_ceremony_binding_missing", 401);
@@ -74,7 +76,7 @@ export class Store {
     });
   }
   async freshEnrollmentSession(identity: SessionIdentity): Promise<void> {
-    assertOrdinaryPrincipal(await this.principal(identity.user.id));
+    this.assertCredentialPrincipal(await this.principal(identity.user.id));
     const { rows } = await this.pool.query(`SELECT a.password_at, a.expires_at, a.epoch::text,
       p.authorization_epoch::text AS current_epoch FROM mirror_assurance a
       JOIN mirror_principal p ON p.id=a.principal_id WHERE a.session_id=$1 AND a.user_id=$2`,
@@ -120,7 +122,7 @@ export class Store {
       const { rows: locked } = await db.query<Principal>("SELECT * FROM mirror_lock_principal($1)", [principal.id]);
       const current = locked[0];
       if (!current) throw new PolicyError("principal_binding_missing", 401);
-      assertOrdinaryPrincipal(current);
+      this.assertCredentialPrincipal(current);
       const token = opaqueToken();
       await db.query(`INSERT INTO mirror_password_flow(digest,user_id,epoch,auth_cookie_digest,password_at,expires_at)
         VALUES ($1,$2,$3,$4,$5,$6)`, [digest(token), user.id, current.epoch, digest(authCookie), new Date(at), new Date(at + 300_000)]);

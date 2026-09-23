@@ -1,5 +1,8 @@
 import { PolicyError } from "./policy.js";
+import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
+  mode?: "staging";
+  staging?: { rpId: string; deliveryKey: string; certFile: string; keyFile: string };
   origin: string;
   databaseUrl: string;
   secret: string;
@@ -17,6 +20,7 @@ export function assertSyntheticDatabase(url: string): void {
   }
 }
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  if (env.IDENTITY_MODE === "staging") return loadStagingConfig(env);
   if (env.IDENTITY_MODE !== "synthetic") throw new PolicyError("synthetic_mode_required", 500);
   const origin = env.IDENTITY_ORIGIN ?? "http://localhost:3040";
   if (origin !== "http://localhost:3040") throw new PolicyError("production_readiness_blocked", 500);
@@ -38,7 +42,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
 /** A service process must not receive migration/operator credentials. */
 export function assertRuntimeEnvironment(env: NodeJS.ProcessEnv = process.env): void {
-  for (const name of ["MIGRATION_DATABASE_URL", "IDENTITY_RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD"]) {
+  for (const name of ["MIGRATION_DATABASE_URL", "IDENTITY_RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "IDENTITY_OPERATOR_DATABASE_URL", "OPERATOR_DATABASE_URL"]) {
     if (env[name]) throw new PolicyError("operator_credentials_in_runtime_environment", 500);
   }
 }
