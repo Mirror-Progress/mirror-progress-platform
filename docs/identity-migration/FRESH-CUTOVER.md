@@ -62,3 +62,14 @@ The correction passed 152 unit tests and 12 staging plus 12 production hosted
 enrollment checks, including a Chromium virtual passkey flow, the application
 callback, and a stale-password regression. These are synthetic checks; they do
 not establish that the owner's device passkey ceremony has succeeded.
+
+## First-owner landing route
+
+The owner completed the device sign-in, then reached a 404 at `/apps/studioiq`.
+The session itself was valid: `/admin` and `/admin/studioiq-pilots` rendered in
+the same browser. The landing chain sent the administrator to `/workspace`,
+whose client-only guard selected a Studio IQ product route even though the
+administrator did not have a client workspace. The fresh sign-in default now
+starts the application at `/admin`. The application routes administrators who
+open `/workspace` to `/admin`, and administrators who open `/apps/studioiq` to
+`/admin/studioiq-pilots`; client accounts retain their client routes.

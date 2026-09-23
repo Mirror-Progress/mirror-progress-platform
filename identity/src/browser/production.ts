@@ -3,7 +3,7 @@ import { passkeyClient } from "@better-auth/passkey/client";
 import { safeResumePath } from "../core/policy.js";
 
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
-const platform = "https://platform.mirrorprogress.com/api/auth/start?next=/workspace";
+const platform = "https://platform.mirrorprogress.com/api/auth/start?next=/admin";
 const openPlatform = () => {
   if (location.origin === "https://accounts.mirrorprogress.com")
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);

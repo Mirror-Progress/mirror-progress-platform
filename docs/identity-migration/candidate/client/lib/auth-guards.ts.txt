@@ -201,6 +201,9 @@ export async function requirePortalPageAccess(
     !account.clientId ||
     (projectId && !account.assignedProjectIds.includes(projectId))
   ) {
+    if (account.status === 'active' && isAdminRole(account.role)) {
+      return { account: undefined, response: { redirect: { destination: '/admin', permanent: false } } as const };
+    }
     if (account.status === 'active' && account.role === 'client') {
       const destination = await resolveProductLandingRoute(account.id, '');
       if (destination) {

@@ -1,0 +1,57 @@
+import type { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { StudioIqTerminal } from '../../../components/studioiq/StudioIqTerminal';
+import { getSessionAccountFromContext } from '../../../lib/auth-guards';
+import { getDb } from '../../../lib/mongodb';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { ensureStudioIqWorkspaceMembership } from '../../../lib/studioiq-collaboration';
+import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
+import { isAdminRole } from '../../../lib/accounts';
+
+type PageProps = { accountName: string; organizationName: string; canManageBilling: boolean };
+
+function enabled() {
+  const value = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
+  if (value) return ['1', 'true', 'yes', 'on'].includes(value);
+  return process.env.NODE_ENV !== 'production';
+}
+
+export default function StudioIqPage(props: PageProps) {
+  return <>
+    <Head>
+      <title>Prospect | Project discovery</title>
+      <meta name="robots" content="noindex, nofollow" />
+      <meta name="description" content="New project discovery for design-led practices." />
+    </Head>
+    <StudioIqTerminal {...props} />
+  </>;
+}
+
+export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
+  if (!enabled()) return { notFound: true };
+  const account = await getSessionAccountFromContext(context);
+  if (!account) {
+    return {
+      redirect: {
+        destination: cognitoIsRequired()
+          ? `/api/auth/cognito/start?next=${encodeURIComponent('/apps/studioiq')}`
+          : `/?auth=login&next=${encodeURIComponent('/apps/studioiq')}`,
+        permanent: false,
+      },
+    };
+  }
+  if (isAdminRole(account.role)) return { redirect: { destination: '/admin/studioiq-pilots', permanent: false } };
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return { notFound: true };
+  const [client, member] = await Promise.all([
+    getDb().then((db) => db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients').findOne({ id: access.mirrorClientId })),
+    ensureStudioIqWorkspaceMembership(access),
+  ]);
+  return {
+    props: {
+      accountName: account.name || account.email,
+      organizationName: client?.companyName || client?.name || client?.company || account.company || 'Studio workspace',
+      canManageBilling: ['owner', 'admin'].includes(member.role),
+    },
+  };
+};
