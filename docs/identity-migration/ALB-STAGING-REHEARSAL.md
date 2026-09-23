@@ -66,10 +66,29 @@ Staging app revision 27 exposed an ECS HOSTNAME override: Next bound the task's
 private hostname, so ALB readiness worked while the loopback container probe failed.
 Revision 28 explicitly sets HOSTNAME=0.0.0.0 in the task environment. Keep this
 setting when registering later revisions; the Dockerfile default alone is insufficient.
-The original revision 26 is preserved for rollback, including its original database.
+The original revision 26 configuration is preserved, including its original database;
+its image was later found unavailable during the actual rollback attempt (see below).
 The candidate uses the isolated mirror_identity_rehearsal database and disables seeds.
 
 Live probes verify the app's provider redirect, S256 PKCE, expected client/callback,
 state and Secure/HttpOnly/SameSite=Lax flow cookie. The identity authorization endpoint
 redirects to its working sign-in page. These checks do not establish completed user
 sign-in or callback/DocumentDB mapping validation. Production remains revision 43.
+
+### Rollback rehearsal finding
+
+Both application revision 28 targets became healthy. Attempting to restore saved
+revision 26 failed with CannotPullContainerError: its old release tag and recorded
+image digest are absent from ECR. Do not use revision 26 as a runnable rollback.
+The production revision 43 image is still present; production was not changed.
+
+Staging revision 29 preserves the original staging Cognito/client/callback/database
+and secret references, while using the tested immutable application image, explicit
+HOSTNAME and Node health probe. It explicitly selects Cognito and disables demo/dev
+seeds. This tests provider rollback, not byte-for-byte restoration of the missing
+historical staging image. Both revision 29 tasks and ALB targets are healthy; old candidate tasks have
+zero running instances and the remaining target is draining. HTTPS app health is 200,
+Cognito start returns 302 to the saved staging Cognito domain with S256 and original
+callback, and Mirror start returns 404. This establishes live provider-route rollback,
+not a completed authenticated user session. Temporary tester-only SG/WAF entries
+were removed; existing staging restrictions remain.
