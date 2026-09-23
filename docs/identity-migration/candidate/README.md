@@ -32,7 +32,7 @@ TTL cleanup. No raw browser state, authorization code or token is stored.
 Build identity-bridge, pack it into `identity-release/client/vendor`, and install
 the tarball in that candidate. This avoids a symlink outside the Docker context.
 The resulting lockfile stays with the private verified release. Dockerfiles pin
-Node 24.19.0 by image manifest digest. The public RDS CA bundle is SHA-256
+Node 24.21.0 / Debian 13 by image manifest digest. The public RDS CA bundle is SHA-256
 `e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3`.
 
 The application passes typechecking, a full Next build and 26 checks: 13 existing
@@ -48,8 +48,11 @@ lockfiles are published with this overlay.
 
 ## Remaining release dependencies
 
-Invitation provisioning and MFA-reset administration still contain Cognito
-operations and must be migrated before switching production. Runtime mapping
+Optional new-account provisioning, invitation sends and legacy MFA resets now
+fail before any database or Cognito operation in Mirror mode. Existing-user MFA
+recovery uses the separately tested operator workflow. Membership disabling still
+revokes State Kernel access and sessions, while Mirror mode skips Cognito mutations.
+Two guard tests pass; extending new-account self-service is deferred. Runtime mapping
 writes must be restricted to reviewed operator imports. Live delivery, operator
 enrollment, independent review, infrastructure/service readiness and tested
 cutover/rollback remain. No live mapping import, email or cutover has occurred.

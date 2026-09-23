@@ -5,7 +5,7 @@
     {
       "path": "Dockerfile",
       "baselineSha256": "3f0be51e9bec6075909e43f482cd004b2cc61fa4cb009a14cdbc6cb46fde54f6",
-      "sha256": "a8f828e5d774544675f5eae35224fe9041c65d0617a9ff2d9e5cd210c94e56a4"
+      "sha256": "5efba18e76a81015decee2715bb918d56b02782af29af06e81a46b801df3086d"
     },
     {
       "path": "certs/aws-rds-global-bundle.pem",
@@ -15,7 +15,7 @@
     {
       "path": "lib/state-kernel/authorization/identity-provider.ts",
       "baselineSha256": null,
-      "sha256": "a87244b8cdd89960f93feebd86e490d22a6f1ef47040cbd3d0ec8659fa1b2049"
+      "sha256": "d4f717d5a79bbbdb2e106b9050c93ff48edbd6afc5cd28fe1556923060cff856"
     },
     {
       "path": "lib/state-kernel/authorization/identity-status.ts",
@@ -25,7 +25,7 @@
     {
       "path": "lib/state-kernel/authorization/identity.ts",
       "baselineSha256": null,
-      "sha256": "56841c5b6a9203f360e910587a1d4f6b04c1c4f4e9224b8d1968f9b19486dce9"
+      "sha256": "4e81ef464751693931d67b175b477b589c5783bf1d365aeb1d229bd146b1dcf8"
     },
     {
       "path": "lib/state-kernel/authorization/identity-flow-store.ts",
@@ -81,6 +81,21 @@
       "path": "tests/integration/identity-flow-store.test.ts",
       "baselineSha256": "18e520d1b3f69d1e5c9cbf4a176021197d2f72068ed6246e8e61e63c3e2b2626",
       "sha256": "18e520d1b3f69d1e5c9cbf4a176021197d2f72068ed6246e8e61e63c3e2b2626"
+    },
+    {
+      "path": "lib/client-portal/onboarding.ts",
+      "baselineSha256": "6589f6dbc18cc597d50a828d9ecf47811e71b9c88b07d9fed04a04f24736bf4a",
+      "sha256": "325a7afa72e30aed4c315d8f70f86ab2091a8b4ca82ff9d5f4f3cb33a62c6c05"
+    },
+    {
+      "path": "lib/studioiq-account-provisioning.ts",
+      "baselineSha256": "56295a445468abe7b3bf0b3d06390ce93dd40e44c550453a5670eab8760a4ba1",
+      "sha256": "f8b82cb44408ffd397cb53b07ff7adfec0ecf0bd8fd351e31f4af3d6b03a9509"
+    },
+    {
+      "path": "tests/identity-administration.test.ts",
+      "baselineSha256": null,
+      "sha256": "a3c534caeda0ded519c6088201a2d742a17a4513592d045c647ea4b0049c54ce"
     }
   ]
 }

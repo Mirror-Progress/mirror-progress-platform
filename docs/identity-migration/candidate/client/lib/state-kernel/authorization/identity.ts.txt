@@ -10,7 +10,10 @@ export function identityBridge() {
   if (!identityEnabled()) throw new Error('identity_disabled');
   const issuer = process.env.IDENTITY_ISSUER ?? '';
   const redirect = process.env.IDENTITY_REDIRECT_URI ?? '';
-  const secret = process.env.IDENTITY_FLOW_SECRET ?? '';
+  const seed = process.env.IDENTITY_FLOW_SEED;
+  if (seed !== undefined && (!/^[A-Za-z0-9]{64}$/.test(seed) || seed === process.env.IDENTITY_SESSION_STATUS_SECRET ||
+      seed === process.env.SESSION_SECRET || seed === process.env.AUTH_SESSION_SECRET)) throw new Error('identity_configuration_invalid');
+  const secret = seed === undefined ? (process.env.IDENTITY_FLOW_SECRET ?? '') : createHash('sha256').update(seed).digest('base64url');
   if (!/^[A-Za-z0-9_-]{43}$/.test(secret) || Buffer.from(secret, 'base64url').toString('base64url') !== secret ||
       secret === process.env.IDENTITY_SESSION_STATUS_SECRET || secret === process.env.AUTH_SESSION_SECRET) throw new Error('identity_configuration_invalid');
   return createIdentityBridge({ issuer, discoveryUrl: issuer + '/.well-known/openid-configuration',

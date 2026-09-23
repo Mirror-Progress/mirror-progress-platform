@@ -16,13 +16,17 @@ test('offline synthesis retains private encrypted Multi-AZ PostgreSQL and immuta
     ImageScanningConfiguration: { ScanOnPush: true }, EncryptionConfiguration: { EncryptionType: 'KMS', KmsKey: Match.anyValue() } });
   template.hasResourceProperties('AWS::RDS::DBParameterGroup', { Parameters: { 'rds.force_ssl': '1',
     password_encryption: 'scram-sha-256', log_statement: 'none', log_min_error_statement: 'panic' } });
+  template.hasResourceProperties('AWS::KMS::Key', { KeyPolicy: Match.objectLike({ Statement: Match.arrayWith([Match.objectLike({
+    Principal: { Service: 'logs.us-east-1.amazonaws.com' },
+    Condition: { ArnLike: { 'kms:EncryptionContext:aws:logs:arn': 'arn:aws:logs:us-east-1:111111111111:log-group:MirrorIdentityStagingFoundationTest-ServiceLogs*' } },
+  })]) }) });
   template.resourceCountIs('AWS::Cognito::UserPool', 0); template.resourceCountIs('AWS::ECS::Service', 0);
   template.resourceCountIs('AWS::Route53::RecordSet', 0); template.resourceCountIs('AWS::IAM::AccessKey', 0);
   const json = template.toJSON();
   for (const resource of Object.values(json.Resources) as { Type: string; Properties: Record<string, unknown> }[]) {
     if (resource.Type === 'AWS::KMS::Key') assert.equal(resource.Properties.EnableKeyRotation, true);
     if (resource.Type === 'AWS::SecretsManager::Secret') {
-      assert.ok(resource.Properties.KmsKeyId); assert.equal(resource.Properties.SecretString, undefined);
+      assert.equal((resource as any).DeletionPolicy, 'Retain'); assert.ok(resource.Properties.KmsKeyId); assert.equal(resource.Properties.SecretString, undefined);
     }
     if (resource.Type === 'AWS::EC2::SecurityGroupIngress' && resource.Properties.CidrIp) {
       assert.equal(resource.Properties.CidrIp, '0.0.0.0/0'); assert.equal(resource.Properties.FromPort, 443);

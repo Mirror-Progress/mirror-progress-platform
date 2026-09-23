@@ -4,3 +4,8 @@ export function identityEnabled() {
   if (mode !== undefined && mode !== 'cognito' && mode !== 'mirror') throw new Error('invalid_identity_provider');
   return mode === 'mirror';
 }
+
+/** New-account creation and MFA administration stay with the reviewed operator workflow during cutover. */
+export function requireCognitoAdministration() {
+  if (identityEnabled()) throw new Error('identity_operator_workflow_required');
+}

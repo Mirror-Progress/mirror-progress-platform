@@ -1,3 +1,23 @@
+# Deployed staging checkpoint — September 23, 2026
+
+The independent `MirrorIdentityStagingFoundation` stack is UPDATE_COMPLETE.
+Private, encrypted Multi-AZ PostgreSQL 17.11 is available in the isolated data
+subnets, with deletion protection and retained state. Production is unchanged.
+
+The initial CREATE failed because the log encryption key lacked a CloudWatch Logs
+service grant. No database was created in that attempt. Ten retained resources were
+imported into the replacement stack without duplication; drift detection reported
+IN_SYNC with zero drifted resources. The corrected key policy is scoped to this
+stack's log-group encryption context. A regression also verifies that the generated
+RDS owner secret itself is retained, not only its attachment.
+
+The tested Node 24.21.0 / OpenSSL 3.5.8 Identity image is published to the staging
+repository at `sha256:d9d7ade8955959c496be5cd607e02e23ba7d7b69b6f00d115bea51c07db0fdea`.
+No service or application switch is implied by foundation completion. The snapshots
+below remain read-only inventory from before provisioning.
+
+---
+
 # Read-only AWS staging inventory — September 22, 2026
 
 Existing credentials succeeded for account 380314682150 in us-east-1. No login,

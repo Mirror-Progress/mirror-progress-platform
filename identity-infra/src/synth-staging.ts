@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { App } from 'aws-cdk-lib';
 import { IdentityFoundation } from './foundation.js';
+import { IdentityApplicationIntegration } from './application.js';
 import { IdentityService, type ServiceConfig } from './service.js';
 // Verified inventory, not credentials. Never import the original platform stack.
 const config: ServiceConfig = {
@@ -15,5 +16,13 @@ const config: ServiceConfig = {
 const app = new App({ outdir: fileURLToPath(new URL('../../cdk.out-staging', import.meta.url)) });
 const foundation = new IdentityFoundation(app, 'MirrorIdentityStagingFoundation', config);
 if (process.argv.includes('--service')) new IdentityService(app, 'MirrorIdentityStagingService', config, foundation);
+if (process.argv.includes('--application')) new IdentityApplicationIntegration(app, 'MirrorIdentityStagingApplication', {
+  account: config.account, region: config.region, hostedZoneId: config.hostedZoneId,
+  executionRoleArn: 'arn:aws:iam::380314682150:role/MirrorProgressSecuritySta-PlatformTaskExecutionRole-bbqbAFybHc1r',
+  listenerArn: 'arn:aws:elasticloadbalancing:us-east-1:380314682150:listener/app/Mirror-LoadB-jyydx8tRjkUV/3eae072a2fdf6162/b6b6d28a76ffa1e8',
+  targetGroupArn: 'arn:aws:elasticloadbalancing:us-east-1:380314682150:targetgroup/Mirror-Platf-1OXXZEBGN1WK/6b902e43fbf503fc',
+  wildcardCertificateArn: 'arn:aws:acm:us-east-1:380314682150:certificate/09965471-c727-42e4-9a31-b378c2d3dda8',
+  loadBalancerDns: 'Mirror-LoadB-jyydx8tRjkUV-1189634444.us-east-1.elb.amazonaws.com', loadBalancerZone: 'Z35SXDOTRQ7X7K',
+}, foundation);
 const assembly = app.synth();
 for (const stack of assembly.stacks) console.log(`${stack.stackName}: ${assembly.directory}/${stack.templateFile}`);

@@ -5,6 +5,7 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as secrets from 'aws-cdk-lib/aws-secretsmanager';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
 export interface FoundationConfig {
@@ -85,6 +86,8 @@ export class IdentityFoundation extends Stack {
       removalPolicy: RemovalPolicy.RETAIN, autoMinorVersionUpgrade: false, allowMajorVersionUpgrade: false,
       copyTagsToSnapshot: true,
     });
+    // RDS exposes a SecretTargetAttachment wrapper; retain the underlying generated Secret itself.
+    for (const resource of this.node.findAll()) if (resource instanceof secrets.CfnSecret) resource.applyRemovalPolicy(RemovalPolicy.RETAIN);
     const secret = (name: string, description: string, template?: object) => new secrets.Secret(this, name, {
       encryptionKey: secretsKey, description, removalPolicy: RemovalPolicy.RETAIN,
       generateSecretString: { passwordLength: 64, excludePunctuation: true,
@@ -95,8 +98,14 @@ export class IdentityFoundation extends Stack {
     this.authSecret = secret('AuthSecret', 'Better Auth cookie and credential encryption; coordinate rotation with session invalidation');
     this.statusSecret = secret('StatusSecret', 'Read-only app-to-Identity session status authentication; separate from user cookies');
     this.deliverySeed = secret('DeliverySeed', 'High-entropy seed for delivery encryption; derive 32-byte key with SHA-256 at runtime');
-    this.serviceLogs = new logs.LogGroup(this, 'ServiceLogs', { encryptionKey: new kms.Key(this, 'LogsKey', {
-      enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN }), retention: logs.RetentionDays.THREE_MONTHS, removalPolicy: RemovalPolicy.RETAIN });
+    const logsKey = new kms.Key(this, 'LogsKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
+    // CloudWatch Logs encrypts on the service's behalf; an execution-role grant is insufficient.
+    logsKey.addToResourcePolicy(new iam.PolicyStatement({ principals: [new iam.ServicePrincipal(`logs.${config.region}.amazonaws.com`)],
+      actions: ['kms:Encrypt', 'kms:Decrypt', 'kms:ReEncrypt*', 'kms:GenerateDataKey*', 'kms:DescribeKey'], resources: ['*'],
+      conditions: { ArnLike: { 'kms:EncryptionContext:aws:logs:arn': `arn:aws:logs:${config.region}:${config.account}:log-group:${this.stackName}-ServiceLogs*` } },
+    }));
+    this.serviceLogs = new logs.LogGroup(this, 'ServiceLogs', { encryptionKey: logsKey,
+      retention: logs.RetentionDays.THREE_MONTHS, removalPolicy: RemovalPolicy.RETAIN });
     new CfnOutput(this, 'DatabaseEndpoint', { value: this.database.dbInstanceEndpointAddress });
     new CfnOutput(this, 'OwnerSecretArn', { value: this.database.secret!.secretArn });
     new CfnOutput(this, 'RuntimeSecretArn', { value: this.runtimeCredentials.secretArn });
