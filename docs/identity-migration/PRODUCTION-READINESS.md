@@ -27,20 +27,21 @@ assessment of every resource-based policy/SCP. No secret plaintext was fetched.
 The explicit production profile, separate container/migration/operator entrypoints
 and offline infrastructure compiler are now implemented and locally tested. See
 [the production candidate](PRODUCTION-CANDIDATE.md) for exact evidence and limits.
-This is not deployed production readiness. The existing AWS image is still the
-staging-only artifact and lacks the newly discovered verified-email token fix.
+This is not deployed production readiness. The corrected image is now published
+and deployed to staging with the verified-email token fix; production is unchanged.
 
-Production inventory, separately provisioned resources/credentials, final image
-publication/review and deployment are still outstanding. Do not point the live
+Production inventory, separately provisioned resources/credentials, independent
+image/code review and production deployment are still outstanding. Do not point the live
 app at staging or reuse staging secrets, roles or data. Production application
 permissions remain unchanged.
 
-A completed deployed user login/callback is still unverified. Rehearsal must prove
-explicit issuer/subject-to-canonical-principal mapping, unchanged IDs/memberships,
-denied disabled accounts, privileged assurance, logout/revocation and recovery.
-Synthetic tests already exist but do not establish actual user enrollment or live
-account parity. Verified backups are configured; an actual restore rehearsal and
-production rollback artifact retention also need recorded evidence. Do not use
+The deployed AWS ordinary synthetic login/callback now passes explicit mapping,
+principal/membership/role and precise epoch parity, replay denial, disabled membership
+and provider logout/revocation denial. An actual private RDS point-in-time restore
+also passed TLS, migration, client and runtime-permission checks. See
+[AWS rehearsal evidence](AWS-REHEARSAL.md). These do not establish actual user
+onboarding, privileged human assurance, real-account parity or recovery acceptance.
+Production rollback artifact retention still needs recorded evidence. Do not use
 missing historical staging image/revision26 as a rollback artifact.
 
 These are engineering/evidence tasks, not all human blockers. This bounded review

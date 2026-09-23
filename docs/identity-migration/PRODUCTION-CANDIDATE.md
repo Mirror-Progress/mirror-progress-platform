@@ -1,7 +1,8 @@
-# Local production candidate — September 23
+# Production candidate — September 23
 
-Production remains on revision43/Cognito. Staging remains on rollback29/Cognito.
-This source change and local image have not been published to ECR or deployed.
+Production remains on revision43/Cognito. The corrected identity image is now
+published and deployed to the isolated staging identity service as revision2.
+Production resources and routing are unchanged.
 
 ## Explicit environment separation
 
@@ -44,10 +45,12 @@ false; no scope means neither claim is included. Provider-owned standard securit
 claims are unchanged. The existing namespaced assurance extension still checks
 actual mailbox/MFA/approval evidence before issuance.
 
-The previously deployed staging identity image does NOT contain this fix. Its
-readiness/redirect checks remain valid, but it must not be represented as having
-passed complete app login. A newly built/reviewed image and isolated AWS end-to-end
-rehearsal remain before production cutover.
+The corrected staging identity image is
+`sha256:dcac3d887942400a607260e820e9099332259ebaf14ea5765121e5bdfabafca1`.
+Its ECR scan completed with zero critical, two high, one medium and one low finding;
+the existing bounded applicability review still applies and is not an independent
+security approval. The CloudFormation update changed only service task definitions
+and the identity service, without replacement of the database.
 
 ## Reproducible evidence
 
@@ -83,6 +86,7 @@ data and never send mail or contact a production authentication endpoint.
 - `IDENTITY_TEST_IMAGE=mirror-identity:local-production-candidate node identity/scripts/test-container-staging.mjs`
   checks the same new image still supports the staging executable and restrictions.
 
-Real delivery/enrollment, independent review, unresolved image findings, verified
-production inventory/secret provisioning, new-image AWS callback/parity and RDS
-restore evidence remain. Keep these separate from the completed local evidence.
+Real delivery/enrollment, independent review, unresolved image findings and verified
+production inventory/secret provisioning remain. See AWS-REHEARSAL.md for deployed
+callback and point-in-time restore evidence; keep synthetic proof separate from
+human enrollment.
