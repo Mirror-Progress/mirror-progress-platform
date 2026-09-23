@@ -28,7 +28,7 @@ async function main() {
     try {
       await lock.query(`CREATE TABLE IF NOT EXISTS mirror_schema_migration
         (name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())`);
-      for (const name of ["001-mirror-policy", "002-staging-enrollment"]) {
+      for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery"]) {
         const sql = await readFile(`migrations/${name}.sql`, "utf8");
         const checksum = createHash("sha256").update(sql).digest("hex");
         const prior = await lock.query("SELECT checksum FROM mirror_schema_migration WHERE name=$1", [name]);

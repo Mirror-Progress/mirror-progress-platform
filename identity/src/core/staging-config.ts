@@ -1,4 +1,5 @@
 import type { Config } from "./config.js";
+import { sessionStatusSecret } from "./config.js";
 import { PolicyError } from "./policy.js";
 // A bounded staging trust bundle, NOT production approval or DNS provisioning.
 export const STAGING = Object.freeze({
@@ -45,6 +46,7 @@ export function loadStagingConfig(env: NodeJS.ProcessEnv): Config {
     throw new PolicyError("staging_loopback_listener_required", 500);
   }
   return { mode: "staging", origin: STAGING.origin, databaseUrl, secret, bindHost: "127.0.0.1", port: 3040,
+    sessionStatusSecret: sessionStatusSecret(env),
     oidcClientId: STAGING.clientId, redirectUris: [STAGING.redirect],
     staging: { rpId: STAGING.rpId, deliveryKey, certFile, keyFile } };
 }

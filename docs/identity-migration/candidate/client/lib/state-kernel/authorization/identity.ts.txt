@@ -1,0 +1,50 @@
+import { createHash } from 'crypto';
+import { createIdentityBridge, type Identity } from '@mirror-progress/identity-bridge';
+import { consumeIdentityFlow } from './identity-flow-store';
+import { getDb } from '../../mongodb';
+import { AuthorizationStore } from './store';
+import { identitySessionActive, type IdentitySessionBinding } from './identity-status';
+import { identityEnabled } from './identity-provider';
+
+export function identityBridge() {
+  if (!identityEnabled()) throw new Error('identity_disabled');
+  const issuer = process.env.IDENTITY_ISSUER ?? '';
+  const redirect = process.env.IDENTITY_REDIRECT_URI ?? '';
+  const secret = process.env.IDENTITY_FLOW_SECRET ?? '';
+  if (!/^[A-Za-z0-9_-]{43}$/.test(secret) || Buffer.from(secret, 'base64url').toString('base64url') !== secret ||
+      secret === process.env.IDENTITY_SESSION_STATUS_SECRET || secret === process.env.AUTH_SESSION_SECRET) throw new Error('identity_configuration_invalid');
+  return createIdentityBridge({ issuer, discoveryUrl: issuer + '/.well-known/openid-configuration',
+    clientId: process.env.IDENTITY_CLIENT_ID ?? '', clientSecret: '', tokenEndpointAuthMethod: 'none',
+    redirectUri: redirect, allowedRedirectUris: [redirect], idTokenAlgorithms: ['EdDSA'],
+    flowCookieSecret: Buffer.from(secret, 'base64url'), assurance: { mirrorV1: true }, maxAuthenticationAgeSeconds: 3600,
+  }, { consumeFlow: consumeIdentityFlow });
+}
+export interface IdentityMapping { _id: string; issuer: string; subject: string; principalId: string; enabled: boolean; reviewRef: string }
+export function identityMappingId(issuer: string, subject: string) {
+  return createHash('sha256').update(JSON.stringify([issuer, subject])).digest('hex');
+}
+export async function identityMappingActive(binding: IdentitySessionBinding) {
+  if (binding.issuer !== process.env.IDENTITY_ISSUER) return false;
+  const mapping = await (await getDb()).collection<IdentityMapping>('authorization_identity_mappings').findOne({
+    _id: identityMappingId(binding.issuer, binding.subject), issuer: binding.issuer, subject: binding.subject,
+    principalId: binding.principalId, enabled: true,
+  });
+  return Boolean(mapping?.reviewRef);
+}
+/** Mapping is provisioned by a reviewed operator manifest, never from callback email/claims. */
+export async function resolveMirrorIdentity(identity: Identity) {
+  if (!identity.emailVerified || !identity.principalId || !identity.authorizationEpoch || !identity.identitySessionId ||
+      identity.issuer !== process.env.IDENTITY_ISSUER) throw new Error('identity_binding_unavailable');
+  const mapping = await (await getDb()).collection<IdentityMapping>('authorization_identity_mappings').findOne({
+    _id: identityMappingId(identity.issuer, identity.subject), issuer: identity.issuer, subject: identity.subject, enabled: true,
+  });
+  if (!mapping || mapping.principalId !== identity.principalId || !mapping.reviewRef) throw new Error('identity_binding_unavailable');
+  const principal = await new AuthorizationStore().getPrincipal(mapping.principalId);
+  if (!principal || principal.status === 'disabled' || !Number.isSafeInteger(principal.authorizationEpoch) || principal.authorizationEpoch < 0) {
+    throw new Error('identity_binding_unavailable');
+  }
+  const binding: IdentitySessionBinding = { issuer: identity.issuer, subject: identity.subject, principalId: principal.principalId,
+    epoch: identity.authorizationEpoch, sessionId: identity.identitySessionId, requirePrivileged: false };
+  if (!await identitySessionActive(binding)) throw new Error('identity_session_unavailable');
+  return { principal, binding };
+}

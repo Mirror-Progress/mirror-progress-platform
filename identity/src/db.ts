@@ -17,6 +17,20 @@ const millis = (value: unknown): number => new Date(value as string | Date).getT
 export class Store {
   constructor(readonly pool: Pool) {}
   assertCredentialPrincipal(principal: Principal): void { assertOrdinaryPrincipal(principal); }
+  /** Server-to-server revocation check. Does not upgrade assurance or create a session. */
+  async sessionActive(sessionId: string, userId: string, principalId: string, epoch: string, requirePrivileged = false): Promise<boolean> {
+    if (requirePrivileged) return false; // Synthetic foundation has no privileged enrollment.
+    const { rows } = await this.pool.query(`SELECT EXISTS (
+      SELECT 1 FROM "session" s JOIN mirror_binding b ON b.user_id=s."userId"
+      JOIN mirror_principal p ON p.id=b.principal_id JOIN mirror_assurance a ON a.session_id=s.id
+      WHERE s.id=$1 AND s."userId"=$2 AND p.id=$3 AND p.authorization_epoch::text=$4
+      AND NOT p.disabled AND NOT p.privileged AND s."expiresAt">clock_timestamp()
+      AND s."createdAt">clock_timestamp()-interval '8 hours'
+      AND a.user_id=s."userId" AND a.principal_id=p.id AND a.epoch=p.authorization_epoch
+      AND a.factor IN ('passkey_uv','password_totp') AND a.mfa_at<=clock_timestamp()
+    ) AS active`, [sessionId, userId, principalId, epoch]);
+    return rows[0]?.active === true;
+  }
   async transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
     const db = await this.pool.connect();
     try { await db.query("BEGIN"); const result = await fn(db); await db.query("COMMIT"); return result; }

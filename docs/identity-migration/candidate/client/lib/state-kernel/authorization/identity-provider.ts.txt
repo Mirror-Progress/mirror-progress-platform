@@ -1,0 +1,6 @@
+/** Server-owned switch. Unknown values fail closed; Cognito exists solely for rollback. */
+export function identityEnabled() {
+  const mode = process.env.AUTH_IDENTITY_PROVIDER;
+  if (mode !== undefined && mode !== 'cognito' && mode !== 'mirror') throw new Error('invalid_identity_provider');
+  return mode === 'mirror';
+}

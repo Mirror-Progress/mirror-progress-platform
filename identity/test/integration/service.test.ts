@@ -262,4 +262,17 @@ test("real provider completes the corrected bridge code/PKCE flow and rejects ca
   assert.equal(identity.assurance.kind, "pwd-otp"); assert.equal(identity.assurance.acr, null);
   assert.ok(identity.identitySessionId); assert.ok(Date.parse(identity.mfaVerifiedAt) <= Date.now());
   await assert.rejects(bridge.completeAuthorization(incoming, flowCookie, writer), /flow_replayed/);
+  const statusSecret = createHash("sha512").update(randomUUID()).digest("hex");
+  const statusApp = createApp({ ...config, sessionStatusSecret: statusSecret }, store, auth);
+  const body = { sessionId: identity.identitySessionId, subject: identity.subject, principalId: f.id, epoch: "0", requirePrivileged: false };
+  const check = (key = statusSecret, extra: Record<string, unknown> = {}, origin?: string) => statusApp(new Request(config.origin + "/internal/identity/session-status", {
+    method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", ...(origin ? { origin } : {}) },
+    body: JSON.stringify({ ...body, ...extra }),
+  }));
+  assert.deepEqual(await (await check()).json(), { active: true });
+  assert.equal((await check("wrong")).status, 401);
+  assert.equal((await check(statusSecret, {}, config.origin)).status, 401);
+  assert.deepEqual(await (await check(statusSecret, { subject: "another-user" })).json(), { active: false });
+  await store.revoke(identity.subject, "global_logout");
+  assert.deepEqual(await (await check()).json(), { active: false });
 });

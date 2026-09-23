@@ -29,4 +29,6 @@ downloadable patch/artifact; Codex applies and verifies it, then publishes PRs/C
 
 Local synthetic PostgreSQL uses a dedicated Docker container on loopback port
 55432. Production databases and accounts are not used by these tests. The service
-must also pass CI against PostgreSQL before any staging deployment.
+must pass reproducible local PostgreSQL verification before staging. September 22
+user authority supersedes the previous Actions requirement: monthly Actions quota
+is exhausted; local equivalent evidence is the validation path.

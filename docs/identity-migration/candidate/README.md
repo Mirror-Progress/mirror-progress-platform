@@ -1,27 +1,55 @@
-# Isolated application integration candidates
+# Verified-release application integration candidate
 
-These files were implemented and tested against the verified deployed application
-archive documented in `../BASELINE.md`, not the obsolete root `client/` checkout.
-They are stored with `.txt` suffixes to avoid accidentally including them in that
-checkout's build. Copy to the matching paths without `.txt` only when integrating
-into the verified application release. They do not activate authentication routes.
+These files were implemented and tested against the deployed application archive
+in `../BASELINE.md`, not the obsolete root client. The .txt suffix prevents them
+from entering that old checkout's build. The manifest records original and final
+hashes. `node apply-overlay.mjs` verifies the overlay; `--apply` writes only to the
+ignored migration-worktree `identity-release/client` sandbox. Other targets,
+symlinks and baseline conflicts are rejected. No deployment is performed.
 
-## Shared callback replay gate
+## Authentication and authorization
 
-The MongoDB adapter implements the bridge's `ConsumeFlow` interface: a unique
-hashed key, atomic insert, majority acknowledgement, explicit expiry and fail-closed
-database errors. TTL removes expired records but never determines authorization.
-No authorization code, browser state, access token or credential is stored.
+The candidate now includes `/api/auth/start` and `/api/auth/callback`, gated by
+`AUTH_IDENTITY_PROVIDER=mirror`. A reviewed issuer/subject mapping must match the
+signed principal; email never links accounts. Existing State Kernel principal,
+membership and policy checks still apply. Host-only opaque sessions carry an
+Identity binding and contain no provider bearer token. Every protected session
+resolution checks the mapping and current Identity session over authenticated
+HTTPS. Revocation, outage, kernel epoch changes, disabled mappings/memberships
+and policy changes fail closed. Privileged membership requires a fresh passkey
+at login plus the service's independent privileged approval gate.
 
-Six integration tests passed on isolated MongoDB 7 with the application's actual
-MongoDB 7.2 driver: concurrent consumers, independent flows, invalid inputs,
-abort/storage failure, expiry during a committed write and abort acquiring storage.
-The application passes typechecking. The adapter is not wired to the callback yet.
-Cloud DocumentDB compatibility, IAM/network configuration and staging remain open.
+Mirror mode rejects old-provider callbacks and legacy session fallback. Rollback
+mode rejects Mirror sessions and requires fresh Cognito login. Neither switch
+changes memberships or principal IDs.
 
-Separately, the isolated release's dependency-update candidate pins Next and
-eslint-config-next 15.5.26, nodemailer 9.1.1, and overrides postcss 8.5.28 and sharp
-0.35.4. Its registry-resolved lock, full application source and build remain in the
-isolated local candidate; no private release data is published here. Full build,
-13 existing authorization tests, image codec smoke tests and production npm audit
-(zero reported vulnerabilities) passed. This is not a deployed release.
+The callback uses the durable MongoDB flow-consumption adapter: unique hashed
+key, atomic majority insert, expiry validation, fail-closed errors and delayed
+TTL cleanup. No raw browser state, authorization code or token is stored.
+
+## Packaging and verification
+
+Build identity-bridge, pack it into `identity-release/client/vendor`, and install
+the tarball in that candidate. This avoids a symlink outside the Docker context.
+The resulting lockfile stays with the private verified release. Dockerfiles pin
+Node 24.19.0 by image manifest digest. The public RDS CA bundle is SHA-256
+`e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3`.
+
+The application passes typechecking, a full Next build and 26 checks: 13 existing
+authorization tests plus 13 real MongoDB checks (seven session/mapping and six
+flow-consumption checks). Service responses are injected in the app tests; the
+real status endpoint is separately checked with PostgreSQL/provider sessions.
+Combined deployed HTTPS app/service rehearsal and DocumentDB validation remain.
+
+Retained dependency updates: Next/eslint-config-next 15.5.26, nodemailer 9.1.1,
+postcss 8.5.28 and sharp 0.35.4. The earlier candidate passed dependency audit and
+image codec tests; see prior progress for scope. No private release datasets or
+lockfiles are published with this overlay.
+
+## Remaining release dependencies
+
+Invitation provisioning and MFA-reset administration still contain Cognito
+operations and must be migrated before switching production. Runtime mapping
+writes must be restricted to reviewed operator imports. Live delivery, operator
+enrollment, independent review, infrastructure/service readiness and tested
+cutover/rollback remain. No live mapping import, email or cutover has occurred.

@@ -2,9 +2,15 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID, randomInt, createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdtemp, chmod, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { chromium } from "playwright";
+import { createIdentityHttpServer } from "../../src/core/http.js";
 import { Pool } from "pg";
 import { getMigrations } from "better-auth/db/migration";
+import { hashPassword } from "better-auth/crypto";
 import { createAuth } from "../../src/auth.js";
 import { createApp } from "../../src/app.js";
 import type { Config } from "../../src/core/config.js";
@@ -73,8 +79,11 @@ async function delivered(f: Awaited<ReturnType<typeof fixture>>) {
 }
 before(async () => {
   await (await getMigrations(createAuth(config, new StagingStore(owner, config)).options)).runMigrations();
+  // This dedicated synthetic database is reused, but each run has a new encryption secret.
+  // Discard only its old synthetic signing keys so the library never decrypts with the wrong key.
+  await owner.query("DELETE FROM jwks");
   await owner.query("CREATE TABLE IF NOT EXISTS mirror_schema_migration(name text PRIMARY KEY, checksum text NOT NULL)");
-  for (const name of ["001-mirror-policy", "002-staging-enrollment"]) {
+  for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery"]) {
     const sql = await readFile(`migrations/${name}.sql`, "utf8"), checksum = createHash("sha256").update(sql).digest("hex");
     const prior = await owner.query("SELECT checksum FROM mirror_schema_migration WHERE name=$1", [name]);
     if (prior.rows.length) assert.equal(prior.rows[0].checksum, checksum);
@@ -168,4 +177,108 @@ test("real password session uses secure cookies but cannot authorize a privilege
   assert.equal((await (await browser.request("/api/identity/session")).json()).mfaCompleted, false);
   const audit = (await owner.query("SELECT actor,operator_login FROM mirror_staging_audit WHERE principal_id=$1 AND kind='independent-approve'", [f.id])).rows[0];
   assert.equal(audit.actor, operators[1]!.actor); assert.equal(audit.operator_login, "enrollment_test_operator_1");
+  const identity = await auth.api.getSession({ headers: browser.headers }); assert.ok(identity);
+  assert.equal(await store.sessionActive(identity.session.id, identity.user.id, f.id, f.epoch, true), false);
+  // SQL fixture for authorization-state checks ONLY: this is not a WebAuthn ceremony or human enrollment.
+  await owner.query("UPDATE mirror_assurance SET factor='passkey_uv',password_at=NULL,mfa_at=clock_timestamp() WHERE session_id=$1", [identity.session.id]);
+  assert.equal(await store.sessionActive(identity.session.id, identity.user.id, f.id, f.epoch, true), true);
+  assert.equal(await store.sessionActive(identity.session.id, 'another-subject', f.id, f.epoch, true), false);
+  await owner.query("UPDATE mirror_principal SET authorization_epoch=authorization_epoch+1 WHERE id=$1", [f.id]);
+  assert.equal(await store.sessionActive(identity.session.id, identity.user.id, f.id, f.epoch, true), false);
+});
+
+test("Chromium virtual passkey registration does not grant privilege; fresh UV after independent approval does", {
+  timeout: 60_000, skip: process.env.IDENTITY_BROWSER_TESTS !== '1',
+}, async () => {
+  // Own isolated browser, loopback HTTPS, fake mail, synthetic users and a virtual authenticator.
+  // This verifies browser/library interoperability, not human enrollment or a hardware authenticator.
+  const directory = await mkdtemp(join(tmpdir(), 'mirror-identity-browser-'));
+  const key = join(directory, 'key.pem'), cert = join(directory, 'cert.pem');
+  const generated = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+    '-subj', `/CN=${STAGING.rpId}`, '-addext', `subjectAltName=DNS:${STAGING.rpId}`, '-keyout', key, '-out', cert], { stdio: 'ignore' });
+  assert.equal(generated.status, 0); await chmod(key, 0o600);
+  // A nonprivileged loopback test port; the deployed staging allowlist is unchanged.
+  const browserConfig = { ...config, origin: config.origin + ':3443' };
+  const browserStore = new StagingStore(pool, browserConfig);
+  const browserApp = createApp(browserConfig, browserStore, createAuth(browserConfig, browserStore));
+  const server = createIdentityHttpServer(browserConfig.origin, browserApp, { key: await readFile(key), cert: await readFile(cert) });
+  try {
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(3443, '127.0.0.1', resolve); });
+    const browser = await chromium.launch({ headless: true, args: [`--host-resolver-rules=MAP ${STAGING.rpId} 127.0.0.1`, '--no-proxy-server'] });
+    try {
+      const context = await browser.newContext({ ignoreHTTPSErrors: true });
+      const page = await context.newPage();
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('WebAuthn.enable');
+      await cdp.send('WebAuthn.addVirtualAuthenticator', { options: {
+        protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true,
+        isUserVerified: true, automaticPresenceSimulation: true,
+      } });
+      const f = await fixture(true), mailbox = await delivered(f);
+      await page.goto(browserConfig.origin);
+      assert.equal(await page.title(), 'Mirror Identity · Staging enrollment');
+      await page.locator('#enroll [name=invitation]').fill(f.token);
+      await page.locator('#enroll [name=mailboxToken]').fill(mailbox);
+      await page.locator('#enroll [name=name]').fill('Synthetic Browser User');
+      await page.locator('#enroll [name=password]').fill(password);
+      let response = page.waitForResponse(r => r.url().endsWith('/api/identity/enroll'));
+      await page.locator('#enroll button').click(); assert.equal((await response).status(), 201);
+      await page.locator('#login [name=email]').fill(f.email); await page.locator('#login [name=password]').fill(password);
+      response = page.waitForResponse(r => r.url().endsWith('/api/auth/sign-in/email'));
+      await page.locator('#login button').click(); assert.equal((await response).status(), 200);
+      response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-registration'));
+      await page.locator('#passkey-register').click(); assert.equal((await response).status(), 200);
+      let state = await page.evaluate(async () => (await fetch('/api/identity/session')).json());
+      assert.equal(state.mfaCompleted, false);
+      response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication'));
+      await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
+      state = await page.evaluate(async () => (await fetch('/api/identity/session')).json()); assert.equal(state.mfaCompleted, false);
+      await operator(1, "SELECT mirror_staging_approve($1,$2,$3)", [f.id, f.epoch, `synthetic-browser-review-${run}`]);
+      state = await page.evaluate(async () => (await fetch('/api/identity/session')).json()); assert.equal(state.mfaCompleted, false);
+      response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication'));
+      await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
+      state = await page.evaluate(async () => (await fetch('/api/identity/session')).json());
+      assert.equal(state.mfaCompleted, true); assert.equal(state.principalId, f.id); assert.equal(state.assurance.method, 'passkey_uv');
+      await page.locator('#global-logout').click();
+      await page.waitForFunction(async () => (await fetch('/api/identity/session')).status === 401);
+    } finally { await browser.close(); }
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("assisted recovery needs two operators, has one atomic winner, revokes sessions and preserves identity", async () => {
+  const f = await fixture(true), mailbox = await delivered(f), browser = new Browser();
+  assert.equal((await browser.request('/api/identity/enroll', { invitation: f.token, mailboxToken: mailbox, name: 'Recovery fixture', password })).status, 201);
+  assert.equal((await browser.request('/api/auth/sign-in/email', { email: f.email, password })).status, 200);
+  const identity = await auth.api.getSession({ headers: browser.headers }); assert.ok(identity);
+  const requestId = randomUUID(), newPassword = opaqueToken(), hash = await hashPassword(newPassword);
+  await operator(0, 'SELECT mirror_staging_request_recovery($1,$2,$3,$4,$5)', [requestId, f.id, f.epoch, hash, `synthetic-recovery-${run}`]);
+  await assert.rejects(pool.query('SELECT mirror_staging_approve_recovery($1,$2)', [requestId, 'synthetic-denied']), /permission denied/);
+  await assert.rejects(operator(0, 'SELECT mirror_staging_approve_recovery($1,$2)', [requestId, `synthetic-recovery-${run}`]), /independent recovery approval required/);
+  const result = await Promise.allSettled(Array.from({ length: 4 }, () => operator(1, 'SELECT mirror_staging_approve_recovery($1,$2)', [requestId, `synthetic-recovery-${run}`])));
+  assert.equal(result.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal((await browser.request('/api/identity/session')).status, 401);
+  const principal = (await owner.query('SELECT id,disabled,authorization_epoch::text AS epoch FROM mirror_principal WHERE id=$1', [f.id])).rows[0];
+  assert.equal(principal.id, f.id); assert.equal(principal.disabled, false); assert.equal(principal.epoch, '9007199254740994');
+  assert.equal((await owner.query('SELECT user_id FROM mirror_binding WHERE principal_id=$1', [f.id])).rows[0].user_id, identity.user.id);
+  const recovery = (await owner.query('SELECT password_hash,consumed_at FROM mirror_staging_recovery WHERE id=$1', [requestId])).rows[0];
+  assert.equal(recovery.password_hash, null); assert.ok(recovery.consumed_at);
+  const next = new Browser();
+  assert.equal((await next.request('/api/auth/sign-in/email', { email: f.email, password: newPassword })).status, 200);
+  assert.equal((await (await next.request('/api/identity/session')).json()).mfaCompleted, false);
+  assert.equal((await owner.query("SELECT count(*) FROM mirror_security_outbox WHERE principal_id=$1 AND kind='recovery'", [f.id])).rows[0].count, '1');
+});
+test("disabled or changed-epoch recovery approvals fail without changing credentials or enabling the principal", async () => {
+  for (const mode of ['disabled', 'epoch']) {
+    const f = await fixture(), mailbox = await delivered(f);
+    await store.enrollWithMailbox(f.token, mailbox, 'Recovery reject fixture', 'original-synthetic-hash');
+    const id = randomUUID();
+    await operator(0, 'SELECT mirror_staging_request_recovery($1,$2,$3,$4,$5)', [id, f.id, f.epoch, await hashPassword(opaqueToken()), `synthetic-recovery-${run}`]);
+    await owner.query(mode === 'disabled' ? 'UPDATE mirror_principal SET disabled=true WHERE id=$1' : 'UPDATE mirror_principal SET authorization_epoch=authorization_epoch+1 WHERE id=$1', [f.id]);
+    await assert.rejects(operator(1, 'SELECT mirror_staging_approve_recovery($1,$2)', [id, `synthetic-recovery-${run}`]), /independent recovery approval required/);
+    assert.equal((await owner.query('SELECT a.password FROM "account" a JOIN mirror_binding b ON b.user_id=a."userId" WHERE b.principal_id=$1', [f.id])).rows[0].password, 'original-synthetic-hash');
+    assert.equal((await owner.query('SELECT consumed_at FROM mirror_staging_recovery WHERE id=$1', [id])).rows[0].consumed_at, null);
+  }
 });

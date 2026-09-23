@@ -1,0 +1,86 @@
+{
+  "format": "mirror-identity-application-overlay-v1",
+  "verifiedReleaseArchiveSha256": "b43b65206d6aea6bf815e256ea734e2da377d8ccb7e9c5da764c8277588af9e3",
+  "files": [
+    {
+      "path": "Dockerfile",
+      "baselineSha256": "3f0be51e9bec6075909e43f482cd004b2cc61fa4cb009a14cdbc6cb46fde54f6",
+      "sha256": "a8f828e5d774544675f5eae35224fe9041c65d0617a9ff2d9e5cd210c94e56a4"
+    },
+    {
+      "path": "certs/aws-rds-global-bundle.pem",
+      "baselineSha256": null,
+      "sha256": "e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3"
+    },
+    {
+      "path": "lib/state-kernel/authorization/identity-provider.ts",
+      "baselineSha256": null,
+      "sha256": "a87244b8cdd89960f93feebd86e490d22a6f1ef47040cbd3d0ec8659fa1b2049"
+    },
+    {
+      "path": "lib/state-kernel/authorization/identity-status.ts",
+      "baselineSha256": null,
+      "sha256": "41dfee52c7a3a01f631de6e3636efabe2a5b694ac734f96cec063b04404d8841"
+    },
+    {
+      "path": "lib/state-kernel/authorization/identity.ts",
+      "baselineSha256": null,
+      "sha256": "56841c5b6a9203f360e910587a1d4f6b04c1c4f4e9224b8d1968f9b19486dce9"
+    },
+    {
+      "path": "lib/state-kernel/authorization/identity-flow-store.ts",
+      "baselineSha256": "6625871222f986b470f1e7f2ffcd6ac932307e633306c8bea354daeda681740b",
+      "sha256": "5fda489d5c5e1358bb3d5803afc72856ae397fa4983da44f47ae043850641867"
+    },
+    {
+      "path": "lib/state-kernel/authorization/session.ts",
+      "baselineSha256": "646c40dadd21b50417980d215cbd5212f3ee43b30ee36aba168bfafb69ee0533",
+      "sha256": "beda48bcac5d3ac266611f7e7f7c669bf1c371f103216c7e3bfc5a44d84810f2"
+    },
+    {
+      "path": "lib/state-kernel/authorization/cognito.ts",
+      "baselineSha256": "6c53a350ed21f349d1b9a07d86310571c499cbd11c0072617c9ffca2a67d68b8",
+      "sha256": "e24d628f5bc0858ec8d69a73fc3e5e04b3fe826102e1657d3dc2da681a264672"
+    },
+    {
+      "path": "lib/state-kernel/types.ts",
+      "baselineSha256": "b959c836dd6d6ee0baa39660964c3e41cda5deb625e6e73294a4d012eeb1b335",
+      "sha256": "526ff489b4425949be36d35d8913c852a09be6b0b838e9d1444423b2042f6b97"
+    },
+    {
+      "path": "lib/auth-guards.ts",
+      "baselineSha256": "bb2aee9f5476744c9f94464f2e5230a3a3500af6021a808c918fdeb7642b4962",
+      "sha256": "83a26d96dca6cfe3f89ed64ac8dc119267fec489dbc8dd0cd7a0d2fb984fba4b"
+    },
+    {
+      "path": "pages/api/auth/start.ts",
+      "baselineSha256": null,
+      "sha256": "f7fee3df2c401bf84074fba6f88145a27ec3c9cd995fd87f44eb4d413d6b643a"
+    },
+    {
+      "path": "pages/api/auth/callback.ts",
+      "baselineSha256": null,
+      "sha256": "30deaf835f689a4a1d2c7de916561d55c2d17433cf8452169f027b208636afff"
+    },
+    {
+      "path": "pages/api/auth/cognito/start.ts",
+      "baselineSha256": "d4f96423dfc6450d4bc11fe098c11338d80c0d86748b755acd2ac616f6144fdc",
+      "sha256": "d89c0f1e82f68e3b9a26ca54e511200d38cac7b2e86d591e1a3f6226fa1e7ba9"
+    },
+    {
+      "path": "pages/api/auth/cognito/callback.ts",
+      "baselineSha256": "dd69b65d7a4d15eec3d07b5d4e742c7f9493150915f9b255a50427291d829111",
+      "sha256": "5bdb57dde0fb7d40d235d46456949d09b713ac03cf52689663048434a2b910e2"
+    },
+    {
+      "path": "tests/integration/identity-session.test.ts",
+      "baselineSha256": null,
+      "sha256": "34ea4e22344ff55bddd298b1978930f78339d2ea369a9cf69354c1cc29fb1435"
+    },
+    {
+      "path": "tests/integration/identity-flow-store.test.ts",
+      "baselineSha256": "18e520d1b3f69d1e5c9cbf4a176021197d2f72068ed6246e8e61e63c3e2b2626",
+      "sha256": "18e520d1b3f69d1e5c9cbf4a176021197d2f72068ed6246e8e61e63c3e2b2626"
+    }
+  ]
+}

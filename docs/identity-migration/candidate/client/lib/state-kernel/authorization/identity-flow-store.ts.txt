@@ -51,5 +51,5 @@ export function createIdentityFlowConsumer(database: () => Promise<Db>, now = Da
   };
 }
 
-// Not attached to a route until the provider-backed callback has passed review.
+// Shared by the explicit Mirror callback; no in-memory production fallback.
 export const consumeIdentityFlow = createIdentityFlowConsumer(getDb);

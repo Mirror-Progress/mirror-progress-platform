@@ -1,6 +1,7 @@
 import { PolicyError } from "./policy.js";
 import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
+  sessionStatusSecret?: string;
   mode?: "staging";
   staging?: { rpId: string; deliveryKey: string; certFile: string; keyFile: string };
   origin: string;
@@ -38,6 +39,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // No wildcard, URL normalization, dynamic port, or caller-controlled redirect registration.
     redirectUris: ["http://localhost:3000/api/auth/callback"],
   };
+}
+
+export function sessionStatusSecret(env: NodeJS.ProcessEnv): string | undefined {
+  const value = env.IDENTITY_SESSION_STATUS_SECRET;
+  if (value === undefined) return undefined; // Endpoint is unavailable until explicitly configured.
+  if (value.length < 48 || value.length > 256 || /replace|placeholder|change[-_]?me/i.test(value) ||
+      value === env.BETTER_AUTH_SECRET || value === env.IDENTITY_DELIVERY_KEY) throw new PolicyError("separate_session_status_secret_required", 500);
+  return value;
 }
 
 /** A service process must not receive migration/operator credentials. */

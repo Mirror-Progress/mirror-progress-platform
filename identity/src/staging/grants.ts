@@ -15,5 +15,6 @@ GRANT INSERT ON mirror_binding,mirror_staging_enrollment TO mirror_identity_stag
 GRANT UPDATE (consumed_at) ON mirror_staging_invitation TO mirror_identity_staging_runtime;
 GRANT EXECUTE ON FUNCTION mirror_lock_principal(text),mirror_revoke_subject(text,text) TO mirror_identity_staging_runtime;
 GRANT EXECUTE ON FUNCTION mirror_staging_reconcile(text,bigint,text,text),mirror_staging_issue(text,bigint,text,text),
-  mirror_staging_approve(text,bigint,text) TO mirror_identity_staging_operator;
+  mirror_staging_approve(text,bigint,text),mirror_staging_request_recovery(text,text,bigint,text,text),
+  mirror_staging_approve_recovery(text,text) TO mirror_identity_staging_operator;
 `;

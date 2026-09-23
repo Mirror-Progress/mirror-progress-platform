@@ -1,0 +1,40 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { pagesCookieResponse } from '@mirror-progress/identity-bridge';
+import { identityBridge, resolveMirrorIdentity } from '../../../lib/state-kernel/authorization/identity';
+import { identityEnabled } from '../../../lib/state-kernel/authorization/identity-provider';
+import { identitySessionActive } from '../../../lib/state-kernel/authorization/identity-status';
+import { AuthorizationStore } from '../../../lib/state-kernel/authorization/store';
+import { createOpaqueAuthorizationSession } from '../../../lib/state-kernel/authorization/session';
+import { activateInvitedPortalIdentity } from '../../../lib/client-portal/onboarding';
+import { activateInvitedStudioIqIdentity } from '../../../lib/studioiq-account-provisioning';
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
+  if (req.method !== 'GET') return res.status(405).end();
+  if (process.env.SITE_SURFACE === 'campaign' || !identityEnabled()) return res.status(404).end();
+  try {
+    const bridge = identityBridge();
+    const identity = await bridge.completeAuthorization({ method: 'GET', rawUrl: req.url ?? '' },
+      bridge.readFlowCookie(req.headers.cookie, req.query.state), pagesCookieResponse(res));
+    const resolved = await resolveMirrorIdentity(identity), store = new AuthorizationStore();
+    let principal = resolved.principal;
+    const scope = { tenantId: principal.tenantId, workspaceId: principal.workspaceId };
+    const before = await store.getMembership(principal.principalId, scope);
+    if (!before || before.status === 'disabled') return res.status(404).end();
+    // State Kernel determines privilege; a misclassified provider principal cannot weaken this gate.
+    if (before.roles.some(role => role !== 'client') && (identity.assurance.kind !== 'passkey-uv' ||
+      Date.now() - identity.authTime * 1000 >= 300_000)) return res.status(404).end();
+    resolved.binding.requirePrivileged = before.roles.some(role => role !== 'client');
+    if (!await identitySessionActive(resolved.binding)) return res.status(404).end();
+    if (principal.status === 'invited') await activateInvitedPortalIdentity(principal.cognitoSubject);
+    // Historical subject is only a key to existing invitations, never an authentication lookup.
+    await activateInvitedStudioIqIdentity(principal.cognitoSubject);
+    principal = (await store.getPrincipal(principal.principalId))!;
+    if (!principal || principal.status !== 'active' || principal.tenantId !== scope.tenantId || principal.workspaceId !== scope.workspaceId) return res.status(404).end();
+    const membership = await store.getMembership(principal.principalId, scope), head = await store.getActivePolicyHead(scope);
+    if (!membership || membership.status !== 'active' || !head || (head.breakGlassExpiresAt && Date.parse(head.breakGlassExpiresAt) <= Date.now())) return res.status(404).end();
+    await createOpaqueAuthorizationSession({ res, principalId: principal.principalId, membershipId: membership.membershipId,
+      scope, policyRevisionId: head.policyRevisionId, authorizationEpoch: principal.authorizationEpoch,
+      mfaVerifiedAt: identity.mfaVerifiedAt, identityBinding: resolved.binding });
+    return res.redirect(302, identity.returnTo);
+  } catch { return res.status(404).end(); }
+}

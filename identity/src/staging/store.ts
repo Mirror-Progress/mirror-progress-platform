@@ -19,6 +19,32 @@ export class StagingStore extends Store {
     if (p.disabled) throw new PolicyError("principal_disabled");
   }
   override async enroll(): Promise<never> { throw new PolicyError("mailbox_proof_required", 401); }
+  override async sessionActive(sessionId: string, userId: string, principalId: string, epoch: string, requirePrivileged = false): Promise<boolean> {
+    const { rows } = await this.pool.query(`SELECT EXISTS (
+      SELECT 1 FROM "session" s JOIN mirror_binding b ON b.user_id=s."userId"
+      JOIN "user" u ON u.id=s."userId" JOIN mirror_principal p ON p.id=b.principal_id
+      JOIN mirror_assurance a ON a.session_id=s.id
+      JOIN mirror_staging_enrollment e ON e.user_id=u.id AND e.principal_id=p.id AND e.email=u.email
+      JOIN mirror_staging_invitation i ON i.digest=e.invitation_digest AND i.consumed_at IS NOT NULL
+      JOIN mirror_staging_mailbox m ON m.id=e.mailbox_id AND m.invitation_digest=i.digest AND m.consumed_at IS NOT NULL
+      JOIN mirror_staging_delivery d ON d.id=m.id AND d.accepted_at IS NOT NULL
+      JOIN mirror_staging_reconciliation r ON r.principal_id=i.principal_id AND r.epoch=i.epoch AND r.email=i.email
+      WHERE s.id=$1 AND s."userId"=$2 AND p.id=$3 AND p.authorization_epoch::text=$4
+      AND (NOT $5::boolean OR p.privileged)
+      AND NOT p.disabled AND u."emailVerified" AND s."expiresAt">clock_timestamp()
+      AND s."createdAt">clock_timestamp()-interval '8 hours'
+      AND a.user_id=u.id AND a.principal_id=p.id AND a.epoch=p.authorization_epoch
+      AND a.factor IN ('passkey_uv','password_totp') AND a.mfa_at<=clock_timestamp()
+      AND (NOT p.privileged OR (a.factor='passkey_uv' AND EXISTS (
+        SELECT 1 FROM mirror_staging_approval o WHERE o.principal_id=p.id AND o.user_id=u.id
+        AND o.email=u.email AND o.epoch=p.authorization_epoch AND o.approver NOT IN (p.id,i.issuer,r.reconciler)
+        AND o.approved_at<a.mfa_at AND o.expires_at>clock_timestamp()
+        AND o.approved_at=(SELECT max(newest.approved_at) FROM mirror_staging_approval newest
+          WHERE newest.principal_id=p.id AND newest.user_id=u.id AND newest.epoch=p.authorization_epoch)
+      )))
+    ) AS active`, [sessionId, userId, principalId, epoch, requirePrivileged]);
+    return rows[0]?.active === true;
+  }
   override async authorize(sessionId: string, expectedUserId?: string, maxAge?: number) {
     // One database snapshot for binding, epoch, mailbox evidence, approval, and assurance.
     const { rows } = await this.pool.query(`SELECT s."userId" AS user_id,s."expiresAt" AS session_expires,

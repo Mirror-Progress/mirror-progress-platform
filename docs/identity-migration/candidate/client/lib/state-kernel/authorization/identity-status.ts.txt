@@ -1,0 +1,26 @@
+import { identityEnabled } from './identity-provider';
+export interface IdentitySessionBinding { issuer: string; subject: string; principalId: string; epoch: string; sessionId: string; requirePrivileged: boolean }
+export async function identitySessionActive(binding: IdentitySessionBinding): Promise<boolean> {
+  if (!identityEnabled()) return false;
+  const issuer = process.env.IDENTITY_ISSUER;
+  const secret = process.env.IDENTITY_SESSION_STATUS_SECRET ?? '';
+  if (!issuer || binding.issuer !== issuer || secret.length < 48 || secret.length > 256) return false;
+  const url = new URL(issuer);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/api/auth') return false;
+  try {
+    const response = await fetch(`${url.origin}/internal/identity/session-status`, { method: 'POST', redirect: 'error',
+      cache: 'no-store', signal: AbortSignal.timeout(3000), headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ subject: binding.subject, principalId: binding.principalId, epoch: binding.epoch, sessionId: binding.sessionId, requirePrivileged: binding.requirePrivileged }) });
+    if (!response.ok || response.redirected || response.headers.get('content-type')?.split(';')[0] !== 'application/json') return false;
+    const reader = response.body?.getReader(); if (!reader) return false;
+    let text = '';
+    try {
+      for (;;) { const { done, value } = await reader.read(); if (done) break;
+        if (text.length + value.length > 128) return false;
+        text += new TextDecoder().decode(value);
+      }
+    } finally { await reader.cancel().catch(() => undefined); }
+    const result = JSON.parse(text);
+    return result?.active === true && Object.keys(result).length === 1;
+  } catch { return false; }
+}

@@ -1,5 +1,7 @@
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { decimalEpoch } from "./core/staging-policy.js";
 import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } from "@better-auth/oauth-provider";
 import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
@@ -102,6 +104,20 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       await store.pool.query('SELECT id FROM "user" LIMIT 0');
       await store.pool.query("SELECT session_id FROM mirror_assurance LIMIT 0");
       return json({ status: staging ? "staging-review-required" : "local-foundation", productionReady: false });
+    }
+    if (url.pathname === "/internal/identity/session-status") {
+      if (!config.sessionStatusSecret || request.method !== "POST") throw new PolicyError("route_not_exposed", 404);
+      const presented = request.headers.get("authorization") ?? "";
+      if (request.headers.has("origin") || !timingSafeEqual(
+        createHash("sha256").update(presented).digest(),
+        createHash("sha256").update(`Bearer ${config.sessionStatusSecret}`).digest())) throw new PolicyError("service_authentication_required", 401);
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 5 || typeof body.requirePrivileged !== "boolean" || Object.keys(body).some(k => !["sessionId", "subject", "principalId", "epoch", "requirePrivileged"].includes(k))) {
+        throw new PolicyError("invalid_session_status_request", 400);
+      }
+      const active = await store.sessionActive(stringField(body, "sessionId", 1, 255), stringField(body, "subject", 1, 255),
+        stringField(body, "principalId", 1, 255), decimalEpoch(body.epoch), body.requirePrivileged);
+      return json({ active });
     }
     await store.rateLimit(`ip:${ip}`, 60);
     const origin = request.headers.get("origin");

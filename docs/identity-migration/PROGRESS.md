@@ -1,5 +1,28 @@
 # Migration progress
 
+## Application, browser and recovery checkpoint — September 22
+
+The verified-release application sandbox now builds with explicit issuer/subject
+mapping, Mirror callback routing, durable replay consumption and online revocation
+checks, preserving State Kernel roles/memberships and principal IDs. All 26 app
+checks pass, including 13 real MongoDB checks. The 16-file published code overlay
+and baseline hashes exclude private release data; see candidate/README.md.
+
+Ten staging PostgreSQL/browser checks pass with no skips, including a real
+Chromium virtual passkey ceremony over loopback HTTPS: registration and preapproval
+assertion deny privileged access; fresh UV after independent approval permits it;
+global logout invalidates the session. Two-operator assisted recovery is implemented
+and tested, including concurrency/replay/disabled/epoch rejection. These use fake
+mail, synthetic users/operators and a virtual authenticator, not real enrollment.
+Service build, 131 units and 18 provider/PostgreSQL checks pass. An updated Node 24
+container passed non-root/read-only database readiness and invalid Host checks;
+this image predates migration 003 and must be rebuilt for a later recovery release.
+
+Independent infrastructure foundation typecheck/offline synthesis tests pass. No
+AWS resources were provisioned. Service/ALB/task configuration, secret rotation,
+production provisioning lifecycle, real delivery, combined staging rehearsal,
+human privileged enrollment and independent security review remain open.
+
 ## Replacement task verified checkpoint — September 22
 
 Correct enrollment source received and integrated with reviewed baseline fixes.
