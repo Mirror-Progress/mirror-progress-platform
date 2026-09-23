@@ -50,6 +50,7 @@ export function enrollmentMessage(code: unknown): string {
     independent_operator_approval_required: "Your passkey can be registered, but privileged access is waiting for independent operator approval.",
     fresh_passkey_after_approval_required: "Operator approval requires a new passkey authentication. Registering a passkey is not authentication.",
     privileged_passkey_required: "Privileged identities must register and authenticate with a passkey. TOTP cannot grant privileged access.",
+    fresh_password_required: "Your setup session expired. Sign in with your password again to finish passkey setup.",
     principal_disabled: "This identity is disabled. Contact your operator. Enrollment cannot enable it.",
     mfa_required: "Complete a fresh password and TOTP login, or authenticate with your passkey.",
     mfa_expired: "Your authentication is no longer fresh. Sign in again with your required factors.",

@@ -89,17 +89,16 @@ export class Store {
           passwordAt === null ? null : new Date(passwordAt), mfaAt === null ? null : new Date(mfaAt), factor, new Date(expiresAt)]);
     });
   }
-  async freshEnrollmentSession(identity: SessionIdentity): Promise<void> {
+  async freshEnrollmentSession(identity: SessionIdentity, maxPasswordAgeMs = 300_000): Promise<void> {
     this.assertCredentialPrincipal(await this.principal(identity.user.id));
     const { rows } = await this.pool.query(`SELECT a.password_at, a.expires_at, a.epoch::text,
       p.authorization_epoch::text AS current_epoch FROM mirror_assurance a
       JOIN mirror_principal p ON p.id=a.principal_id WHERE a.session_id=$1 AND a.user_id=$2`,
       [identity.session.id, identity.user.id]);
     const r = rows[0];
-    if (!r || r.epoch !== r.current_epoch || !r.password_at || Date.now() - millis(r.password_at) >= 300_000 ||
+    if (!r || r.epoch !== r.current_epoch || !r.password_at || Date.now() - millis(r.password_at) >= maxPasswordAgeMs ||
         millis(r.password_at) > Date.now() || millis(r.expires_at) <= Date.now()) {
-      // A recent passkey ceremony also permits ordinary credential management.
-      await this.authorize(identity.session.id, identity.user.id, 300_000);
+      throw new PolicyError("fresh_password_required", 401);
     }
   }
   async enroll(rawToken: unknown, name: string, passwordHash: string): Promise<{ userId: string; email: string }> {

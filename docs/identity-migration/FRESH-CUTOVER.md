@@ -44,3 +44,21 @@ Earlier documents in this directory describe staging rehearsals and an
 abandoned account-migration proposal. Their statements that production remains
 on Cognito or that legacy-account reconciliation is a cutover gate were
 superseded by this user-authorized fresh-install decision.
+
+## First-owner sign-in correction
+
+The first owner verified the mailbox, created credentials, and established a
+password session, but did not register a passkey or complete privileged sign-in.
+The first passkey registration window expired after five minutes and reported
+`privileged_passkey_required`, which left the old five-card page with an
+unhelpful error. The production page now presents password and passkey as two
+actions. After password sign-in it starts passkey creation when needed, then
+fresh passkey authentication, and opens the application only after the Identity
+session reports completed MFA. A stale setup session returns
+`fresh_password_required` with a clear instruction to sign in again. The first
+passkey enrollment window is fifteen minutes for a fresh production account.
+
+The correction passed 152 unit tests and 12 staging plus 12 production hosted
+enrollment checks, including a Chromium virtual passkey flow, the application
+callback, and a stale-password regression. These are synthetic checks; they do
+not establish that the owner's device passkey ceremony has succeeded.

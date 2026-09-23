@@ -196,7 +196,20 @@ test("real password session uses secure cookies but cannot authorize a privilege
   assert.equal(await store.sessionActive(identity.session.id, identity.user.id, f.id, f.epoch, true), false);
 });
 
-test("Chromium virtual passkey registration does not grant privilege; fresh UV after independent approval does", {
+test("expired first-passkey setup asks for a fresh password sign-in", async () => {
+  const f = await fixture(true), mailbox = await delivered(f), browser = new Browser();
+  assert.equal((await browser.request("/api/identity/enroll", { invitation: f.token, mailboxToken: mailbox, name: "Synthetic", password })).status, 201);
+  assert.equal((await browser.request("/api/auth/sign-in/email", { email: f.email, password })).status, 200);
+  const identity = await auth.api.getSession({ headers: browser.headers }); assert.ok(identity);
+  await owner.query("UPDATE mirror_assurance SET password_at=clock_timestamp()-INTERVAL '16 minutes' WHERE user_id=$1", [identity.user.id]);
+  const expired = await browser.request("/api/auth/passkey/generate-register-options");
+  assert.equal(expired.status, 401);
+  assert.equal((await expired.json()).error, "fresh_password_required");
+  assert.equal((await browser.request("/api/auth/sign-in/email", { email: f.email, password })).status, 200);
+  assert.equal((await browser.request("/api/auth/passkey/generate-register-options")).status, 200);
+});
+
+test("Chromium completes staging approval and fresh production password-to-passkey sign-in", {
   timeout: 60_000, skip: process.env.IDENTITY_BROWSER_TESTS !== '1',
 }, async () => {
   // Own isolated browser, loopback HTTPS, fake mail, synthetic users and a virtual authenticator.
@@ -207,7 +220,7 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
     '-subj', `/CN=${PROFILE.rpId}`, '-addext', `subjectAltName=DNS:${PROFILE.rpId}`, '-keyout', key, '-out', cert], { stdio: 'ignore' });
   assert.equal(generated.status, 0); await chmod(key, 0o600);
   // A nonprivileged loopback test port; the deployed staging allowlist is unchanged.
-  const browserConfig = { ...config, origin: config.origin + ':3443' };
+  const browserConfig = { ...config, origin: config.origin + ':3443', freshInstall: production };
   const browserStore = new StagingStore(pool, browserConfig);
   const browserApp = createApp(browserConfig, browserStore, createAuth(browserConfig, browserStore));
   const server = createIdentityHttpServer(browserConfig.origin, browserApp, { key: await readFile(key), cert: await readFile(cert) });
@@ -224,8 +237,8 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
         isUserVerified: true, automaticPresenceSimulation: true,
       } });
       const f = await fixture(true), mailbox = await delivered(f);
-      await page.goto(browserConfig.origin);
-      assert.equal(await page.title(), production ? 'Mirror Identity · Sign in' : 'Mirror Identity · Staging enrollment');
+      await page.goto(browserConfig.origin + (production ? `/#invitation=${f.token}&mailboxToken=${mailbox}` : ''));
+      assert.equal(await page.title(), production ? 'Mirror Progress · Sign in' : 'Mirror Identity · Staging enrollment');
       await page.locator('#enroll [name=invitation]').fill(f.token);
       await page.locator('#enroll [name=mailboxToken]').fill(mailbox);
       await page.locator('#enroll [name=name]').fill('Synthetic Browser User');
@@ -234,21 +247,31 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
       await page.locator('#enroll button').click(); assert.equal((await response).status(), 201);
       await page.locator('#login [name=email]').fill(f.email); await page.locator('#login [name=password]').fill(password);
       response = page.waitForResponse(r => r.url().endsWith('/api/auth/sign-in/email'));
+      const registration = production ? page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-registration')) : null;
+      const authentication = production ? page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication')) : null;
       await page.locator('#login button').click(); assert.equal((await response).status(), 200);
-      response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-registration'));
-      await page.locator('#passkey-register').click(); assert.equal((await response).status(), 200);
-      let state = await page.evaluate(async () => (await fetch('/api/identity/session')).json());
-      assert.equal(state.mfaCompleted, false);
-      response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication'));
-      await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
-      state = await page.evaluate(async () => (await fetch('/api/identity/session')).json()); assert.equal(state.mfaCompleted, false);
-      await operator(1, "SELECT mirror_staging_approve($1,$2,$3)", [f.id, f.epoch, `synthetic-browser-review-${run}`]);
-      state = await page.evaluate(async () => (await fetch('/api/identity/session')).json()); assert.equal(state.mfaCompleted, false);
-      response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication'));
-      await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
+      let state;
+      if (production) {
+        assert.equal((await registration!).status(), 200);
+        assert.equal((await authentication!).status(), 200);
+        await page.waitForFunction(async () => (await (await fetch('/api/identity/session')).json()).mfaCompleted === true);
+      } else {
+        response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-registration'));
+        await page.locator('#passkey-register').click(); assert.equal((await response).status(), 200);
+        state = await page.evaluate(async () => (await fetch('/api/identity/session')).json());
+        assert.equal(state.mfaCompleted, false);
+        response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication'));
+        await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
+        state = await page.evaluate(async () => (await fetch('/api/identity/session')).json()); assert.equal(state.mfaCompleted, false);
+        await operator(1, "SELECT mirror_staging_approve($1,$2,$3)", [f.id, f.epoch, `synthetic-browser-review-${run}`]);
+        state = await page.evaluate(async () => (await fetch('/api/identity/session')).json()); assert.equal(state.mfaCompleted, false);
+        response = page.waitForResponse(r => r.url().endsWith('/api/auth/passkey/verify-authentication'));
+        await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
+      }
       state = await page.evaluate(async () => (await fetch('/api/identity/session')).json());
       assert.equal(state.mfaCompleted, true); assert.equal(state.principalId, f.id); assert.equal(state.assurance.method, 'passkey_uv');
       const revoke = async () => {
+        if (production) await page.locator('#account-controls summary').click();
         await page.locator('#global-logout').click();
         await page.waitForFunction(async () => (await fetch('/api/identity/session')).status === 401);
       };

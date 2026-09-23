@@ -5,6 +5,7 @@ dist/
 .env.*
 !env.example
 public/app.js
+public/production-app.js
 artifacts/
 synthetic-invitation.json
 *.log

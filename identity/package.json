@@ -7,7 +7,7 @@
     "node": ">=22.16.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && esbuild src/browser/app.ts --bundle --format=esm --target=es2022 --outfile=public/app.js",
+    "build": "tsc -p tsconfig.json && esbuild src/browser/app.ts --bundle --format=esm --target=es2022 --outfile=public/app.js && esbuild src/browser/production.ts --bundle --format=esm --target=es2022 --outfile=public/production-app.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node --env-file-if-exists=.env dist/src/server.js",
     "migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.operator dist/scripts/migrate.js",

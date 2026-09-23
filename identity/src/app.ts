@@ -77,7 +77,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       COALESCE(u."twoFactorEnabled",false) OR EXISTS(SELECT 1 FROM passkey p WHERE p."userId"=u.id) AS enrolled
       FROM "user" u WHERE u.id=$1`, [identity.user.id]);
     if (rows[0]?.enrolled) await store.authorize(identity.session.id, identity.user.id, 300_000);
-    else await store.freshEnrollmentSession(identity);
+    else await store.freshEnrollmentSession(identity, config.mode === "production" && config.freshInstall ? 900_000 : 300_000);
   };
   const handle = async (request: Request, ip: string): Promise<Response> => {
   const invoke = (request: Request, path: string, body?: unknown, freshLogin = false) => {
@@ -92,8 +92,9 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
   };
     const url = new URL(request.url);
     if (url.origin !== config.origin) throw new PolicyError("invalid_origin", 400);
-    if (request.method === "GET" && ["/", "/consent", "/app.js", "/style.css"].includes(url.pathname)) {
-      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/style.css" ? "style.css" : config.mode === "production" ? "production.html" : staging ? "staging.html" : "index.html";
+    if (url.pathname === "/production-app.js" && config.mode !== "production") throw new PolicyError("not_found", 404);
+    if (request.method === "GET" && ["/", "/consent", "/app.js", "/production-app.js", "/style.css"].includes(url.pathname)) {
+      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/production-app.js" && config.mode === "production" ? "production-app.js" : url.pathname === "/style.css" ? "style.css" : config.mode === "production" ? "production.html" : staging ? "staging.html" : "index.html";
       const data = await readFile(join(process.cwd(), "public", file));
       return new Response(new Uint8Array(data), { headers: {
         "content-type": file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html; charset=utf-8",
@@ -156,13 +157,17 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     }
     if (request.method === "GET" && url.pathname === "/api/identity/session") {
       const identity = await requiredSession(request.headers);
+      const passkeyRegistered = config.mode === "production" ? (await store.pool.query<{ registered: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM passkey WHERE "userId"=$1) AS registered`, [identity.user.id])).rows[0]?.registered === true : undefined;
       try {
         const { principal, evidence } = await store.authorize(identity.session.id, identity.user.id);
         return json({ authenticated: true, mfaCompleted: true, principalId: principal.id,
-          assurance: { method: evidence.factor, verifiedAt: evidence.mfaAt, expiresAt: evidence.expiresAt } });
+          assurance: { method: evidence.factor, verifiedAt: evidence.mfaAt, expiresAt: evidence.expiresAt },
+          ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
       } catch (error) {
         if (!(error instanceof PolicyError)) throw error;
-        return json({ authenticated: true, mfaCompleted: false, reason: error.code });
+        return json({ authenticated: true, mfaCompleted: false, reason: error.code,
+          ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
       }
     }
     if (request.method === "POST" && url.pathname === "/api/identity/global-logout") {
