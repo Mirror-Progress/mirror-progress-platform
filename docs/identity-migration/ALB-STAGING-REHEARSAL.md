@@ -92,3 +92,6 @@ Cognito start returns 302 to the saved staging Cognito domain with S256 and orig
 callback, and Mirror start returns 404. This establishes live provider-route rollback,
 not a completed authenticated user session. Temporary tester-only SG/WAF entries
 were removed; existing staging restrictions remain.
+
+Further bounded evidence: [image advisory applicability](IMAGE-ADVISORY-REVIEW.md)
+and [production readiness/permission reconciliation](PRODUCTION-READINESS.md).
