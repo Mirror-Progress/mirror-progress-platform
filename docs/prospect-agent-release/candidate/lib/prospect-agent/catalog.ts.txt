@@ -1,0 +1,144 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { listPublishedStudioIqIntelligence } from '../research-intelligence';
+import { listStudioIqPortfolioPrecedents } from '../studioiq-collaboration';
+import type { StudioIqProductAccessIdentity } from '../studioiq-collaboration';
+
+export type ProspectProject = {
+  id: string;
+  kind: 'opportunity' | 'portfolio_project';
+  title: string;
+  description: string;
+  stage: string | null;
+  buyer: string | null;
+  location: string | null;
+  deadline: string | null;
+  projectType: string | null;
+  score: number | null;
+  summary: string | null;
+  risks: string[];
+  nextActions: string[];
+  evidence: Array<{ summary: string; sourceUrl: string | null; authority: string | null }>;
+  sourceUrl: string | null;
+  updatedAt: string | null;
+};
+
+export type ProspectCatalog = {
+  source: 'local_research_sample' | 'prospect_workspace';
+  projects: ProspectProject[];
+  loadedAt: string;
+};
+
+type LocalCandidate = {
+  externalKey: string; title: string; description?: string; stage?: string; buyerName?: string;
+  country?: string; city?: string; projectType?: string; deadline?: string;
+  sourceUrl?: string; detailUrl?: string; warnings?: string[];
+};
+type LocalEvidence = { summary?: string; supportText?: string; sourceUrl?: string; sourceAuthority?: string };
+type LocalRun = { candidates?: LocalCandidate[]; evidence?: LocalEvidence[]; completedAt?: string };
+
+const localFiles = [
+  'united-states-discovery.json', 'united-kingdom-discovery.json',
+  'canada-discovery.json', 'australia-discovery.json', 'brazil-discovery.json',
+];
+
+export async function loadLocalProspectCatalog(): Promise<ProspectCatalog> {
+  const runs = await Promise.all(localFiles.map(async (name) => JSON.parse(await readFile(
+    join(process.cwd(), 'data/studioiq/research-runs/2026-07-21', name), 'utf8'
+  )) as LocalRun));
+  const projects = runs.flatMap((run) => (run.candidates ?? []).map((candidate) => ({
+    id: candidate.externalKey,
+    kind: 'opportunity' as const,
+    title: candidate.title,
+    description: candidate.description ?? '',
+    stage: candidate.stage ?? null,
+    buyer: candidate.buyerName ?? null,
+    location: [candidate.city, candidate.country].filter(Boolean).join(', ') || null,
+    deadline: candidate.deadline ?? null,
+    projectType: candidate.projectType ?? null,
+    score: null,
+    summary: null,
+    risks: candidate.warnings ?? [],
+    nextActions: [],
+    evidence: (run.evidence ?? []).map((item) => ({
+      summary: item.summary ?? item.supportText ?? '',
+      sourceUrl: item.sourceUrl ?? null,
+      authority: item.sourceAuthority ?? null,
+    })),
+    sourceUrl: candidate.detailUrl ?? candidate.sourceUrl ?? null,
+    updatedAt: run.completedAt ?? null,
+  })));
+  return { source: 'local_research_sample', projects, loadedAt: new Date().toISOString() };
+}
+
+export async function loadWorkspaceProspectCatalog(access: StudioIqProductAccessIdentity): Promise<ProspectCatalog> {
+  const [intelligence, portfolio] = await Promise.all([
+    listPublishedStudioIqIntelligence({
+      mirrorClientId: access.mirrorClientId,
+      externalOrganizationId: access.externalOrganizationId,
+    }),
+    listStudioIqPortfolioPrecedents(access),
+  ]);
+  const opportunities: ProspectProject[] = intelligence.opportunities.map(({ candidate, pursuitBrief, evidence }) => ({
+    id: candidate.id,
+    kind: 'opportunity',
+    title: candidate.title,
+    description: candidate.description,
+    stage: candidate.stage,
+    buyer: candidate.buyerName ?? null,
+    location: [candidate.city, candidate.country].filter(Boolean).join(', ') || null,
+    deadline: candidate.deadline ?? null,
+    projectType: candidate.projectType ?? null,
+    score: candidate.valueScore ?? null,
+    summary: pursuitBrief?.summary ?? null,
+    risks: pursuitBrief?.risks ?? candidate.warnings ?? [],
+    nextActions: pursuitBrief?.recommendedActions ?? [],
+    evidence: evidence.map((item) => ({
+      summary: item.summary || item.supportText || item.title,
+      sourceUrl: item.sourceUrl ?? null,
+      authority: item.sourceAuthority ?? null,
+    })),
+    sourceUrl: candidate.detailUrl ?? candidate.sourceUrl ?? null,
+    updatedAt: candidate.updatedAt ?? null,
+  }));
+  const precedents: ProspectProject[] = portfolio.precedents.map((item) => ({
+    id: item.precedent_id,
+    kind: 'portfolio_project',
+    title: item.name,
+    description: item.summary,
+    stage: item.source_status,
+    buyer: null,
+    location: item.location,
+    deadline: null,
+    projectType: item.project_types.join(', ') || null,
+    score: null,
+    summary: item.summary,
+    risks: [],
+    nextActions: [],
+    evidence: [],
+    sourceUrl: item.source_url,
+    updatedAt: item.updated_at,
+  }));
+  return { source: 'prospect_workspace', projects: [...opportunities, ...precedents], loadedAt: new Date().toISOString() };
+}
+
+export function projectSummary(project: ProspectProject) {
+  return {
+    id: project.id, kind: project.kind, title: project.title, location: project.location,
+    stage: project.stage, deadline: project.deadline, projectType: project.projectType,
+    buyer: project.buyer, score: project.score, sourceUrl: project.sourceUrl,
+  };
+}
+
+export function searchProjects(catalog: ProspectCatalog, query: string, limit = 8) {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
+  return catalog.projects.map((project) => {
+    const haystack = [project.title, project.description, project.location, project.projectType,
+      project.buyer, project.stage, project.summary, ...project.risks, ...project.nextActions]
+      .filter(Boolean).join(' ').toLowerCase();
+    return { project, score: terms.reduce((score, term) => score + (haystack.includes(term) ? 1 : 0), 0) };
+  }).filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, Math.min(20, limit)))
+    .map(({ project }) => project);
+}

@@ -1,0 +1,82 @@
+import type { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { StudioIqTerminal } from '../../../components/studioiq/StudioIqTerminal';
+import { getSessionAccountFromContext } from '../../../lib/auth-guards';
+import { getDb } from '../../../lib/mongodb';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { ensureStudioIqWorkspaceMembership } from '../../../lib/studioiq-collaboration';
+import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
+import { isAdminRole } from '../../../lib/accounts';
+import { loadLocalProspectCatalog } from '../../../lib/prospect-agent/catalog';
+import type { DiscoveryOpportunity, DiscoverySummary } from '../../../components/studioiq/StudioIqDiscovery';
+
+type PageProps = { accountName: string; organizationName: string; canManageBilling: boolean; localPreview?: boolean; initialDiscovery?: { opportunities: DiscoveryOpportunity[]; summary: DiscoverySummary; can_favorite: boolean } };
+
+function enabled() {
+  const value = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
+  if (value) return ['1', 'true', 'yes', 'on'].includes(value);
+  return process.env.NODE_ENV !== 'production';
+}
+
+export default function StudioIqPage(props: PageProps) {
+  return <>
+    <Head>
+      <title>Prospect | Project discovery</title>
+      <meta name="robots" content="noindex, nofollow" />
+      <meta name="description" content="New project discovery for design-led practices." />
+    </Head>
+    <StudioIqTerminal {...props} />
+  </>;
+}
+
+export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
+  if (!enabled()) return { notFound: true };
+  const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(context.req.socket.remoteAddress ?? '');
+  if (process.env.NODE_ENV !== 'production' && loopback && context.query.agent === '1') {
+    const catalog = await loadLocalProspectCatalog();
+    const opportunities: DiscoveryOpportunity[] = catalog.projects.filter((project) => project.kind === 'opportunity').map((project) => ({
+      opportunity_id: project.id, mirror_canonical_id: project.id, title: project.title,
+      description: project.description, buyer_name: project.buyer, country: project.location?.split(', ').at(-1) ?? null,
+      city: project.location?.includes(', ') ? project.location.split(', ')[0] : null,
+      project_type: project.projectType, deadline: project.deadline, first_published_at: project.updatedAt,
+      discovery_class: 'major', value_score: project.score ?? 50, value_reasons: [],
+      evidence_count: project.evidence.length, authority_level: 'official', last_verified_at: project.updatedAt,
+      location: null, provenance: project.evidence.map((item, index) => ({
+        evidence_id: `${project.id}-${index}`, evidence_text: item.summary, value: item.summary,
+        source_url: item.sourceUrl ?? '', source_authority: item.authority ?? 'unknown',
+        captured_at: project.updatedAt ?? '', language: 'en',
+      })), collaboration: null, pursuit_brief: null,
+    }));
+    return { props: { accountName: 'Local preview', organizationName: 'Prospect research sample', canManageBilling: false,
+      localPreview: true, initialDiscovery: { opportunities, can_favorite: false, summary: {
+        total: opportunities.length, favorites: 0, team_favorites: 0, niche: 0, mapped: 0,
+        markets: new Set(opportunities.map((item) => item.country).filter(Boolean)).size, freshness_window_days: 365,
+      } } } };
+  }
+  const account = await getSessionAccountFromContext(context);
+  if (!account) {
+    return {
+      redirect: {
+        destination: cognitoIsRequired()
+          ? `/api/auth/cognito/start?next=${encodeURIComponent('/apps/studioiq')}`
+          : `/?auth=login&next=${encodeURIComponent('/apps/studioiq')}`,
+        permanent: false,
+      },
+    };
+  }
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return isAdminRole(account.role)
+    ? { redirect: { destination: '/admin/studioiq-pilots', permanent: false } }
+    : { notFound: true };
+  const [client, member] = await Promise.all([
+    getDb().then((db) => db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients').findOne({ id: access.mirrorClientId })),
+    ensureStudioIqWorkspaceMembership(access),
+  ]);
+  return {
+    props: {
+      accountName: account.name || account.email,
+      organizationName: client?.companyName || client?.name || client?.company || account.company || 'Studio workspace',
+      canManageBilling: ['owner', 'admin'].includes(member.role),
+    },
+  };
+};
