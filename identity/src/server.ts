@@ -1,6 +1,8 @@
 import { createReadinessServer } from "./core/readiness.js";
 import { readFile } from "node:fs/promises";
 import { StagingStore } from "./staging/store.js";
+import { PRODUCTION } from "./core/production-config.js";
+import { STAGING } from "./core/staging-config.js";
 import { assertStagingRuntime } from "./staging/runtime.js";
 import { createIdentityHttpServer } from "./core/http.js";
 import { loadConfig, assertRuntimeEnvironment } from "./core/config.js";
@@ -19,8 +21,8 @@ const role = roles[0];
 if (!role || role.rolsuper || role.rolcreatedb || role.rolcreaterole || role.can_activate || role.can_create) {
   await pool.end(); throw new Error("Use the documented least-privilege runtime database role");
 }
-if (config.mode === "staging") await assertStagingRuntime(pool);
-const store = config.mode === "staging" ? new StagingStore(pool, config) : new Store(pool);
+if ((config.mode === "staging" || config.mode === "production")) await assertStagingRuntime(pool, config.mode === "production" ? PRODUCTION.runtimeRole : STAGING.runtimeRole);
+const store = (config.mode === "staging" || config.mode === "production") ? new StagingStore(pool, config) : new Store(pool);
 const app = createApp(config, store, createAuth(config, store));
 const tls = config.staging ? { cert: await readFile(config.staging.certFile), key: await readFile(config.staging.keyFile) } : undefined;
 const server = createIdentityHttpServer(config.origin, app, tls, config.albProxyCidrs);
@@ -31,7 +33,7 @@ const readiness = config.albProxyCidrs ? createReadinessServer(async () => {
 }) : undefined;
 readiness?.listen(3041, config.bindHost);
 server.listen(config.port, config.bindHost, () => {
-  console.info(`Mirror Identity ${config.mode ?? "synthetic"} service (production startup/cutover BLOCKED)`);
+  console.info(`Mirror Identity ${config.mode ?? "synthetic"} service (release approval is separate from readiness)`);
 });
 for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
   draining = true;

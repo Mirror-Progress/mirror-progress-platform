@@ -54,7 +54,7 @@ function stringField(body: Record<string, unknown>, key: string, min = 1, max = 
   return v;
 }
 export function createApp(config: Config, store: Store, auth: MirrorAuth) {
-  const staging = config.mode === "staging";
+  const staging = (config.mode === "staging" || config.mode === "production");
   if (staging !== (store instanceof StagingStore)) throw new Error("Store policy must match service mode");
   const FLOW_COOKIE = `${staging ? "__Host-" : ""}mirror_identity.password_flow`;
   const TWO_FACTOR_COOKIE = `${staging ? "__Secure-" : ""}mirror_identity.two_factor`;
@@ -93,17 +93,17 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     const url = new URL(request.url);
     if (url.origin !== config.origin) throw new PolicyError("invalid_origin", 400);
     if (request.method === "GET" && ["/", "/consent", "/app.js", "/style.css"].includes(url.pathname)) {
-      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/style.css" ? "style.css" : staging ? "staging.html" : "index.html";
+      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/style.css" ? "style.css" : config.mode === "production" ? "production.html" : staging ? "staging.html" : "index.html";
       const data = await readFile(join(process.cwd(), "public", file));
       return new Response(new Uint8Array(data), { headers: {
         "content-type": file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html; charset=utf-8",
       } });
     }
-    if (request.method === "GET" && url.pathname === "/health/live") return json({ status: "live", mode: staging ? "staging" : "synthetic" });
+    if (request.method === "GET" && url.pathname === "/health/live") return json({ status: "live", mode: config.mode ?? "synthetic" });
     if (request.method === "GET" && url.pathname === "/health/ready") {
       await store.pool.query('SELECT id FROM "user" LIMIT 0');
       await store.pool.query("SELECT session_id FROM mirror_assurance LIMIT 0");
-      return json({ status: staging ? "staging-review-required" : "local-foundation", productionReady: false });
+      return json({ status: config.mode === "production" ? "production-candidate-review-required" : staging ? "staging-review-required" : "local-foundation", productionReady: false });
     }
     if (url.pathname === "/internal/identity/session-status") {
       if (!config.sessionStatusSecret || request.method !== "POST") throw new PolicyError("route_not_exposed", 404);

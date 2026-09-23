@@ -10,8 +10,8 @@ export interface SessionIdentity { session: { id: string; userId: string; expire
 export function createPool(config: Config): Pool {
   return new Pool({ connectionString: config.databaseUrl, max: 10,
     connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000, statement_timeout: 10000,
-    ssl: config.mode === "staging" ? { rejectUnauthorized: true } : undefined,
-    application_name: config.mode === "staging" ? "mirror-identity-staging" : "mirror-identity-synthetic" });
+    ssl: (config.mode === "staging" || config.mode === "production") ? { rejectUnauthorized: true } : undefined,
+    application_name: config.mode ? `mirror-identity-${config.mode}` : "mirror-identity-synthetic" });
 }
 const millis = (value: unknown): number => new Date(value as string | Date).getTime();
 export class Store {

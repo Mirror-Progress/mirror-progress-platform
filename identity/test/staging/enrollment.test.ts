@@ -6,6 +6,7 @@ import { readFile, mkdtemp, chmod, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { verifyApplicationCallback } from "./application-callback.js";
 import { chromium } from "playwright";
 import { createIdentityHttpServer } from "../../src/core/http.js";
 import { Pool } from "pg";
@@ -14,28 +15,33 @@ import { hashPassword } from "better-auth/crypto";
 import { createAuth } from "../../src/auth.js";
 import { createApp } from "../../src/app.js";
 import type { Config } from "../../src/core/config.js";
+import { PRODUCTION } from "../../src/core/production-config.js";
 import { STAGING } from "../../src/core/staging-config.js";
 import { FakeEnrollmentTransport, openDelivery } from "../../src/core/delivery.js";
 import { digest, opaqueToken, responseCookies } from "../../src/core/tokens.js";
 import { StagingStore } from "../../src/staging/store.js";
-import { stagingGrants } from "../../src/staging/grants.js";
+import { stagingGrants, productionGrants } from "../../src/staging/grants.js";
 import { assertStagingRuntime } from "../../src/staging/runtime.js";
 
+const production = process.env.ENROLLMENT_TEST_PROFILE === "production";
+assert([undefined, "staging", "production"].includes(process.env.ENROLLMENT_TEST_PROFILE));
+const PROFILE = production ? PRODUCTION : STAGING;
+const operatorRole = production ? "mirror_identity_production_operator" : "mirror_identity_staging_operator";
 const ownerUrl = process.env.ENROLLMENT_TEST_DATABASE_URL ?? "";
 const parsed = new URL(ownerUrl);
 assert.equal(parsed.hostname, "127.0.0.1");
 assert.equal(parsed.port, "55432");
-assert.equal(parsed.pathname, "/mirror_identity_enrollment_test");
+assert.equal(parsed.pathname, production ? "/mirror_identity_production_enrollment_test" : "/mirror_identity_enrollment_test");
 assert.equal(parsed.username, "postgres");
 assert.equal(parsed.search, "");
 const owner = new Pool({ connectionString: ownerUrl });
 const runtimePassword = randomBytes(32).toString("hex");
-const runtimeUrl = new URL(ownerUrl); runtimeUrl.username = STAGING.runtimeRole; runtimeUrl.password = runtimePassword;
+const runtimeUrl = new URL(ownerUrl); runtimeUrl.username = PROFILE.runtimeRole; runtimeUrl.password = runtimePassword;
 const pool = new Pool({ connectionString: runtimeUrl.href });
-const config: Config = { mode: "staging", origin: STAGING.origin, databaseUrl: runtimeUrl.href,
-  secret: randomBytes(48).toString("hex"), bindHost: "127.0.0.1", port: 3040,
-  oidcClientId: STAGING.clientId, redirectUris: [STAGING.redirect],
-  staging: { rpId: STAGING.rpId, deliveryKey: randomBytes(32).toString("base64url"), certFile: "/unused", keyFile: "/unused" } };
+const config: Config = { mode: production ? "production" : "staging", origin: PROFILE.origin, databaseUrl: runtimeUrl.href,
+  secret: randomBytes(48).toString("hex"), sessionStatusSecret: randomBytes(48).toString("hex"), bindHost: "127.0.0.1", port: 3040,
+  oidcClientId: PROFILE.clientId, redirectUris: [PROFILE.redirect],
+  staging: { rpId: PROFILE.rpId, deliveryKey: randomBytes(32).toString("base64url"), certFile: "/unused", keyFile: "/unused" } };
 const store = new StagingStore(pool, config);
 const auth = createAuth(config, store);
 const app = createApp(config, store, auth);
@@ -57,7 +63,7 @@ class Browser {
 async function operator(index: number, sql: string, args: unknown[]) {
   const client = await operators[index]!.pool.connect();
   try {
-    await client.query("BEGIN"); await client.query("SET LOCAL ROLE mirror_identity_staging_operator");
+    await client.query("BEGIN"); await client.query(`SET LOCAL ROLE ${operatorRole}`);
     await client.query(sql, args); await client.query("COMMIT");
   } catch (error) { await client.query("ROLLBACK"); throw error; }
   finally { client.release(); }
@@ -89,21 +95,24 @@ before(async () => {
     if (prior.rows.length) assert.equal(prior.rows[0].checksum, checksum);
     else { await owner.query(sql); await owner.query("INSERT INTO mirror_schema_migration VALUES ($1,$2)", [name, checksum]); }
   }
-  for (const role of [STAGING.runtimeRole, "mirror_identity_staging_operator"]) {
+  await owner.query(`INSERT INTO "oauthClient" (id,"clientId",name,"redirectUris",scopes,"grantTypes","responseTypes","tokenEndpointAuthMethod","requirePKCE",disabled,"skipConsent","subjectType","clientCredentialsScopes","createdAt","updatedAt")
+    VALUES ($1,$2,'Combined synthetic callback',$3::jsonb,'["openid","profile","email"]'::jsonb,'["authorization_code"]'::jsonb,'["code"]'::jsonb,'none',true,false,true,'public','[]'::jsonb,now(),now()) ON CONFLICT ("clientId") DO NOTHING`,
+    [randomUUID(),config.oidcClientId,JSON.stringify(config.redirectUris)]);
+  for (const role of [PROFILE.runtimeRole, operatorRole]) {
     if (!(await owner.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [role])).rowCount) {
       const q = await owner.query("SELECT format('CREATE ROLE %I NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS',$1::text) AS sql", [role]);
       await owner.query(q.rows[0].sql);
     }
   }
-  const runtime = await owner.query("SELECT format('ALTER ROLE mirror_identity_staging_runtime LOGIN PASSWORD %L',$1::text) AS sql", [runtimePassword]);
-  await owner.query(runtime.rows[0].sql); await owner.query(stagingGrants);
+  const runtime = await owner.query("SELECT format('ALTER ROLE %I LOGIN PASSWORD %L',$1::text,$2::text) AS sql", [PROFILE.runtimeRole, runtimePassword]);
+  await owner.query(runtime.rows[0].sql); await owner.query(production ? productionGrants : stagingGrants);
   for (let i = 0; i < 2; i++) {
-    const role = `enrollment_test_operator_${i}`, pw = randomBytes(32).toString("hex"), actor = `operator-${run}-${i}`;
+    const role = `enrollment_${production ? "production" : "staging"}_test_operator_${i}`, pw = randomBytes(32).toString("hex"), actor = `operator-${run}-${i}`;
     if (!(await owner.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [role])).rowCount) {
       await owner.query((await owner.query("SELECT format('CREATE ROLE %I LOGIN NOINHERIT',$1::text) AS sql", [role])).rows[0].sql);
     }
     await owner.query((await owner.query("SELECT format('ALTER ROLE %I PASSWORD %L',$1::text,$2::text) AS sql", [role, pw])).rows[0].sql);
-    await owner.query((await owner.query("SELECT format('GRANT mirror_identity_staging_operator TO %I',$1::text) AS sql", [role])).rows[0].sql);
+    await owner.query((await owner.query("SELECT format('GRANT %I TO %I',$1::text,$2::text) AS sql", [operatorRole, role])).rows[0].sql);
     await owner.query("INSERT INTO mirror_principal(id) VALUES ($1)", [actor]);
     await owner.query("INSERT INTO mirror_staging_operator(login_role,principal_id) VALUES ($1,$2) ON CONFLICT(login_role) DO UPDATE SET principal_id=EXCLUDED.principal_id", [role, actor]);
     const url = new URL(ownerUrl); url.username = role; url.password = pw;
@@ -113,7 +122,7 @@ before(async () => {
 after(async () => { await Promise.all([pool.end(), owner.end(), ...operators.map(o => o.pool.end())]); });
 
 test("runtime can start but cannot reconcile, approve, rewrite invitations or enable users", async () => {
-  await assertStagingRuntime(pool);
+  await assertStagingRuntime(pool, PROFILE.runtimeRole);
   const f = await fixture();
   for (const sql of ["UPDATE mirror_principal SET disabled=false", "UPDATE mirror_staging_invitation SET email='bad@example.invalid'",
     "INSERT INTO mirror_staging_audit(kind) VALUES ('forged')", "SELECT mirror_staging_approve('x',0,'synthetic')",
@@ -176,7 +185,7 @@ test("real password session uses secure cookies but cannot authorize a privilege
   await operator(1, "SELECT mirror_staging_approve($1,$2,$3)", [f.id, f.epoch, `synthetic-review-${run}`]);
   assert.equal((await (await browser.request("/api/identity/session")).json()).mfaCompleted, false);
   const audit = (await owner.query("SELECT actor,operator_login FROM mirror_staging_audit WHERE principal_id=$1 AND kind='independent-approve'", [f.id])).rows[0];
-  assert.equal(audit.actor, operators[1]!.actor); assert.equal(audit.operator_login, "enrollment_test_operator_1");
+  assert.equal(audit.actor, operators[1]!.actor); assert.equal(audit.operator_login, `enrollment_${production ? "production" : "staging"}_test_operator_1`);
   const identity = await auth.api.getSession({ headers: browser.headers }); assert.ok(identity);
   assert.equal(await store.sessionActive(identity.session.id, identity.user.id, f.id, f.epoch, true), false);
   // SQL fixture for authorization-state checks ONLY: this is not a WebAuthn ceremony or human enrollment.
@@ -195,7 +204,7 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
   const directory = await mkdtemp(join(tmpdir(), 'mirror-identity-browser-'));
   const key = join(directory, 'key.pem'), cert = join(directory, 'cert.pem');
   const generated = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-    '-subj', `/CN=${STAGING.rpId}`, '-addext', `subjectAltName=DNS:${STAGING.rpId}`, '-keyout', key, '-out', cert], { stdio: 'ignore' });
+    '-subj', `/CN=${PROFILE.rpId}`, '-addext', `subjectAltName=DNS:${PROFILE.rpId}`, '-keyout', key, '-out', cert], { stdio: 'ignore' });
   assert.equal(generated.status, 0); await chmod(key, 0o600);
   // A nonprivileged loopback test port; the deployed staging allowlist is unchanged.
   const browserConfig = { ...config, origin: config.origin + ':3443' };
@@ -204,7 +213,7 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
   const server = createIdentityHttpServer(browserConfig.origin, browserApp, { key: await readFile(key), cert: await readFile(cert) });
   try {
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(3443, '127.0.0.1', resolve); });
-    const browser = await chromium.launch({ headless: true, args: [`--host-resolver-rules=MAP ${STAGING.rpId} 127.0.0.1`, '--no-proxy-server'] });
+    const browser = await chromium.launch({ headless: true, args: [`--host-resolver-rules=MAP ${PROFILE.rpId} 127.0.0.1`, '--no-proxy-server'] });
     try {
       const context = await browser.newContext({ ignoreHTTPSErrors: true });
       const page = await context.newPage();
@@ -216,7 +225,7 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
       } });
       const f = await fixture(true), mailbox = await delivered(f);
       await page.goto(browserConfig.origin);
-      assert.equal(await page.title(), 'Mirror Identity · Staging enrollment');
+      assert.equal(await page.title(), production ? 'Mirror Identity · Sign in' : 'Mirror Identity · Staging enrollment');
       await page.locator('#enroll [name=invitation]').fill(f.token);
       await page.locator('#enroll [name=mailboxToken]').fill(mailbox);
       await page.locator('#enroll [name=name]').fill('Synthetic Browser User');
@@ -239,8 +248,13 @@ test("Chromium virtual passkey registration does not grant privilege; fresh UV a
       await page.locator('#passkey-signin').click(); assert.equal((await response).status(), 200);
       state = await page.evaluate(async () => (await fetch('/api/identity/session')).json());
       assert.equal(state.mfaCompleted, true); assert.equal(state.principalId, f.id); assert.equal(state.assurance.method, 'passkey_uv');
-      await page.locator('#global-logout').click();
-      await page.waitForFunction(async () => (await fetch('/api/identity/session')).status === 401);
+      const revoke = async () => {
+        await page.locator('#global-logout').click();
+        await page.waitForFunction(async () => (await fetch('/api/identity/session')).status === 401);
+      };
+      if (production && process.env.IDENTITY_TEST_APP_ROOT) {
+        await verifyApplicationCallback({root:process.env.IDENTITY_TEST_APP_ROOT,config:browserConfig,app:browserApp,page,owner,principalId:f.id,email:f.email,revoke});
+      } else await revoke();
     } finally { await browser.close(); }
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

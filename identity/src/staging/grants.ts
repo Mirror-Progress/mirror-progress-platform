@@ -18,3 +18,7 @@ GRANT EXECUTE ON FUNCTION mirror_staging_reconcile(text,bigint,text,text),mirror
   mirror_staging_approve(text,bigint,text),mirror_staging_request_recovery(text,text,bigint,text,text),
   mirror_staging_approve_recovery(text,text) TO mirror_identity_staging_operator;
 `;
+
+// Same immutable policy schema, with separate production login roles/database.
+export const productionGrants = stagingGrants.replaceAll("mirror_identity_staging_runtime", "mirror_identity_production_runtime")
+  .replaceAll("mirror_identity_staging_operator", "mirror_identity_production_operator");

@@ -2,7 +2,7 @@ import { createAuthClient } from "better-auth/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { enrollmentMessage } from "../core/staging-policy.js";
 import { safeResumePath } from "../core/policy.js";
-const staging = document.documentElement.dataset.identityMode === "staging";
+const staging = ["staging", "production"].includes(document.documentElement.dataset.identityMode ?? "");
 // Fragments are not sent in HTTP requests; remove the bearer from browser history before any fetch.
 const mailboxToken = staging ? new URLSearchParams(location.hash.slice(1)).get("mailboxToken") : null;
 if (staging && location.hash) history.replaceState(null, "", location.pathname + location.search);

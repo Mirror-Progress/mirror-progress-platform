@@ -8,6 +8,9 @@ import type { Config } from "./core/config.js";
 import { Store } from "./db.js";
 import { verifiedFactor } from "./core/policy.js";
 
+export function emailIdentityClaims(user: { email: string; emailVerified: boolean }, scopes: readonly string[]) {
+  return scopes.includes("email") ? { email: user.email, email_verified: user.emailVerified === true } : {};
+}
 export const ceremony = new AsyncLocalStorage<{ passkeyVerifiedAt?: number }>();
 export function createAuth(config: Config, store: Store) {
   const sessionClaims = async (sessionId: string | undefined, userId?: string) => {
@@ -36,15 +39,15 @@ export function createAuth(config: Config, store: Store) {
     logger: { disabled: true },
     emailAndPassword: {
       enabled: true, disableSignUp: true, minPasswordLength: 14, maxPasswordLength: 128,
-      // Synthetic enrollment never claims mailbox ownership. Production start is blocked.
-      requireEmailVerification: config.mode === "staging",
+      // Synthetic enrollment never claims mailbox ownership; both hosted profiles require verification.
+      requireEmailVerification: (config.mode === "staging" || config.mode === "production"),
     },
     account: { accountLinking: { enabled: false } },
     session: { expiresIn: 8 * 60 * 60, updateAge: 60 * 60, cookieCache: { enabled: false } },
     advanced: {
       // Only the transport-owned address injected by createApp is trusted.
       ipAddress: { ipAddressHeaders: ["x-mirror-transport-ip"] },
-      cookiePrefix: "mirror_identity", useSecureCookies: config.mode === "staging",
+      cookiePrefix: "mirror_identity", useSecureCookies: (config.mode === "staging" || config.mode === "production"),
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
       crossSubDomainCookies: { enabled: false },
     },
@@ -77,6 +80,10 @@ export function createAuth(config: Config, store: Store) {
       jwt(),
       oauthProvider({
         loginPage: "/", consentPage: "/consent",
+        // v1.7.5 omits scope-derived profile/email claims from code-flow ID tokens.
+        // First-party hook supplies only the actual database user values, gated by email scope.
+        // The assurance extension still checks mailbox, principal epoch and fresh MFA before issuance.
+        customIdTokenClaims: ({ user, scopes }) => emailIdentityClaims(user, scopes),
         scopes: ["openid", "profile", "email"], grantTypes: ["authorization_code"],
         codeExpiresIn: 60, accessTokenExpiresIn: 300, idTokenExpiresIn: 300,
         allowDynamicClientRegistration: false, allowUnauthenticatedClientRegistration: false,

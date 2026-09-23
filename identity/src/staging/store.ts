@@ -12,7 +12,7 @@ const time = (v: unknown): number => v === null || v === undefined ? NaN : new D
 export class StagingStore extends Store {
   constructor(pool: Pool, readonly config: Config) {
     super(pool);
-    if (config.mode !== "staging" || !config.staging) throw new Error("Staging configuration required");
+    if ((config.mode !== "staging" && config.mode !== "production") || !config.staging) throw new Error("Staging configuration required");
   }
   override assertCredentialPrincipal(p: Principal): void {
     // Credential setup is NOT application authorization, including for privileged users.

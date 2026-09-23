@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" data-identity-mode="production">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mirror Identity · Sign in</title>
+<link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+<header><a class="brand" href="/">MIRROR <span class="quiet">IDENTITY</span></a><span class="pill">SECURE SIGN IN</span></header>
+<main>
+<section class="intro"><p class="eyebrow">INVITATION ONLY</p><h1>Your identity.<br>Verified in steps.</h1>
+<p>Your invitation fixes your existing Mirror identity and reconciled email. This page cannot select a role or enable a disabled identity.</p></section>
+<aside class="notice">Use your invitation and the verification message sent to your email. Contact your operator if you need help signing in.</aside>
+<section class="status"><div><span class="eyebrow">APPLICATION ACCESS</span><p id="session-status">No verified session.</p></div>
+<div class="actions"><button id="refresh" class="secondary" type="button">Check access</button><a id="resume" class="button" hidden>Continue to application</a></div></section>
+<p id="message" class="message" role="status" aria-live="polite"></p>
+<div class="grid">
+<section class="card"><p class="step">01 / INVITATION</p><h2>Request your mailbox token</h2>
+<p>Use the invitation provided by your operator. The message goes only to the already reconciled email, never an address entered here.
+Repeated requests do not replace the token. Open the message in this browser or paste its token in step 2.</p>
+<form id="mailbox"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<button type="submit">Request mailbox token</button></form></section>
+<section class="card"><p class="step">02 / MAILBOX</p><h2>Verify and create credentials</h2>
+<p>You need both tokens. Mailbox tokens expire after at most 10 minutes; invitations after 15 minutes. Expired or used tokens require a new operator invitation.</p>
+<form id="enroll"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<label>Mailbox token<input name="mailboxToken" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<label>Display name<input name="name" maxlength="120" autocomplete="name" required></label>
+<label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+<button type="submit">Verify mailbox and enroll</button></form><p class="small">This creates credentials only. It does not grant application access or create a session.</p></section>
+<section class="card"><p class="step">03 / SIGN IN</p><h2>Begin credential setup</h2>
+<form id="login"><label>Email<input name="email" type="email" autocomplete="username" required></label>
+<label>Password<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label><button type="submit">Sign in with password</button></form>
+<button id="passkey-signin" type="button" class="secondary wide">Authenticate with a passkey</button></section>
+<section class="card"><p class="step">04 / REGISTER</p><h2>Register your required factor</h2>
+<p>Sign in with your password first. Ordinary access requires password plus TOTP, or a passkey with user verification.
+Privileged access requires a passkey; register it before requesting independent operator approval.</p>
+<button id="passkey-register" type="button" class="secondary wide">Register a passkey</button>
+<form id="totp-setup"><label>Confirm password for TOTP<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label><button type="submit">Set up authenticator</button></form>
+<pre id="setup-material" hidden></pre><button id="clear-material" class="secondary" type="button" hidden>Clear private setup material</button>
+<p class="small">Registration never raises assurance. A registered passkey must complete a separate fresh authentication.</p></section>
+<section class="card"><p class="step">05 / AUTHENTICATE</p><h2>Complete verification</h2>
+<p>For TOTP setup, confirm a code, sign out, then complete a fresh password login and a new TOTP code.</p>
+<form id="verify"><label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label><button type="submit">Verify TOTP</button></form>
+<p><strong>Privileged access:</strong> an independent operator must approve your enrollment. Then authenticate with your passkey again.
+An assertion before approval, email verification, and TOTP cannot replace this step. Privileged assertions expire after five minutes.</p></section>
+</div>
+<section class="exit"><div><h2>End this session</h2><p>Global logout invalidates Identity sessions and advances the authorization epoch.
+Downstream event delivery remains a separate integration gate.</p></div><div class="actions"><button id="signout" class="secondary" type="button">Sign out here</button><button id="global-logout" class="secondary" type="button">Revoke Identity sessions</button></div></section>
+<form id="recovery" hidden><input name="code" type="password"><button type="submit">Unavailable</button></form>
+<aside class="notice">Recovery, email changes, and full session management are subsequent batches. They are not enabled here.</aside>
+</main><footer>Mirror Progress · Bounded staging enrollment · No production cutover</footer>
+</body></html>

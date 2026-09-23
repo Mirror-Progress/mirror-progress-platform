@@ -24,18 +24,16 @@ assessment of every resource-based policy/SCP. No secret plaintext was fetched.
 
 ## Engineering work still outstanding
 
-The current service is deliberately staging-only. `loadConfig` accepts staging or
-synthetic; `stagingContainerEnvironment` rejects production; foundation validation
-accepts stage=staging only. Origin, RP ID, OIDC client/redirect, database roles and
-operator/migration procedures are staging-bound. The existing image cannot be
-made production-ready by changing only the application's provider flag.
+The explicit production profile, separate container/migration/operator entrypoints
+and offline infrastructure compiler are now implemented and locally tested. See
+[the production candidate](PRODUCTION-CANDIDATE.md) for exact evidence and limits.
+This is not deployed production readiness. The existing AWS image is still the
+staging-only artifact and lacks the newly discovered verified-email token fix.
 
-A production release needs a separately tested exact trust profile for
-accounts.mirrorprogress.com, the verified live application callback, separate
-production database/secrets and scoped roles. Preserve staging restrictions and
-all enrollment/recovery checks; do not loosen allowlists or relabel staging data.
-Inspect and reconcile runtime grants, schema migration and operator procedures as
-one reviewed change. The staging application roles must not be reused in production.
+Production inventory, separately provisioned resources/credentials, final image
+publication/review and deployment are still outstanding. Do not point the live
+app at staging or reuse staging secrets, roles or data. Production application
+permissions remain unchanged.
 
 A completed deployed user login/callback is still unverified. Rehearsal must prove
 explicit issuer/subject-to-canonical-principal mapping, unchanged IDs/memberships,

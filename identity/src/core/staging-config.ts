@@ -10,26 +10,33 @@ export const STAGING = Object.freeze({
   redirect: "https://staging.mirrorprogress.com/api/auth/callback",
   runtimeRole: "mirror_identity_staging_runtime",
 });
-export function stagingDatabase(url: string, runtime: boolean): URL {
+export interface HostedProfile { mode: "staging" | "production"; origin: string; rpId: string; clientId: string; redirect: string; runtimeRole: string; database: string; }
+export const STAGING_PROFILE: HostedProfile = Object.freeze({ ...STAGING, mode: "staging", database: "mirror_identity_staging" });
+export function stagingDatabase(url: string, runtime: boolean): URL { return hostedDatabase(url, runtime, STAGING_PROFILE); }
+export function hostedDatabase(url: string, runtime: boolean, profile: HostedProfile): URL {
   let u: URL;
   try { u = new URL(url); } catch { throw new PolicyError("staging_database_role_required", 500); }
-  if (!["postgres:", "postgresql:"].includes(u.protocol) || u.pathname !== "/mirror_identity_staging" ||
-      !u.hostname || !u.username || !u.password || u.search || u.hash ||
-      (runtime ? u.username !== STAGING.runtimeRole : u.username === STAGING.runtimeRole)) {
+  if (!["postgres:", "postgresql:"].includes(u.protocol) || u.pathname !== `/${profile.database}` ||
+      !u.hostname || !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(u.username) || !u.password || u.search || u.hash ||
+      (profile.mode === "production" && (u.username.startsWith("mirror_identity_staging_") || u.username === "mirror_identity_owner")) ||
+      (profile.mode === "staging" && u.username.startsWith("mirror_identity_production_")) ||
+      (runtime ? u.username !== profile.runtimeRole : u.username === profile.runtimeRole)) {
     throw new PolicyError("staging_database_role_required", 500);
   }
   return u;
 }
-export function loadStagingConfig(env: NodeJS.ProcessEnv): Config {
+export function loadStagingConfig(env: NodeJS.ProcessEnv): Config { return loadHostedConfig(env, STAGING_PROFILE); }
+export function loadHostedConfig(env: NodeJS.ProcessEnv, profile: HostedProfile): Config {
+  if (env.IDENTITY_MODE !== profile.mode) throw new PolicyError("identity_profile_mismatch", 500);
   let redirects: unknown;
   try { redirects = JSON.parse(env.IDENTITY_REDIRECT_URIS ?? "null"); } catch { /* rejected below */ }
-  if (env.IDENTITY_ORIGIN !== STAGING.origin || env.IDENTITY_RP_ID !== STAGING.rpId ||
-      env.IDENTITY_OIDC_CLIENT_ID !== STAGING.clientId || !Array.isArray(redirects) ||
-      redirects.length !== 1 || redirects[0] !== STAGING.redirect) {
+  if (env.IDENTITY_ORIGIN !== profile.origin || env.IDENTITY_RP_ID !== profile.rpId ||
+      env.IDENTITY_OIDC_CLIENT_ID !== profile.clientId || !Array.isArray(redirects) ||
+      redirects.length !== 1 || redirects[0] !== profile.redirect) {
     throw new PolicyError("staging_allowlist_mismatch", 500);
   }
   const databaseUrl = env.DATABASE_URL ?? "";
-  stagingDatabase(databaseUrl, true);
+  hostedDatabase(databaseUrl, true, profile);
   const secret = env.BETTER_AUTH_SECRET ?? "";
   if (secret.length < 48 || /replace|placeholder|change[-_]?me/i.test(secret)) {
     throw new PolicyError("strong_auth_secret_required", 500);
@@ -53,8 +60,8 @@ export function loadStagingConfig(env: NodeJS.ProcessEnv): Config {
   } else if (env.IDENTITY_BIND_HOST && env.IDENTITY_BIND_HOST !== "127.0.0.1") {
     throw new PolicyError("staging_loopback_listener_required", 500);
   }
-  return { mode: "staging", origin: STAGING.origin, databaseUrl, secret, bindHost: albProxyCidrs ? "0.0.0.0" : "127.0.0.1", port: 3040, albProxyCidrs,
+  return { mode: profile.mode, origin: profile.origin, databaseUrl, secret, bindHost: albProxyCidrs ? "0.0.0.0" : "127.0.0.1", port: 3040, albProxyCidrs,
     sessionStatusSecret: sessionStatusSecret(env),
-    oidcClientId: STAGING.clientId, redirectUris: [STAGING.redirect],
-    staging: { rpId: STAGING.rpId, deliveryKey, certFile, keyFile } };
+    oidcClientId: profile.clientId, redirectUris: [profile.redirect],
+    staging: { rpId: profile.rpId, deliveryKey, certFile, keyFile } };
 }

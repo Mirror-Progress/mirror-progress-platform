@@ -95,3 +95,7 @@ were removed; existing staging restrictions remain.
 
 Further bounded evidence: [image advisory applicability](IMAGE-ADVISORY-REVIEW.md)
 and [production readiness/permission reconciliation](PRODUCTION-READINESS.md).
+
+A later [local production/callback candidate](PRODUCTION-CANDIDATE.md) fixes an
+ID-token email-claim gap found by combined integration. It is not in the deployed
+staging identity image; do not promote the older digest as full-login verified.

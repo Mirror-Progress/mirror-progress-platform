@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { STAGING } from "../core/staging-config.js";
-export async function assertStagingRuntime(db: Pool): Promise<void> {
+export async function assertStagingRuntime(db: Pool, expectedRole: string = STAGING.runtimeRole): Promise<void> {
   const { rows } = await db.query(`SELECT current_user::text AS role,session_user::text AS login,
     r.rolsuper,r.rolcreatedb,r.rolcreaterole,r.rolbypassrls,
     EXISTS (SELECT 1 FROM pg_auth_members WHERE member=r.oid) AS memberships,
@@ -16,7 +16,7 @@ export async function assertStagingRuntime(db: Pool): Promise<void> {
       has_function_privilege(current_user,'mirror_staging_request_recovery(text,text,bigint,text,text)','EXECUTE')) AS approval
     FROM pg_roles r WHERE r.rolname=current_user`);
   const r = rows[0];
-  if (!r || r.role !== STAGING.runtimeRole || r.login !== STAGING.runtimeRole ||
+  if (!r || r.role !== expectedRole || r.login !== expectedRole ||
       ['rolsuper','rolcreatedb','rolcreaterole','rolbypassrls','memberships','ddl','policy_write','invite_write','invite_columns','approval'].some(k => r[k])) {
     throw new Error("Staging runtime must not have operator, owner, or approval privileges");
   }

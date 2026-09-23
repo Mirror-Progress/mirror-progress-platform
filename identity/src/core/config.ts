@@ -1,9 +1,10 @@
 import { PolicyError } from "./policy.js";
+import { loadProductionConfig } from "./production-config.js";
 import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
   sessionStatusSecret?: string;
   albProxyCidrs?: readonly string[];
-  mode?: "staging";
+  mode?: "staging" | "production";
   staging?: { rpId: string; deliveryKey: string; certFile: string; keyFile: string };
   origin: string;
   databaseUrl: string;
@@ -22,6 +23,7 @@ export function assertSyntheticDatabase(url: string): void {
   }
 }
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  if (env.IDENTITY_MODE === "production") return loadProductionConfig(env);
   if (env.IDENTITY_MODE === "staging") return loadStagingConfig(env);
   if (env.IDENTITY_MODE !== "synthetic") throw new PolicyError("synthetic_mode_required", 500);
   const origin = env.IDENTITY_ORIGIN ?? "http://localhost:3040";
@@ -52,7 +54,7 @@ export function sessionStatusSecret(env: NodeJS.ProcessEnv): string | undefined 
 
 /** A service process must not receive migration/operator credentials. */
 export function assertRuntimeEnvironment(env: NodeJS.ProcessEnv = process.env): void {
-  for (const name of ["MIGRATION_DATABASE_URL", "IDENTITY_RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "IDENTITY_OPERATOR_DATABASE_URL", "OPERATOR_DATABASE_URL"]) {
+  for (const name of ["IDENTITY_OWNER_CREDENTIALS", "MIGRATION_DATABASE_URL", "IDENTITY_RUNTIME_DB_PASSWORD", "POSTGRES_PASSWORD", "IDENTITY_OPERATOR_DATABASE_URL", "OPERATOR_DATABASE_URL"]) {
     if (env[name]) throw new PolicyError("operator_credentials_in_runtime_environment", 500);
   }
 }
