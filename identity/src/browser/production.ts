@@ -5,8 +5,9 @@ import { safeResumePath } from "../core/policy.js";
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
 let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/admin";
 const manageRequested = location.hash === "#manage";
+const devicesRequested = location.hash === "#devices";
 const openPlatform = () => {
-  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested)
+  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested)
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
 };
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
@@ -15,7 +16,7 @@ const hash = new URLSearchParams(location.hash.slice(1));
 const invitationFromLink = hash.get("invitation");
 const mailboxToken = hash.get("mailboxToken");
 const directManagedInvite = Boolean(invitationFromLink && !mailboxToken);
-if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+if (location.hash && !manageRequested && !devicesRequested) history.replaceState(null, "", location.pathname + location.search);
 const node = <T extends HTMLElement>(id: string): T => {
   const found = document.getElementById(id);
   if (!found) throw new Error(`Missing ${id}`);
@@ -29,6 +30,7 @@ const show = (value: string, failed = false) => {
 const userError = (error: unknown): string => {
   const code = error instanceof Error ? error.message : "unknown_error";
   if (code === "fresh_password_required" || code === "SESSION_NOT_FRESH") return "Your setup session expired. Sign in with your password again.";
+  if (code === "mfa_expired" || code === "mfa_required") return "Sign in again on your Mac, then add the new device passkey.";
   if (code === "session_required") return "Sign in with your password to continue.";
   if (code === "invalid_authentication") return "That email or password did not match. Please try again.";
   if (code === "company_unavailable") return "Choose an existing company with active Prospect access and an available seat.";
@@ -105,6 +107,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
     if (state.mfaCompleted === true) {
       node<HTMLElement>("auth-steps").hidden = true;
       node<HTMLElement>("setup-details").hidden = true;
+      node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
       void loadInvitations();
       openPlatform();
@@ -112,6 +115,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
     return state;
   } catch {
     node<HTMLElement>("passkey-step").hidden = true;
+    node<HTMLElement>("device-access").hidden = true;
     node<HTMLElement>("session-status").hidden = true;
     node<HTMLElement>("session-status").textContent = "Sign in with your password to continue.";
     return null;
@@ -132,6 +136,9 @@ async function finishPasskey(): Promise<void> {
     passkeyRegistered = true;
   }
   show("Approve the passkey prompt to finish signing in.");
+  await authenticatePasskey();
+}
+async function authenticatePasskey(): Promise<void> {
   const signedIn = await auth.signIn.passkey();
   if (signedIn.error) {
     node<HTMLElement>("passkey-signin").hidden = false;
@@ -141,8 +148,9 @@ async function finishPasskey(): Promise<void> {
   if (state.mfaCompleted !== true) throw new Error("privileged_passkey_required");
   node<HTMLElement>("auth-steps").hidden = true;
   node<HTMLElement>("setup-details").hidden = true;
+  node<HTMLElement>("device-access").hidden = !devicesRequested;
   if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
-  show(manageRequested ? "Signed in. You can manage invitations below." : "Signed in. Opening Mirror Progress…");
+  show(manageRequested ? "Signed in. You can manage invitations below." : devicesRequested ? "Signed in. Add a passkey for your phone or iPad below." : "Signed in. Opening Mirror Progress…");
   await loadInvitations();
   openPlatform();
 }
@@ -175,6 +183,18 @@ node<HTMLButtonElement>("passkey-register").addEventListener("click", () => {
 });
 node<HTMLButtonElement>("passkey-signin").addEventListener("click", () => {
   void finishPasskey().catch(error => show(userError(error), true));
+});
+node<HTMLButtonElement>("direct-passkey-signin").addEventListener("click", () => {
+  const button = node<HTMLButtonElement>("direct-passkey-signin"); button.disabled = true;
+  void authenticatePasskey().catch(error => show(userError(error), true)).finally(() => { button.disabled = false; });
+});
+node<HTMLButtonElement>("add-device-passkey").addEventListener("click", () => {
+  const button = node<HTMLButtonElement>("add-device-passkey"); button.disabled = true;
+  show("In the passkey prompt, choose another device or phone/tablet, then scan its QR code with your iPhone.");
+  void auth.passkey.addPasskey({ name: "Phone or tablet" }).then(result => {
+    if (result.error) throw passkeyError(result.error);
+    show("Your phone passkey is ready. Sign in to Prospect on your phone or iPad using its passkey prompt.");
+  }).catch(error => show(userError(error), true)).finally(() => { button.disabled = false; });
 });
 let invitation = invitationFromLink;
 try {

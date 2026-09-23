@@ -14,16 +14,21 @@
 <section class="card" id="signin-step"><p class="step">YOUR ACCOUNT</p><h2>Welcome back.</h2><p>Sign in to continue to your workspace.</p>
 <form id="login"><label>Email<input name="email" type="email" autocomplete="username" required></label>
 <label>Password<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label>
-<button type="submit">Sign in with password <span aria-hidden="true">↗</span></button></form></section>
+<button type="submit">Sign in with password <span aria-hidden="true">↗</span></button></form>
+<button id="direct-passkey-signin" type="button" class="secondary wide">Sign in with a passkey</button></section>
 <section class="card" id="passkey-step" hidden><p class="step">FINAL STEP</p><h2>Approve on your device</h2>
-<p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation.</p>
+<p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation. If your passkey is only on your Mac, <a href="/#devices">add one for your phone</a> from the Mac after signing in.</p>
 <button id="passkey-register" type="button" class="secondary wide">Finish with passkey</button>
 <button id="passkey-signin" type="button" class="secondary wide" hidden>Retry passkey sign-in</button></section>
 </div>
 <p id="session-status" class="small" hidden>Checking your account…</p>
 <a id="resume" class="button" hidden>Continue to application</a>
 <p><a id="open-platform" href="https://platform.mirrorprogress.com/api/auth/start?next=/admin">Open Mirror Progress</a></p>
+<p><a href="/#devices">Set up another device</a></p>
 <p><a id="manage-invitations" href="/#manage" hidden>Manage Prospect invitations</a></p>
+<section class="card" id="device-access" hidden><p class="step">DEVICE ACCESS</p><h2>Use Prospect on your phone or iPad.</h2>
+<p>While signed in on your Mac, add a passkey to your iPhone. In the browser prompt, choose “Use another device” or “Phone or tablet,” then scan the QR code with your iPhone. If iCloud Keychain is on for the same Apple Account, the passkey will also be available on your iPad.</p>
+<button id="add-device-passkey" type="button" class="secondary wide">Add phone or iPad passkey</button></section>
 <details id="setup-details"><summary>Setting up a new account?</summary>
 <p id="setup-intro">Open your invitation link and choose a password to create your account.</p>
 <p id="mailbox-guide">Have an older invitation token? Verify its matching mailbox below.</p>
