@@ -86,8 +86,8 @@ Staging revision 29 preserves the original staging Cognito/client/callback/datab
 and secret references, while using the tested immutable application image, explicit
 HOSTNAME and Node health probe. It explicitly selects Cognito and disables demo/dev
 seeds. This tests provider rollback, not byte-for-byte restoration of the missing
-historical staging image. Both revision 29 tasks and ALB targets are healthy; old candidate tasks have
-zero running instances and the remaining target is draining. HTTPS app health is 200,
+historical staging image. Revision 29 rollout is COMPLETED with two healthy running tasks, zero pending
+tasks and no remaining candidate deployment. Both ALB targets are healthy. HTTPS app health is 200,
 Cognito start returns 302 to the saved staging Cognito domain with S256 and original
 callback, and Mirror start returns 404. This establishes live provider-route rollback,
 not a completed authenticated user session. Temporary tester-only SG/WAF entries
