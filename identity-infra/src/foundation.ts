@@ -9,7 +9,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 
 export interface FoundationConfig {
   stage: 'staging'; account: string; region: string; vpcId: string;
-  availabilityZones: [string, string]; privateSubnetIds: [string, string];
+  availabilityZones: [string, string]; privateSubnetIds: [string, string]; isolatedSubnetIds: [string, string];
   /** Pin a minor supported in the target region, verified before deployment. */
   postgresVersion: string;
 }
@@ -18,6 +18,8 @@ export function validateFoundationConfig(config: FoundationConfig) {
       !/^vpc-[a-f0-9]{8,17}$/.test(config.vpcId) || !/^17\.\d{1,2}$/.test(config.postgresVersion) ||
       config.privateSubnetIds.length !== 2 || new Set(config.privateSubnetIds).size !== 2 ||
       config.privateSubnetIds.some(id => !/^subnet-[a-f0-9]{8,17}$/.test(id)) ||
+      config.isolatedSubnetIds.length !== 2 || new Set(config.isolatedSubnetIds).size !== 2 ||
+      config.isolatedSubnetIds.some(id => !/^subnet-[a-f0-9]{8,17}$/.test(id) || config.privateSubnetIds.includes(id)) ||
       config.availabilityZones.length !== 2 || new Set(config.availabilityZones).size !== 2 ||
       config.availabilityZones.some(zone => !new RegExp(`^${config.region}[a-z]$`).test(zone))) throw new Error('invalid_staging_foundation_config');
 }
@@ -39,7 +41,7 @@ export class IdentityFoundation extends Stack {
     super(scope, id, { ...props, env: { account: config.account, region: config.region }, terminationProtection: true });
     Tags.of(this).add('Application', 'MirrorIdentity'); Tags.of(this).add('Environment', 'staging');
     const vpc = ec2.Vpc.fromVpcAttributes(this, 'ExistingNetwork', { vpcId: config.vpcId,
-      availabilityZones: config.availabilityZones, privateSubnetIds: config.privateSubnetIds });
+      availabilityZones: config.availabilityZones, privateSubnetIds: config.privateSubnetIds, isolatedSubnetIds: config.isolatedSubnetIds });
     const dataKey = new kms.Key(this, 'DatabaseKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
     const secretsKey = new kms.Key(this, 'SecretsKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
     const imageKey = new kms.Key(this, 'ImagesKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
@@ -64,7 +66,7 @@ export class IdentityFoundation extends Stack {
       'rds.force_ssl': '1', 'password_encryption': 'scram-sha-256',
       'log_statement': 'none', 'log_min_error_statement': 'panic',
     } });
-    this.database = new rds.DatabaseInstance(this, 'Database', { vpc, vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+    this.database = new rds.DatabaseInstance(this, 'Database', { vpc, vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       engine, parameterGroup: parameters, databaseName: 'mirror_identity_staging',
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.SMALL),
       credentials: rds.Credentials.fromGeneratedSecret('mirror_identity_owner', { encryptionKey: secretsKey,

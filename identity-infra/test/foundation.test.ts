@@ -4,10 +4,11 @@ import { App } from 'aws-cdk-lib';
 import { Template, Match } from 'aws-cdk-lib/assertions';
 import { IdentityFoundation, validateFoundationConfig, type FoundationConfig } from '../src/foundation.js';
 const config: FoundationConfig = { stage: 'staging', account: '111111111111', region: 'us-east-1', vpcId: 'vpc-0123456789abcdef0',
-  privateSubnetIds: ['subnet-0123456789abcdef0', 'subnet-0123456789abcdef1'], availabilityZones: ['us-east-1a', 'us-east-1b'], postgresVersion: '17.6' };
+  privateSubnetIds: ['subnet-0123456789abcdef0', 'subnet-0123456789abcdef1'], isolatedSubnetIds: ['subnet-0123456789abcdef2', 'subnet-0123456789abcdef3'], availabilityZones: ['us-east-1a', 'us-east-1b'], postgresVersion: '17.6' };
 test('offline synthesis retains private encrypted Multi-AZ PostgreSQL and immutable images', () => {
   const stack = new IdentityFoundation(new App(), 'MirrorIdentityStagingFoundationTest', config), template = Template.fromStack(stack);
   assert.equal(stack.terminationProtection, true);
+  template.hasResourceProperties('AWS::RDS::DBSubnetGroup', { SubnetIds: config.isolatedSubnetIds });
   template.hasResourceProperties('AWS::RDS::DBInstance', { Engine: 'postgres', EngineVersion: '17.6', PubliclyAccessible: false,
     MultiAZ: true, StorageEncrypted: true, DeletionProtection: true, BackupRetentionPeriod: 35, AutoMinorVersionUpgrade: false });
   template.hasResource('AWS::RDS::DBInstance', { DeletionPolicy: 'Retain', UpdateReplacePolicy: 'Retain' });
@@ -28,7 +29,7 @@ test('offline synthesis retains private encrypted Multi-AZ PostgreSQL and immuta
 });
 test('configuration cannot select production, mixed regions, duplicate subnets or another stack environment', () => {
   for (const delta of [{ stage: 'production' }, { privateSubnetIds: [config.privateSubnetIds[0], config.privateSubnetIds[0]] },
-    { availabilityZones: ['us-east-1a', 'us-west-2a'] }, { postgresVersion: 'latest' }, { account: '123' }]) {
+    { isolatedSubnetIds: ['subnet-0123456789abcdef2', 'subnet-0123456789abcdef3'], availabilityZones: ['us-east-1a', 'us-west-2a'] }, { postgresVersion: 'latest' }, { account: '123' }]) {
     assert.throws(() => validateFoundationConfig({ ...config, ...delta } as FoundationConfig));
   }
   assert.throws(() => new IdentityFoundation(new App(), 'WrongEnvironment', config, { env: { account: '222222222222', region: 'us-east-1' } }));

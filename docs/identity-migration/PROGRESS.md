@@ -1,5 +1,15 @@
 # Migration progress
 
+## Fresh AWS and database isolation checkpoint — September 22
+
+Existing AWS access works. Read-only inspection verified staging network, audit
+trail, public DNS zone and available PostgreSQL minor; production remains task
+revision 43 with two running tasks. SES production access is still denied.
+See AWS-STAGING-INVENTORY.md. No AWS resources or emails were changed.
+The independent database foundation now requires distinct isolated data subnets;
+both offline infrastructure checks pass. This supersedes historical credential
+expiry notes below, without clearing any deployment or cutover gates.
+
 ## Application, browser and recovery checkpoint — September 22
 
 The verified-release application sandbox now builds with explicit issuer/subject
