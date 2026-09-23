@@ -3,8 +3,24 @@ import { passkeyClient } from "@better-auth/passkey/client";
 import { enrollmentMessage } from "../core/staging-policy.js";
 import { safeResumePath } from "../core/policy.js";
 const production = document.documentElement.dataset.identityMode === "production";
-const invitationToken = new URLSearchParams(location.hash.slice(1)).get("invitation");
+const invitationFromLink = new URLSearchParams(location.hash.slice(1)).get("invitation");
 const staging = ["staging", "production"].includes(document.documentElement.dataset.identityMode ?? "");
+// Keep a short-lived setup invitation across tabs, so the emailed mailbox link can
+// open in a new tab without making the user manually copy either bearer token.
+const invitationStorageKey = "mirror-identity-setup-invitation";
+const validInvitation = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value);
+let invitationToken = invitationFromLink;
+if (production) {
+  try {
+    if (validInvitation(invitationFromLink)) {
+      localStorage.setItem(invitationStorageKey, JSON.stringify({ token: invitationFromLink, expiresAt: Date.now() + 15 * 60_000 }));
+    } else {
+      const saved = JSON.parse(localStorage.getItem(invitationStorageKey) ?? "null") as { token?: unknown; expiresAt?: unknown } | null;
+      invitationToken = saved && validInvitation(saved.token) && typeof saved.expiresAt === "number" && saved.expiresAt > Date.now() ? saved.token : null;
+      if (!invitationToken) localStorage.removeItem(invitationStorageKey);
+    }
+  } catch { /* Private browsing may disable local storage; the original tab still works. */ }
+}
 // Fragments are not sent in HTTP requests; remove the bearer from browser history before any fetch.
 const mailboxToken = staging ? new URLSearchParams(location.hash.slice(1)).get("mailboxToken") : null;
 if (staging && location.hash) history.replaceState(null, "", location.pathname + location.search);
@@ -50,7 +66,7 @@ if (staging) {
   }
   const input=element<HTMLFormElement>("enroll").elements.namedItem("mailboxToken") as HTMLInputElement;
   if (mailboxToken && /^[A-Za-z0-9_-]{43}$/.test(mailboxToken)) {
-    input.value=mailboxToken;message("Mailbox token loaded. Enter the matching invitation and choose your password. No account has been created yet.");
+    input.value=mailboxToken;message(production && invitationToken ? "Email verified. Choose a display name and password to create your account." : "Mailbox token loaded. Enter the matching invitation and choose your password. No account has been created yet.");
   }
   form("mailbox",async values=>{
     await api("/api/identity/request-mailbox",{invitation:values.invitation});
@@ -58,7 +74,7 @@ if (staging) {
     message(production ? "Check your email for the verification link. Keep this page open so you can finish setup." : "Mailbox request queued or already recorded. No live provider is configured in this batch. Queue acceptance does not verify your email.");
   });
 }
-form("enroll",async values=>{await api("/api/identity/enroll",values);message(staging?
+form("enroll",async values=>{await api("/api/identity/enroll",values);if (production) { try { localStorage.removeItem(invitationStorageKey); } catch {} }message(staging?
   (production ? "Email verified. Sign in with your password, register a passkey, then use it to sign in." : "Mailbox possession verified; credentials created without application access. Sign in with your password and register your required factor. Privileged access still needs independent approval and a later passkey authentication."):
   "Synthetic identity enrolled. Sign in with your password to register your first factor. Mailbox ownership is not verified in this laboratory.");});
 form("totp-setup",async values=>{
