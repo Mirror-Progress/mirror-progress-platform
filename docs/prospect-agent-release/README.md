@@ -8,4 +8,6 @@ The release workspace added these application dependencies: `@aws-sdk/client-bed
 
 The ECS application task role requires `bedrock:InvokeModelWithResponseStream` and `bedrock:InvokeModel` for the `us.anthropic.claude-sonnet-4-6` inference profile and its three foundation-model destinations. The exact scoped role policy is in `bedrock-task-policy.json`. The application uses the task role, not static AWS credentials.
 
+The September 23 live image is `mirror-identity-production@sha256:c6a1fa9067d46208861de7761755a5aff360ebd46fa27cf6e08c3c2bf42e3b0d` in AWS account `380314682150`. It was registered as platform ECS task revision 49. The previous task revision was 48.
+
 To verify the published candidate files, run `node verify.mjs` from this directory. The live image is built from the private release workspace, then deployed to the platform ECS service with a new task-definition revision. This candidate is for review and integration against that verified source; it is not a standalone application.
