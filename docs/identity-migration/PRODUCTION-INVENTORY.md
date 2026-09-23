@@ -46,7 +46,9 @@ policy head. Identify privileged roles from canonical memberships. Reject missin
 or duplicate matches, conflicting scope, disabled accounts and invalid epochs;
 never infer a principal from email or create replacement principal IDs. Include
 non-Cognito kernel accounts in the discrepancy count rather than silently dropping
-them. No such live DocumentDB reconciliation has run yet.
+them. This live comparison has now run with collection-scoped find-only access;
+see PRODUCTION-RECONCILIATION.md for the aggregate invitation-state discrepancy,
+confidentiality boundary and complete temporary-access cleanup.
 
 A reviewed confidential mapping manifest must bind existing principal IDs and
 versions to newly enrolled identity subjects, with explicit review references.
@@ -55,23 +57,23 @@ Revalidate account state immediately before applying an import and before cutove
 Do not treat the three-account aggregate or synthetic parity tests as that manifest.
 No enrollment messages or runtime mapping imports are prepared for transmission.
 
-## Rollback retention gap
+## Rollback retention gap resolved
 
-Production43's exact image remains present:
-`sha256:51f5531fc85e3284ed4fddc25badb0eb9a7cb7ecfcb5dc7c38897fc916423512`.
-The application repository expires images beyond the most recent30 with tagStatus
-any. Its existing tag is therefore not a guaranteed retention pin. Before cutover,
-copy the exact verified image to separately retained rollback storage or review a
-lifecycle-policy change, then verify the resulting manifest and pull permissions.
-Merely adding another tag does not fix an any-tag expiration rule. No lifecycle
-policy was changed during this read-only preparation. Retain isolated Cognito
-rollback for seven days after the eventual cutover.
+The source repository still has its original any-tag/count30 expiration policy.
+The exact production43 image has now been copied to the separate protected
+mirror-progress/identity-cutover-rollback repository without changing that policy.
+Manifest bytes/digest match; no lifecycle expiration is configured, immutable tags
+and scoped deletion/retention-change denials are applied. A private task verified
+that the actual production execution role can pull and run the retained image.
+See PRODUCTION-RECONCILIATION.md for the exact digest, access boundary and limits.
+Retain this copy through at least seven days after the eventual verified cutover.
 
 ## Actual next-step dependencies
 
-Engineering still required: confidential live principal/membership reconciliation,
-reviewed production change sets, separate resources/secrets and image promotion,
-rollback retention, reviewed imports and production readiness validation. These
+Engineering still required: invitation-preservation validation, reviewed production
+change sets, separate resources/secrets and image promotion, reviewed imports and
+production readiness validation. Confidential reconciliation and rollback retention
+are now recorded separately with their precise limits. These
 have not been replaced by documentation or declared human-only blockers.
 
 Independent reviewer staffing is unanswered. Real privileged enrollment requires

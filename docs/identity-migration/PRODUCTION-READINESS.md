@@ -31,8 +31,10 @@ This is not deployed production readiness. The corrected image is now published
 and deployed to staging with the verified-email token fix; production is unchanged.
 
 Read-only production network/account aggregates and stopped offline synthesis are
-now recorded in [production inventory](PRODUCTION-INVENTORY.md). Confidential live
-account reconciliation, separately provisioned resources/credentials, independent
+now recorded in [production inventory](PRODUCTION-INVENTORY.md). Confidential
+reconciliation and protected rollback are recorded in
+[production reconciliation](PRODUCTION-RECONCILIATION.md); invited state must be
+preserved and revalidated. Separately provisioned resources/credentials, independent
 image/code review and production deployment are still outstanding. Do not point the live
 app at staging or reuse staging secrets, roles or data. Production application
 permissions remain unchanged.
@@ -43,7 +45,8 @@ and provider logout/revocation denial. An actual private RDS point-in-time resto
 also passed TLS, migration, client and runtime-permission checks. See
 [AWS rehearsal evidence](AWS-REHEARSAL.md). These do not establish actual user
 onboarding, privileged human assurance, real-account parity or recovery acceptance.
-Production rollback artifact retention still needs recorded evidence. Do not use
+The exact production rollback image is now separately protected and its pull was
+verified with the production execution role. Do not use
 missing historical staging image/revision26 as a rollback artifact.
 
 These are engineering/evidence tasks, not all human blockers. This bounded review
