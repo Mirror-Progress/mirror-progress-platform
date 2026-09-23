@@ -1,11 +1,13 @@
+import { albClientAddress, trustedAlbPeers } from "./proxy.js";
 import { createServer } from "node:http";
 import type { RequestListener, Server } from "node:http";
 import { createServer as createTlsServer } from "node:https";
 import type { ServerOptions, Server as TlsServer } from "node:https";
 export type IdentityHandler = (request: Request, ip: string) => Promise<Response>;
 /** The same native HTTP transport is used by the service and the offline transport tests. */
-export function createIdentityHttpServer(origin: string, handler: IdentityHandler, tls?: ServerOptions): Server | TlsServer {
+export function createIdentityHttpServer(origin: string, handler: IdentityHandler, tls?: ServerOptions, albProxyCidrs?: readonly string[]): Server | TlsServer {
   if ((new URL(origin).protocol === "https:") !== Boolean(tls)) throw new Error("TLS must match the configured origin");
+  const trusted = albProxyCidrs ? trustedAlbPeers(albProxyCidrs) : undefined;
   const expectedHost = new URL(origin).host;
   const listener: RequestListener = async (incoming, outgoing) => {
     const deny = (status: number, code: string) => {
@@ -15,6 +17,11 @@ export function createIdentityHttpServer(origin: string, handler: IdentityHandle
     try {
       const hostCount = incoming.rawHeaders.filter((_, i) => i % 2 === 0 && incoming.rawHeaders[i]!.toLowerCase() === "host").length;
       if (hostCount !== 1 || incoming.headers.host !== expectedHost) { deny(400, "invalid_host"); return; }
+      let ip = incoming.socket.remoteAddress ?? "unknown";
+      if (trusted) {
+        try { ip = albClientAddress(ip, incoming.headers, trusted); }
+        catch { deny(400, "invalid_proxy"); return; }
+      }
       const target = incoming.url ?? "/";
       const url = new URL(target, origin);
       if (!target.startsWith("/") || target.startsWith("//") || url.origin !== origin) { deny(400, "invalid_request_target"); return; }
@@ -33,7 +40,7 @@ export function createIdentityHttpServer(origin: string, handler: IdentityHandle
       const method = incoming.method ?? "GET";
       const request = new Request(url, { method, headers,
         ...(["GET", "HEAD"].includes(method) ? {} : { body: new Uint8Array(Buffer.concat(chunks)).buffer }) });
-      const response = await handler(request, incoming.socket.remoteAddress ?? "unknown");
+      const response = await handler(request, ip);
       outgoing.statusCode = response.status;
       for (const [key, value] of response.headers) if (key !== "set-cookie") outgoing.setHeader(key, value);
       const cookies = response.headers.getSetCookie();

@@ -2,6 +2,7 @@ import { PolicyError } from "./policy.js";
 import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
   sessionStatusSecret?: string;
+  albProxyCidrs?: readonly string[];
   mode?: "staging";
   staging?: { rpId: string; deliveryKey: string; certFile: string; keyFile: string };
   origin: string;

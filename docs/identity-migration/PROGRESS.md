@@ -1,5 +1,15 @@
 # Migration progress
 
+## Essential cutover path: staged container — September 22
+
+The ALB-compatible service builds; 138 unit checks and four infrastructure checks
+pass. A full disposable container rehearsal passes real TLS PostgreSQL, repeated
+migrations, restricted runtime startup, forwarding validation and health isolation.
+See ALB-STAGING-REHEARSAL.md. The add-only AWS foundation change set is validated;
+this checkpoint does not yet establish AWS sign-in or rollback. Optional new-account
+features are deferred; existing-user authorization and required recovery/enrollment
+checks remain in scope.
+
 ## Fresh AWS and database isolation checkpoint — September 22
 
 Existing AWS access works. Read-only inspection verified staging network, audit

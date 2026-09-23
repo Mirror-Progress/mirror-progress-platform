@@ -115,3 +115,9 @@ test("onboarding explains approval, replay, and registration rather than claimin
   assert.match(enrollmentMessage("invalid_invitation"), /expired, or already used/);
   assert.match(enrollmentMessage("fresh_passkey_after_approval_required"), /not authentication/);
 });
+test("ALB staging listener requires explicit private proxy ranges without changing the issuer", () => {
+  const alb = { ...env, IDENTITY_TRANSPORT: "alb", IDENTITY_BIND_HOST: "0.0.0.0", IDENTITY_ALB_SUBNET_CIDRS: "10.0.0.0/24,10.0.1.0/24" };
+  assert.equal(loadConfig(alb).bindHost, "0.0.0.0"); assert.equal(loadConfig(alb).origin, STAGING.origin);
+  for (const delta of [{ IDENTITY_TRANSPORT: "unknown" }, { IDENTITY_ALB_SUBNET_CIDRS: "0.0.0.0/0,10.0.1.0/24" },
+    { IDENTITY_ALB_SUBNET_CIDRS: "" }, { IDENTITY_BIND_HOST: "127.0.0.1" }]) assert.throws(() => loadConfig({ ...alb, ...delta }));
+});

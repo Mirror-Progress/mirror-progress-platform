@@ -24,7 +24,10 @@ test('offline synthesis retains private encrypted Multi-AZ PostgreSQL and immuta
     if (resource.Type === 'AWS::SecretsManager::Secret') {
       assert.ok(resource.Properties.KmsKeyId); assert.equal(resource.Properties.SecretString, undefined);
     }
-    if (resource.Type === 'AWS::EC2::SecurityGroupIngress') assert.equal(resource.Properties.CidrIp, undefined);
+    if (resource.Type === 'AWS::EC2::SecurityGroupIngress' && resource.Properties.CidrIp) {
+      assert.equal(resource.Properties.CidrIp, '0.0.0.0/0'); assert.equal(resource.Properties.FromPort, 443);
+      assert.equal(resource.Properties.ToPort, 443);
+    }
   }
 });
 test('configuration cannot select production, mixed regions, duplicate subnets or another stack environment', () => {

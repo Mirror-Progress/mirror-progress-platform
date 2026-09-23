@@ -26,6 +26,8 @@ export function validateFoundationConfig(config: FoundationConfig) {
 
 /** Additive independent stateful foundation. No service, DNS, Cognito, email or cutover. */
 export class IdentityFoundation extends Stack {
+  readonly secretsKey: kms.Key;
+  readonly edgeGroup: ec2.SecurityGroup;
   readonly database: rds.DatabaseInstance;
   readonly runtimeGroup: ec2.SecurityGroup;
   readonly operatorGroup: ec2.SecurityGroup;
@@ -43,7 +45,7 @@ export class IdentityFoundation extends Stack {
     const vpc = ec2.Vpc.fromVpcAttributes(this, 'ExistingNetwork', { vpcId: config.vpcId,
       availabilityZones: config.availabilityZones, privateSubnetIds: config.privateSubnetIds, isolatedSubnetIds: config.isolatedSubnetIds });
     const dataKey = new kms.Key(this, 'DatabaseKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
-    const secretsKey = new kms.Key(this, 'SecretsKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
+    const secretsKey = this.secretsKey = new kms.Key(this, 'SecretsKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
     const imageKey = new kms.Key(this, 'ImagesKey', { enableKeyRotation: true, removalPolicy: RemovalPolicy.RETAIN });
     this.repository = new ecr.Repository(this, 'ServiceImages', { repositoryName: 'mirror-identity-staging',
       encryption: ecr.RepositoryEncryption.KMS, encryptionKey: imageKey,
@@ -53,6 +55,12 @@ export class IdentityFoundation extends Stack {
       description: 'Identity only; no public IP or database owner access' });
     this.operatorGroup = new ec2.SecurityGroup(this, 'OperatorNetwork', { vpc, allowAllOutbound: false,
       description: 'One-off reviewed database migration tasks only' });
+    this.edgeGroup = new ec2.SecurityGroup(this, 'EdgeNetwork', { vpc, allowAllOutbound: false });
+    this.edgeGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'TLS public entry');
+    for (const port of [3040, 3041]) {
+      this.runtimeGroup.addIngressRule(this.edgeGroup, ec2.Port.tcp(port), 'Only Identity ALB');
+      this.edgeGroup.addEgressRule(this.runtimeGroup, ec2.Port.tcp(port));
+    }
     const databaseGroup = new ec2.SecurityGroup(this, 'DatabaseNetwork', { vpc, allowAllOutbound: false });
     databaseGroup.addIngressRule(this.runtimeGroup, ec2.Port.tcp(5432), 'Application runtime SQL only');
     databaseGroup.addIngressRule(this.operatorGroup, ec2.Port.tcp(5432), 'Explicit one-off database administration');

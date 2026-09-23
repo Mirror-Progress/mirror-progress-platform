@@ -1,3 +1,4 @@
+import { createReadinessServer } from "./core/readiness.js";
 import { readFile } from "node:fs/promises";
 import { StagingStore } from "./staging/store.js";
 import { assertStagingRuntime } from "./staging/runtime.js";
@@ -22,11 +23,19 @@ if (config.mode === "staging") await assertStagingRuntime(pool);
 const store = config.mode === "staging" ? new StagingStore(pool, config) : new Store(pool);
 const app = createApp(config, store, createAuth(config, store));
 const tls = config.staging ? { cert: await readFile(config.staging.certFile), key: await readFile(config.staging.keyFile) } : undefined;
-const server = createIdentityHttpServer(config.origin, app, tls);
+const server = createIdentityHttpServer(config.origin, app, tls, config.albProxyCidrs);
+let draining = false;
+const readiness = config.albProxyCidrs ? createReadinessServer(async () => {
+  if (draining) throw new Error("draining");
+  await pool.query(Object.assign({ text: 'SELECT session_id FROM mirror_assurance LIMIT 0' }, { query_timeout: 3000 }));
+}) : undefined;
+readiness?.listen(3041, config.bindHost);
 server.listen(config.port, config.bindHost, () => {
   console.info(`Mirror Identity ${config.mode ?? "synthetic"} service (production startup/cutover BLOCKED)`);
 });
 for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
+  draining = true;
+  readiness?.close();
   server.close(() => { void pool.end().then(() => process.exit(0)); });
   setTimeout(() => process.exit(1), 10_000).unref();
 });

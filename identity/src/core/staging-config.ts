@@ -1,5 +1,6 @@
 import type { Config } from "./config.js";
 import { sessionStatusSecret } from "./config.js";
+import { trustedAlbPeers } from "./proxy.js";
 import { PolicyError } from "./policy.js";
 // A bounded staging trust bundle, NOT production approval or DNS provisioning.
 export const STAGING = Object.freeze({
@@ -42,10 +43,17 @@ export function loadStagingConfig(env: NodeJS.ProcessEnv): Config {
   if (!certFile.startsWith("/") || !keyFile.startsWith("/") || certFile === keyFile) {
     throw new PolicyError("staging_tls_files_required", 500);
   }
-  if (env.IDENTITY_BIND_HOST && env.IDENTITY_BIND_HOST !== "127.0.0.1") {
+  let albProxyCidrs: string[] | undefined;
+  if (env.IDENTITY_TRANSPORT === "alb") {
+    if (env.IDENTITY_BIND_HOST !== "0.0.0.0") throw new PolicyError("alb_listener_required", 500);
+    albProxyCidrs = (env.IDENTITY_ALB_SUBNET_CIDRS ?? "").split(",");
+    trustedAlbPeers(albProxyCidrs);
+  } else if (env.IDENTITY_TRANSPORT || env.IDENTITY_ALB_SUBNET_CIDRS) {
+    throw new PolicyError("invalid_staging_transport", 500);
+  } else if (env.IDENTITY_BIND_HOST && env.IDENTITY_BIND_HOST !== "127.0.0.1") {
     throw new PolicyError("staging_loopback_listener_required", 500);
   }
-  return { mode: "staging", origin: STAGING.origin, databaseUrl, secret, bindHost: "127.0.0.1", port: 3040,
+  return { mode: "staging", origin: STAGING.origin, databaseUrl, secret, bindHost: albProxyCidrs ? "0.0.0.0" : "127.0.0.1", port: 3040, albProxyCidrs,
     sessionStatusSecret: sessionStatusSecret(env),
     oidcClientId: STAGING.clientId, redirectUris: [STAGING.redirect],
     staging: { rpId: STAGING.rpId, deliveryKey, certFile, keyFile } };
