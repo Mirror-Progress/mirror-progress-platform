@@ -6,17 +6,20 @@ const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClien
 let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/admin";
 const manageRequested = location.hash === "#manage";
 const devicesRequested = location.hash === "#devices";
+const hash = new URLSearchParams(location.hash.slice(1));
+const remoteToken = hash.get("remoteEnroll");
+const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
+const remoteEnrollRequested = Boolean(remoteToken && tokenPattern.test(remoteToken));
+if (remoteEnrollRequested) platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
 const openPlatform = () => {
   if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested)
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
 };
-const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const storageKey = "mirror-identity-setup-invitation";
-const hash = new URLSearchParams(location.hash.slice(1));
 const invitationFromLink = hash.get("invitation");
 const mailboxToken = hash.get("mailboxToken");
 const directManagedInvite = Boolean(invitationFromLink && !mailboxToken);
-if (location.hash && !manageRequested && !devicesRequested) history.replaceState(null, "", location.pathname + location.search);
+if (location.hash && !manageRequested && !devicesRequested && !remoteEnrollRequested) history.replaceState(null, "", location.pathname + location.search);
 const node = <T extends HTMLElement>(id: string): T => {
   const found = document.getElementById(id);
   if (!found) throw new Error(`Missing ${id}`);
@@ -37,6 +40,7 @@ const userError = (error: unknown): string => {
   if (code === "external_email_delivery_unavailable") return "Invites to this email domain are temporarily unavailable. Contact your admin to use a verified Mirror Progress address.";
   if (code === "invitation_conflict") return "That email already has an invitation. Check the list below.";
   if (code === "privileged_passkey_required") return "Finish signing in with your passkey.";
+  if (code === "remote_enrollment_link_used_or_expired" || code === "remote_enrollment_used_or_expired") return "This one-time setup link has expired or was already used.";
   if (code === "AUTH_CANCELLED" || code === "ERROR_CEREMONY_ABORTED") return "The passkey prompt was cancelled. Try again when ready.";
   if (code === "passkey_unavailable") return "This browser could not start a passkey prompt. Try Chrome or Brave on a device with a screen lock.";
   if (/^passkey_[A-Z_0-9-]{1,80}$/.test(code)) return `Passkey could not be completed (${code.slice(8)}).`;
@@ -103,6 +107,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
     node<HTMLElement>("passkey-step").hidden = false;
     node<HTMLElement>("session-status").hidden = false;
     node<HTMLElement>("session-status").textContent = state.mfaCompleted === true ? "You’re signed in." :
+      remoteEnrollRequested ? "Your one-time setup link is ready. Sign in with your password to add this phone." :
       passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
     if (state.mfaCompleted === true) {
       node<HTMLElement>("auth-steps").hidden = true;
@@ -154,12 +159,22 @@ async function authenticatePasskey(): Promise<void> {
   await loadInvitations();
   openPlatform();
 }
+async function finishRemoteEnrollment(): Promise<void> {
+  if (!remoteEnrollRequested || !remoteToken) throw new Error("remote_enrollment_link_used_or_expired");
+  await api("/api/identity/remote-enroll/confirm", { token: remoteToken });
+  show("Create a passkey on this phone using Face ID, Touch ID, or its screen lock.");
+  const registered = await auth.passkey.addPasskey({ name: "Phone or tablet" });
+  if (registered.error) throw passkeyError(registered.error);
+  show("Phone passkey created. Confirm it once to finish signing in.");
+  await authenticatePasskey();
+}
 async function signInAndFinish(email: string, password: string): Promise<void> {
   const result = await api("/api/auth/sign-in/email", { email, password });
   if (result.twoFactorRedirect === true) throw new Error("passkey_unavailable");
   const state = await refresh();
   if (!state) throw new Error("session_required");
-  await finishPasskey();
+  if (remoteEnrollRequested) await finishRemoteEnrollment();
+  else await finishPasskey();
 }
 function submit(id: string, action: (values: Record<string, string>) => Promise<void>) {
   node<HTMLFormElement>(id).addEventListener("submit", event => {
@@ -179,7 +194,8 @@ submit("login", async values => {
 });
 node<HTMLButtonElement>("passkey-register").addEventListener("click", () => {
   const button = node<HTMLButtonElement>("passkey-register"); button.disabled = true;
-  void finishPasskey().catch(error => show(userError(error), true)).finally(() => { button.disabled = false; });
+  void (remoteEnrollRequested ? finishRemoteEnrollment() : finishPasskey())
+    .catch(error => show(userError(error), true)).finally(() => { button.disabled = false; });
 });
 node<HTMLButtonElement>("passkey-signin").addEventListener("click", () => {
   void finishPasskey().catch(error => show(userError(error), true));
@@ -220,6 +236,10 @@ if (directManagedInvite && invitationFromLink && tokenPattern.test(invitationFro
 if (mailboxToken && tokenPattern.test(mailboxToken)) {
   (node<HTMLFormElement>("enroll").elements.namedItem("mailboxToken") as HTMLInputElement).value = mailboxToken;
   show("Email verified. Choose a password to create your account.");
+}
+if (remoteEnrollRequested) {
+  node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });
+  show("One-time phone setup link opened. Enter your existing email and password to create a passkey here.");
 }
 if (invitationFromLink || mailboxToken) node<HTMLDetailsElement>("setup-details").open = true;
 submit("mailbox", async values => { await api("/api/identity/request-mailbox", { invitation: values.invitation });
