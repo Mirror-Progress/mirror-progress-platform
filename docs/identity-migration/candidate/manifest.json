@@ -100,7 +100,17 @@
     {
       "path": "pages/apps/studioiq/index.tsx",
       "baselineSha256": "df1fcf9b3db0b6381b6cd7661fda72581e4a9ed3f08a1a99b1760738cceff234",
-      "sha256": "4b5d2e3621039e878d1c98df188c3f1b78928910d57349354533ead9f58d2c7c"
+      "sha256": "10111247c8ee24095b412f1d9cb93c5bd2319f629e7b6577c4decd2eaaf792ce"
+    },
+    {
+      "path": "lib/canonical-prospect-access.ts",
+      "baselineSha256": null,
+      "sha256": "8453c8558721844c614ec362304283a6fd0a383dcec79825766d30411be3d057"
+    },
+    {
+      "path": "lib/studioiq-product-auth.ts",
+      "baselineSha256": "40e2697a9fd668ce3bd703184a29fde2e031bb7213043902d53f6a400b503eb3",
+      "sha256": "bb02657b223472b50ec62414de7d6901704f919ce0949d8ca7dbdcb466e218fc"
     }
   ]
 }

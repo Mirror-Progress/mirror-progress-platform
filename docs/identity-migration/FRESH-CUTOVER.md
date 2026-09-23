@@ -2,7 +2,7 @@
 
 The production application now routes sign-in to Mirror Identity at
 `https://accounts.mirrorprogress.com/api/auth`. The application service runs
-task revision 44 with two healthy tasks. The old Cognito callback returns 404;
+task revision 47 with two healthy tasks. The old Cognito callback returns 404;
 the account service and OIDC discovery respond over trusted HTTPS.
 
 This is a fresh install. No Cognito account, credential, subject, or account
@@ -10,10 +10,9 @@ history was imported into Mirror Identity. Existing State Kernel records remain
 untouched, including the old seeded principals; they do not authenticate through
 the new provider. A new first-owner principal and `super_admin` membership were
 created for the owner-supplied `ronniemack@mirrorprogress.com`, with an exact
-new issuer/subject mapping. The owner must finish mailbox verification and
-passkey registration using the one-time setup link delivered separately. No
-mail was sent by the deployment; the user triggers the verification message in
-the setup page.
+new issuer/subject mapping. The owner completed mailbox verification,
+password creation, and a device passkey sign-in. No mail was sent by the
+deployment; the owner requested the verification message in the setup page.
 
 The production Identity database is separate from staging, encrypted, private,
 Multi-AZ, and initialized by the one-off schema task. The runtime is a private
@@ -26,7 +25,8 @@ The first-owner bootstrap task exited zero and reported one new owner, zero
 legacy imports, and no email sent. Its temporary IAM roles and task definitions
 were removed after completion. The bootstrap script and infrastructure changes
 are in this PR. The one-time invitation is held in a production Secrets Manager
-secret until the owner completes enrollment; do not commit it to this repository.
+secret. Its invitation was consumed during enrollment; do not commit it to
+this repository.
 
 The protected Cognito rollback image remains in the immutable rollback ECR
 repository. Application task revision 45 was prepared with that exact digest for
@@ -37,8 +37,8 @@ Validation: 152 Identity unit tests, 11 staging and 11 production hosted
 enrollment tests, 7 infrastructure synthesis tests, and a production container
 TLS/schema/startup smoke check passed. The production service and application
 health, sign-in redirect, discovery, and old callback behavior were checked
-after cutover. Human mailbox and passkey ceremonies remain to be completed by
-the owner in a browser.
+after cutover. The owner subsequently completed the human mailbox and passkey
+ceremonies and opened an authenticated platform session.
 
 Earlier documents in this directory describe staging rehearsals and an
 abandoned account-migration proposal. Their statements that production remains
@@ -71,5 +71,36 @@ the same browser. The landing chain sent the administrator to `/workspace`,
 whose client-only guard selected a Studio IQ product route even though the
 administrator did not have a client workspace. The fresh sign-in default now
 starts the application at `/admin`. The application routes administrators who
-open `/workspace` to `/admin`, and administrators who open `/apps/studioiq` to
-`/admin/studioiq-pilots`; client accounts retain their client routes.
+open `/workspace` to `/admin`; client accounts retain their client routes.
+
+## Canonical internal Prospect access
+
+The owner clarified that Studio IQ is now called Prospect and that Mirror
+Progress's canonical internal accounts should open the Prospect product
+without another account system. A read-only production check found two active
+internal super-admin principals: the prior founder record had an active
+Prospect organization, owner membership, and entitlement; the new Mirror
+Identity principal had an active canonical membership and identity mapping
+but no Prospect access. A bounded transaction attached the new principal to
+that same Prospect organization with an owner membership and audit record. It
+created no second organization or new entitlement.
+
+The platform now provisions the same tenant-bound Prospect access when a
+future active internal super-admin, admin, or project lead signs in with a
+reviewed Mirror Identity mapping. It verifies the canonical principal and
+membership, existing internal Prospect organization, and active entitlement;
+it never revives disabled access. Client accounts remain limited to their own
+explicit organization access. The Prospect page opens the product for an
+internal member with access and retains the pilot-admin fallback when access
+cannot be established.
+
+The owner access transaction passed a read-only preflight (one eligible new
+principal, one existing workspace, active entitlement, available seat) and
+committed one access record, one membership, and one audit record. The platform
+runtime image `sha256:1566b4955d35a5a9975ca7b639595ef4fca553bc2da760bb45aad100292cf3a5`
+is running as task revision 47 with two healthy tasks. The production build,
+12 focused authorization/Prospect checks, and baseline-bound overlay integrity
+check passed. In the owner's signed-in browser,
+`https://platform.mirrorprogress.com/apps/studioiq` rendered **Prospect |
+Project discovery** with the owner account menu; no second authentication
+prompt appeared.

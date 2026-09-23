@@ -40,9 +40,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
       },
     };
   }
-  if (isAdminRole(account.role)) return { redirect: { destination: '/admin/studioiq-pilots', permanent: false } };
   const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
-  if (!access?.mirrorClientId) return { notFound: true };
+  if (!access?.mirrorClientId) return isAdminRole(account.role)
+    ? { redirect: { destination: '/admin/studioiq-pilots', permanent: false } }
+    : { notFound: true };
   const [client, member] = await Promise.all([
     getDb().then((db) => db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients').findOne({ id: access.mirrorClientId })),
     ensureStudioIqWorkspaceMembership(access),
