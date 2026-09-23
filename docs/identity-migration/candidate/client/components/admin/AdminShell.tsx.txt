@@ -1,0 +1,43 @@
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import React from 'react';
+import AccountMenu from '../AccountMenu';
+import ThemeToggle from '../ThemeToggle';
+
+const portalNav = [
+  { href: '/admin', label: 'Overview' },
+  { href: '/admin/portal-ops/clients', label: 'Clients' },
+  { href: '/admin/portal-ops/projects', label: 'Projects' },
+  { href: '/admin/portal-ops/invitations', label: 'Invitations' },
+  { href: 'https://accounts.mirrorprogress.com/#manage', label: 'Prospect Invites' },
+  { href: '/admin/portal-ops/reviews', label: 'Review Inbox' },
+  { href: '/admin/research-operations', label: 'Research' },
+  { href: '/admin/studioiq-pilots', label: 'Prospect Pilots' },
+];
+
+export interface AdminShellProps {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}
+
+const AdminShell: React.FC<AdminShellProps> = ({ title, description, children, actions }) => {
+  const router = useRouter();
+  return <main className="theme-page min-h-screen">
+    <header className="sticky top-0 z-40 border-b border-[color:var(--theme-border)] bg-[color:var(--theme-page-bg)]/95 backdrop-blur-xl">
+      <div className="mx-auto flex min-h-[72px] max-w-[1520px] items-center justify-between gap-[20px] px-[22px] max-md:px-[14px]">
+        <div><Link href="/admin" className="font-dmSans text-[18px] font-medium">Mirror Progress</Link><p className="font-diatype text-[9px] uppercase text-[color:var(--theme-page-text-muted)]">Portal Operations</p></div>
+        <nav className="hidden items-center gap-[4px] lg:flex" aria-label="Portal Operations">{portalNav.map((item) => { const active = router.pathname === item.href; return <Link key={item.href} href={item.href} className={`rounded-[5px] px-[11px] py-[9px] font-diatype text-[9px] uppercase transition ${active ? 'bg-[color:var(--theme-card-bg)] text-[color:var(--theme-page-text)]' : 'text-[color:var(--theme-page-text-muted)] hover:text-[color:var(--theme-page-text)]'}`}>{item.label}</Link>; })}</nav>
+        <div className="flex items-center gap-[8px]"><ThemeToggle /><AccountMenu /></div>
+      </div>
+      <nav className="flex gap-[4px] overflow-x-auto border-t border-[color:var(--theme-border)] px-[14px] py-[8px] lg:hidden" aria-label="Portal Operations mobile">{portalNav.map((item) => <Link key={item.href} href={item.href} className="theme-chip whitespace-nowrap rounded-[5px] px-[10px] py-[8px] font-diatype text-[9px] uppercase">{item.label}</Link>)}</nav>
+    </header>
+    <div className="mx-auto max-w-[1520px] px-[22px] py-[28px] max-md:px-[14px]">
+      <header className="mb-[24px] flex flex-wrap items-end justify-between gap-[18px]"><div><span className="font-diatype text-[9px] uppercase text-[color:var(--theme-accent)]">Internal only</span><h1 className="mt-[7px] font-dmSans text-[38px] font-light leading-[1] max-md:text-[30px]">{title}</h1><p className="theme-page-muted mt-[10px] max-w-[760px] text-[14px] leading-[1.45]">{description}</p></div>{actions ? <div>{actions}</div> : null}</header>
+      {children}
+    </div>
+  </main>;
+};
+
+export default AdminShell;

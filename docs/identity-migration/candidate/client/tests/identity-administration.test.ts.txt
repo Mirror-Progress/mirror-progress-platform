@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { identityEnabled, requireCognitoAdministration } from '../lib/state-kernel/authorization/identity-provider';
+import { provisionClientPortal, sendClientPortalInvitation, resetClientPortalMfa } from '../lib/client-portal/onboarding';
+import { provisionStudioIqWorkspaceInvite } from '../lib/studioiq-account-provisioning';
+test('Mirror cutover blocks legacy provisioning, sends and resets before accessing input or storage', async () => {
+  process.env.AUTH_IDENTITY_PROVIDER = 'mirror';
+  // Intentionally missing inputs: the provider guard must run before any read or write.
+  for (const action of [() => provisionClientPortal(undefined as never), () => provisionStudioIqWorkspaceInvite(undefined as never),
+    () => sendClientPortalInvitation('synthetic-only'), () => resetClientPortalMfa('synthetic-only', 'operator')]) {
+    await assert.rejects(action, /identity_operator_workflow_required/);
+  }
+});
+test('Cognito rollback restores the explicit provider mode while unknown modes fail closed', () => {
+  process.env.AUTH_IDENTITY_PROVIDER = 'cognito'; assert.equal(identityEnabled(), false); requireCognitoAdministration();
+  process.env.AUTH_IDENTITY_PROVIDER = 'unexpected'; assert.throws(() => requireCognitoAdministration(), /invalid_identity_provider/);
+  delete process.env.AUTH_IDENTITY_PROVIDER;
+});
+test('managed flow seed must be strong and separate from application session secrets', async () => {
+  const { identityBridge } = await import('../lib/state-kernel/authorization/identity');
+  const settings = { AUTH_IDENTITY_PROVIDER: 'mirror', IDENTITY_ISSUER: 'https://accounts.staging.mirrorprogress.com/api/auth',
+    IDENTITY_CLIENT_ID: 'mirror-staging', IDENTITY_REDIRECT_URI: 'https://staging.mirrorprogress.com/api/auth/callback',
+    IDENTITY_FLOW_SEED: 'a'.repeat(64), SESSION_SECRET: 'b'.repeat(64) };
+  const before = Object.fromEntries(Object.keys(settings).map(k => [k, process.env[k]]));
+  try {
+    Object.assign(process.env, settings); assert.doesNotThrow(() => identityBridge());
+    process.env.IDENTITY_FLOW_SEED = 'short'; assert.throws(() => identityBridge(), /identity_configuration_invalid/);
+    process.env.IDENTITY_FLOW_SEED = process.env.SESSION_SECRET; assert.throws(() => identityBridge(), /identity_configuration_invalid/);
+  } finally { for (const [k,v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+});

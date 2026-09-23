@@ -1,0 +1,43 @@
+import type { StateKernelArtifactProvider, StateKernelIdentityProvider, StateKernelMode, StateKernelStorageProvider } from './types';
+import { normalizeStateKernelScope } from './scope';
+
+const truthy = new Set(['1', 'true', 'yes', 'on']);
+
+function enumValue<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T {
+  const normalized = `${value ?? ''}`.trim().toLowerCase() as T;
+  return allowed.includes(normalized) ? normalized : fallback;
+}
+
+export function getStateKernelConfig() {
+  const mode = enumValue<StateKernelMode>(process.env.STATE_KERNEL_MODE, ['legacy', 'shadow', 'authoritative'], 'shadow');
+  const production = process.env.NODE_ENV === 'production';
+  const identityProvider = enumValue<StateKernelIdentityProvider>(process.env.STATE_IDENTITY_PROVIDER, ['local_session', 'cognito'], 'local_session');
+  if (production && process.env.SITE_SURFACE === 'platform' && identityProvider !== 'cognito') {
+    throw new Error('Production platform deployments require STATE_IDENTITY_PROVIDER=cognito.');
+  }
+  return {
+    mode,
+    storageProvider: enumValue<StateKernelStorageProvider>(process.env.STATE_STORAGE_PROVIDER, ['mongodb'], 'mongodb'),
+    artifactProvider: enumValue<StateKernelArtifactProvider>(process.env.STATE_ARTIFACT_PROVIDER, ['local', 's3'], 'local'),
+    identityProvider,
+    snapshotTtlMs: Math.max(5_000, Number(process.env.STATE_KERNEL_TTL_MS ?? 60_000)),
+    scope: normalizeStateKernelScope({
+      tenantId: process.env.STATE_DEFAULT_TENANT_ID,
+      workspaceId: process.env.STATE_DEFAULT_WORKSPACE_ID,
+    }),
+    requireTransactions:
+      process.env.STATE_REQUIRE_TRANSACTIONS === undefined
+        ? production || mode === 'authoritative'
+        : truthy.has(process.env.STATE_REQUIRE_TRANSACTIONS.trim().toLowerCase()),
+    maxTransactionBytes: Math.min(
+      30 * 1024 * 1024,
+      Math.max(1 * 1024 * 1024, Number(process.env.STATE_MAX_TRANSACTION_BYTES ?? 28 * 1024 * 1024))
+    ),
+    artifactBucket: `${process.env.STATE_ARTIFACT_BUCKET ?? ''}`.trim(),
+    artifactKmsKeyId: `${process.env.STATE_ARTIFACT_KMS_KEY_ID ?? ''}`.trim(),
+    awsRegion: `${process.env.AWS_REGION ?? 'us-east-1'}`.trim(),
+    changeStreamInvalidation: truthy.has(
+      `${process.env.STATE_CHANGE_STREAM_INVALIDATION ?? ''}`.trim().toLowerCase()
+    ),
+  } as const;
+}

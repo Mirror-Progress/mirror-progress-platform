@@ -1,0 +1,13 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { pagesCookieResponse } from '@mirror-progress/identity-bridge';
+import { identityBridge } from '../../../lib/state-kernel/authorization/identity';
+import { identityEnabled } from '../../../lib/state-kernel/authorization/identity-provider';
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).end();
+  res.setHeader('Cache-Control', 'no-store');
+  if (process.env.SITE_SURFACE === 'campaign' || !identityEnabled()) return res.status(404).end();
+  try {
+    const result = await identityBridge().beginAuthorization({ method: 'GET', returnTo: req.query.next }, pagesCookieResponse(res));
+    return res.redirect(302, result.authorizationUrl);
+  } catch { return res.status(503).json({ error: 'authentication_unavailable' }); }
+}

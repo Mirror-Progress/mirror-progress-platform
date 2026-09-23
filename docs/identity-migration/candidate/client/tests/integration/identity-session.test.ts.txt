@@ -1,0 +1,100 @@
+import test, { before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getDb, getMongoClient } from '../../lib/mongodb';
+import { resolveMirrorIdentity, identityMappingId } from '../../lib/state-kernel/authorization/identity';
+import { createOpaqueAuthorizationSession, resolveOpaqueAuthorizationSession } from '../../lib/state-kernel/authorization/session';
+import { identitySessionActive } from '../../lib/state-kernel/authorization/identity-status';
+import type { Identity } from '@mirror-progress/identity-bridge';
+const uri = 'mongodb://127.0.0.1:55433/mirror_identity_synthetic';
+if (process.env.IDENTITY_TEST_MONGO_URI !== uri) throw new Error('isolated_identity_test_database_required');
+process.env.MONGODB_URI = uri; process.env.MONGODB_DB_NAME = 'mirror_identity_synthetic';
+process.env.AUTH_IDENTITY_PROVIDER = 'mirror'; process.env.IDENTITY_ISSUER = 'https://accounts.staging.mirrorprogress.com/api/auth';
+process.env.IDENTITY_SESSION_STATUS_SECRET = 'synthetic-status-secret-not-used-outside-tests-0123456789';
+const originalFetch = globalThis.fetch;
+let serviceActive = true, serviceDown = false, requirePrivileged = false;
+before(() => {
+  globalThis.fetch = async (url, init) => {
+    assert.equal(String(url), 'https://accounts.staging.mirrorprogress.com/internal/identity/session-status');
+    assert.equal(init?.redirect, 'error'); assert.equal(init?.cache, 'no-store');
+    assert.equal(new Headers(init?.headers).get('authorization'), `Bearer ${process.env.IDENTITY_SESSION_STATUS_SECRET}`);
+    requirePrivileged = JSON.parse(String(init?.body)).requirePrivileged;
+    if (serviceDown) throw new Error('synthetic outage');
+    return new Response(JSON.stringify({ active: serviceActive }), { headers: { 'content-type': 'application/json' } });
+  };
+});
+after(async () => { globalThis.fetch = originalFetch; await (await getMongoClient()).close(); });
+async function fixture(roles = ['client']) {
+  serviceActive = true; serviceDown = false;
+  const id = `identity-integration-${randomUUID()}`, subject = randomUUID(), membershipId = randomUUID(), revision = randomUUID();
+  const scope = { tenantId: `tenant-${id}`, workspaceId: `workspace-${id}` }, db = await getDb();
+  await db.collection('authorization_principals').insertOne({ principalId: id, cognitoSubject: randomUUID(),
+    ...scope, status: 'active', authorizationEpoch: 7, email: `${id}@example.invalid` });
+  await db.collection('authorization_memberships').insertOne({ principalId: id, membershipId, ...scope, status: 'active', roles });
+  await db.collection('authorization_policy_heads').insertOne({ ...scope, policyRevisionId: revision, policyId: 'active-test' });
+  const identity: Identity = { issuer: process.env.IDENTITY_ISSUER!, subject, email: `${id}@example.invalid`, emailVerified: true,
+    principalId: id, authorizationEpoch: '9007199254740993', identitySessionId: randomUUID(), authTime: Math.floor(Date.now()/1000),
+    amr: [], assurance: { kind: 'passkey-uv', acr: null }, mfaVerifiedAt: new Date().toISOString(), returnTo: '/workspace' };
+  const mapping = { _id: identityMappingId(identity.issuer, subject), issuer: identity.issuer, subject, principalId: id,
+    enabled: true, reviewRef: 'synthetic-reviewed-mapping' };
+  await db.collection<{ _id: string }>('authorization_identity_mappings').insertOne(mapping);
+  const headers = new Map<string, string | string[] | number>();
+  const res = { getHeader: (key: string) => headers.get(key), setHeader: (key: string, value: string | string[] | number) => headers.set(key, value) } as unknown as NextApiResponse;
+  const resolved = await resolveMirrorIdentity(identity);
+  const session = await createOpaqueAuthorizationSession({ res, principalId: id, membershipId, scope, policyRevisionId: revision,
+    authorizationEpoch: 7, identityBinding: resolved.binding, mfaVerifiedAt: identity.mfaVerifiedAt });
+  const cookie = (headers.get('Set-Cookie') as string[])[0]!.split(';')[0];
+  const req = { headers: { cookie } } as NextApiRequest;
+  return { db, id, identity, mapping, req, session, resolved };
+}
+test('explicit subject mapping preserves principal, kernel epoch and membership, and stores no bearer', async () => {
+  const f = await fixture(); const resolved = await resolveOpaqueAuthorizationSession(f.req);
+  assert.equal(resolved?.principal.principalId, f.id); assert.equal(resolved?.session.authorizationEpoch, 7);
+  assert.equal(resolved?.session.identityBinding?.epoch, '9007199254740993');
+  assert.deepEqual(resolved?.membership.roles, ['client']); assert.equal(requirePrivileged, false);
+  const saved = await f.db.collection('authorization_sessions').findOne({ sessionId: f.session.sessionId });
+  assert.ok(saved?.encryptedRefreshMaterial == null); assert.match(saved!.tokenDigest, /^[a-f0-9]{64}$/);
+});
+test('signed principal claim and email cannot substitute for the reviewed issuer/subject mapping', async () => {
+  const f = await fixture();
+  await assert.rejects(resolveMirrorIdentity({ ...f.identity, subject: 'unmapped' }), /identity_binding_unavailable/);
+  await assert.rejects(resolveMirrorIdentity({ ...f.identity, principalId: 'another' }), /identity_binding_unavailable/);
+  await assert.rejects(resolveMirrorIdentity({ ...f.identity, emailVerified: false }), /identity_binding_unavailable/);
+  await f.db.collection('authorization_principals').updateOne({ principalId: f.id }, { $set: { status: 'disabled' } });
+  await assert.rejects(resolveMirrorIdentity(f.identity), /identity_binding_unavailable/);
+  assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+});
+test('Identity revocation and service outages deny an existing session without legacy fallback', async () => {
+  const f = await fixture(); serviceActive = false;
+  assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+  serviceActive = true; serviceDown = true;
+  assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+  serviceDown = false;
+  assert.equal(await identitySessionActive({ ...f.resolved.binding, issuer: 'https://other.invalid/api/auth' }), false);
+});
+test('kernel epoch, membership and policy still independently deny access', async () => {
+  for (const target of ['epoch', 'membership', 'policy']) {
+    const f = await fixture();
+    if (target === 'epoch') await f.db.collection('authorization_principals').updateOne({ principalId: f.id }, { $inc: { authorizationEpoch: 1 } });
+    if (target === 'membership') await f.db.collection('authorization_memberships').updateOne({ principalId: f.id }, { $set: { status: 'disabled' } });
+    if (target === 'policy') await f.db.collection('authorization_policy_heads').updateOne({ tenantId: f.session.tenantId }, { $set: { policyRevisionId: 'changed' } });
+    assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+  }
+});
+test('privileged memberships require the independent privileged provider gate on each request', async () => {
+  const f = await fixture(['admin']); await resolveOpaqueAuthorizationSession(f.req); assert.equal(requirePrivileged, true);
+});
+test('cutover rejects old sessions and rollback rejects Mirror sessions', async () => {
+  const f = await fixture();
+  process.env.AUTH_IDENTITY_PROVIDER = 'cognito'; assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+  process.env.AUTH_IDENTITY_PROVIDER = 'mirror';
+  await f.db.collection('authorization_sessions').updateOne({ sessionId: f.session.sessionId }, { $unset: { identityBinding: '' } });
+  assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+});
+test('disabling a reviewed mapping revokes existing sessions and ambiguous cookies are rejected', async () => {
+  const f = await fixture();
+  assert.equal(await resolveOpaqueAuthorizationSession({ headers: { cookie: `${f.req.headers.cookie}; ${f.req.headers.cookie}` } } as NextApiRequest), null);
+  await f.db.collection<{ _id: string }>('authorization_identity_mappings').updateOne({ _id: f.mapping._id }, { $set: { enabled: false } });
+  assert.equal(await resolveOpaqueAuthorizationSession(f.req), null);
+});

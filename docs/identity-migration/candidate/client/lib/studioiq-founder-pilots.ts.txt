@@ -1,0 +1,521 @@
+import crypto from 'crypto';
+import { createAuditEvent } from './audit-events';
+import { ensureMongoBootstrap } from './mongodb-bootstrap';
+import { getDb } from './mongodb';
+import {
+  grantProductCredit,
+  findProductEntitlement,
+  updateCommercialAgreement,
+  upsertProductEntitlement,
+  type CommercialAgreementStatus,
+  type ProductEntitlementStatus,
+} from './product-commercial';
+import { provisionStudioIqWorkspaceInvite } from './studioiq-account-provisioning';
+import { identityEnabled } from './state-kernel/authorization/identity-provider';
+import { stateContentHash } from './state-kernel/hash';
+import { stateKernelRecordContext, stateKernelStorageId } from './state-kernel/scope';
+import { authorizationCollectionNames } from './state-kernel/authorization/store';
+import type {
+  ActivePolicyHead,
+  AuthorizationPolicyDefinition,
+  AuthorizationPolicyRevision,
+} from './state-kernel/types';
+
+type Stored<T> = T & { _id: string };
+
+interface FounderPilotOperation {
+  _id: string;
+  id: string;
+  pilotId: string;
+  idempotencyKey: string;
+  action: string;
+  actorUserId: string;
+  status: 'pending' | 'completed' | 'failed';
+  attempts: number;
+  failureReason?: string | null;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudioIqFounderPilot {
+  id: string;
+  idempotencyKey: string;
+  productId: 'studioiq';
+  mirrorClientId: string;
+  externalOrganizationId: string;
+  organizationName: string;
+  verifiedDomain: string | null;
+  ownerEmail: string;
+  ownerDisplayName: string;
+  identityInvitationId: string;
+  planId: string;
+  planName: string;
+  seatAllowance: number;
+  trialDays: number;
+  graceDays: number;
+  invitationMessage: string;
+  status: 'provisioning' | 'prepared' | 'invited' | 'active' | 'revoked' | 'failed';
+  deliveryStatus: string;
+  failureReason: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function value(input: unknown, maximum = 300) {
+  return `${input ?? ''}`.trim().slice(0, maximum);
+}
+
+function normalizeEmail(input: unknown) {
+  const email = value(input, 320).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('A valid owner email is required.');
+  return email;
+}
+
+function normalizeDomain(input: unknown) {
+  const domain = value(input, 200).toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  if (domain && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) throw new Error('Verified domain is invalid.');
+  return domain || null;
+}
+
+function displayNameFromEmail(email: string) {
+  return email.split('@')[0].split(/[._-]+/).filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`).join(' ') || email;
+}
+
+function clean<T>(document: Stored<T> | null) {
+  if (!document) return null;
+  const copy = { ...document } as Partial<Stored<T>>;
+  delete copy._id;
+  return copy as T;
+}
+
+function studioIqClientPolicy(tenantId: string): AuthorizationPolicyDefinition {
+  return {
+    policyId: `policy:studioiq:${tenantId}`,
+    tenantId,
+    label: 'Prospect product workspace',
+    allowedRoles: ['client'],
+    allowedPurposes: ['studioiq_product_workspace'],
+    allowedActions: ['workspace:read'],
+    allowedDomains: ['future_apps'],
+    allowedEntityTypes: [],
+    allowedFields: {},
+    allowedRelationshipTypes: [],
+    allowedContractIds: [],
+    maximumSensitivity: 'sensitive',
+    requireAssignment: false,
+    declassificationRules: [],
+  };
+}
+
+async function ensureStudioIqClientPolicy(mirrorClientId: string, actorUserId: string) {
+  const db = await getDb();
+  const scope = {
+    tenantId: `tenant:client:${mirrorClientId}`,
+    workspaceId: `workspace:client:${mirrorClientId}`,
+  };
+  const existing = await db.collection(authorizationCollectionNames.policyHeads).findOne(scope);
+  if (existing) return;
+  const now = new Date().toISOString();
+  const context = stateKernelRecordContext(scope);
+  const definition = studioIqClientPolicy(scope.tenantId);
+  const definitionHash = stateContentHash(definition);
+  const policyRevisionId = `policy-revision:${definitionHash.slice(0, 32)}`;
+  const revision: AuthorizationPolicyRevision = {
+    ...context,
+    policyRevisionId,
+    policyId: definition.policyId,
+    revisionNumber: 1,
+    definition,
+    definitionHash,
+    approvedBy: actorUserId,
+    approvedAt: now,
+    createdAt: now,
+  };
+  const head: ActivePolicyHead = {
+    ...context,
+    headId: 'active-policy',
+    policyId: definition.policyId,
+    policyRevisionId,
+    policyRevisionNumber: 1,
+    updatedAt: now,
+    updatedBy: actorUserId,
+  };
+  await db.collection<Stored<AuthorizationPolicyRevision>>(authorizationCollectionNames.policies).updateOne(
+    { ...scope, policyRevisionId },
+    { $setOnInsert: { _id: stateKernelStorageId(scope, policyRevisionId), ...revision } },
+    { upsert: true }
+  );
+  await db.collection<Stored<ActivePolicyHead>>(authorizationCollectionNames.policyHeads).updateOne(
+    scope,
+    { $setOnInsert: { _id: stateKernelStorageId(scope, 'active-policy'), ...head } },
+    { upsert: true }
+  );
+}
+
+async function resolveOrganization(input: {
+  organizationName: string;
+  ownerEmail: string;
+  ownerDisplayName: string;
+  existingClientId?: string;
+}) {
+  const db = await getDb();
+  if (input.existingClientId) {
+    const existing = await db.collection('clients').findOne({ id: input.existingClientId });
+    if (existing) return input.existingClientId;
+  }
+  const clients = await db.collection<{ id: string; companyName?: string; email?: string }>('clients')
+    .find({}).project({ id: 1, companyName: 1, email: 1 }).limit(2_000).toArray();
+  const normalizedName = input.organizationName.toLowerCase();
+  const matches = clients.filter((client) =>
+    value(client.companyName).toLowerCase() === normalizedName ||
+    value(client.email).toLowerCase() === input.ownerEmail
+  );
+  if (matches.length > 1 && new Set(matches.map((item) => item.id)).size > 1) {
+    throw new Error('Organization details match multiple Mirror client records. Resolve the conflict before provisioning.');
+  }
+  if (matches[0]) return matches[0].id;
+  const mirrorClientId = crypto.randomUUID();
+  await db.collection<Record<string, unknown> & { _id: string }>('clients').insertOne({
+    _id: mirrorClientId,
+    id: mirrorClientId,
+    companyName: input.organizationName,
+    primaryContact: input.ownerDisplayName,
+    email: input.ownerEmail,
+  });
+  return mirrorClientId;
+}
+
+export async function provisionStudioIqFounderPilot(input: {
+  idempotencyKey: unknown;
+  organizationName: unknown;
+  ownerEmail: unknown;
+  ownerDisplayName?: unknown;
+  verifiedDomain?: unknown;
+  planId?: unknown;
+  planName?: unknown;
+  seatAllowance?: unknown;
+  trialDays?: unknown;
+  graceDays?: unknown;
+  invitationMessage?: unknown;
+  actorUserId: string;
+  forceResend?: boolean;
+}) {
+  await ensureMongoBootstrap();
+  const db = await getDb();
+  const collection = db.collection<Stored<StudioIqFounderPilot>>('studioiq_founder_pilots');
+  const idempotencyKey = value(input.idempotencyKey, 160);
+  if (!idempotencyKey) throw new Error('An idempotency key is required.');
+  const existing = await collection.findOne({ idempotencyKey });
+  if (existing && ['prepared', 'invited', 'active'].includes(existing.status) && !input.forceResend) return clean(existing)!;
+  const organizationName = value(input.organizationName, 180);
+  if (!organizationName) throw new Error('Organization name is required.');
+  const ownerEmail = normalizeEmail(input.ownerEmail);
+  const ownerDisplayName = value(input.ownerDisplayName, 180) || displayNameFromEmail(ownerEmail);
+  const seatAllowance = Math.min(10_000, Math.max(1, Math.floor(Number(input.seatAllowance ?? 25))));
+  const trialDays = Math.min(365, Math.max(1, Math.floor(Number(input.trialDays ?? 30))));
+  const graceDays = Math.min(90, Math.max(0, Math.floor(Number(input.graceDays ?? 7))));
+  const now = new Date().toISOString();
+  const mirrorClientId = await resolveOrganization({
+    organizationName,
+    ownerEmail,
+    ownerDisplayName,
+    existingClientId: existing?.mirrorClientId,
+  });
+  const externalOrganizationId = `mirror:${mirrorClientId}`;
+  const identityInvitationId = existing?.identityInvitationId ?? `studioiq_pilot_invite_${crypto.randomUUID()}`;
+  const record: StudioIqFounderPilot = {
+    id: existing?.id ?? `studioiq_pilot_${crypto.randomUUID()}`,
+    idempotencyKey,
+    productId: 'studioiq',
+    mirrorClientId,
+    externalOrganizationId,
+    organizationName,
+    verifiedDomain: normalizeDomain(input.verifiedDomain),
+    ownerEmail,
+    ownerDisplayName,
+    identityInvitationId,
+    planId: value(input.planId, 100) || 'firm_pilot',
+    planName: value(input.planName, 160) || 'Firm Pilot',
+    seatAllowance,
+    trialDays,
+    graceDays,
+    invitationMessage: value(input.invitationMessage, 2_000),
+    status: 'provisioning',
+    deliveryStatus: existing?.deliveryStatus ?? 'pending',
+    failureReason: null,
+    createdBy: existing?.createdBy ?? input.actorUserId,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  await collection.updateOne(
+    { idempotencyKey },
+    { $set: record, $setOnInsert: { _id: record.id } },
+    { upsert: true }
+  );
+  try {
+    await ensureStudioIqClientPolicy(mirrorClientId, input.actorUserId);
+    const currentEntitlement = await findProductEntitlement({ productId: 'studioiq', mirrorClientId, refresh: false });
+    await upsertProductEntitlement({
+      productId: 'studioiq',
+      mirrorClientId,
+      planId: record.planId,
+      planName: record.planName,
+      status: currentEntitlement?.status ?? 'pending_activation',
+      seatAllowance,
+      trialDays,
+      graceDays,
+      renewalTreatment: 'custom',
+      metadata: {
+        founderPilotId: record.id,
+        verifiedDomain: record.verifiedDomain ?? '',
+        renewalLabel: 'Contact Mirror Progress',
+      },
+      actorUserId: input.actorUserId,
+    });
+    await grantProductCredit({
+      productId: 'studioiq',
+      mirrorClientId,
+      label: 'Founder Pilot Credit',
+      durationDays: trialDays,
+      percentage: 100,
+      actorUserId: input.actorUserId,
+      metadata: { founderPilotId: record.id },
+    });
+    if (identityEnabled()) {
+      const updated = await collection.findOneAndUpdate(
+        { id: record.id },
+        { $set: { status: 'prepared', deliveryStatus: 'awaiting_identity_invitation',
+          failureReason: null, updatedAt: new Date().toISOString() } },
+        { returnDocument: 'after' }
+      );
+      await createAuditEvent({ actorUserId: input.actorUserId,
+        action: 'studioiq_founder_pilot_prepared', entityType: 'StudioIqFounderPilot',
+        entityId: record.id, sourceSystem: 'platform',
+        metadata: { mirrorClientId, ownerEmail, planId: record.planId, seatAllowance: `${seatAllowance}` } });
+      return clean(updated)!;
+    }
+    const provisioning = await provisionStudioIqWorkspaceInvite({
+      invitationId: identityInvitationId,
+      email: ownerEmail,
+      role: 'owner',
+      mirrorClientId,
+      externalOrganizationId,
+    });
+    const pilotStatus = currentEntitlement && ['trialing', 'active', 'grace_read_only'].includes(currentEntitlement.status)
+      ? 'active'
+      : 'invited';
+    const updated = await collection.findOneAndUpdate(
+      { id: record.id },
+      {
+        $set: {
+          status: pilotStatus,
+          deliveryStatus: provisioning.delivery_status,
+          failureReason: null,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    await createAuditEvent({
+      actorUserId: input.actorUserId,
+      action: existing ? 'studioiq_founder_pilot_resent' : 'studioiq_founder_pilot_provisioned',
+      entityType: 'StudioIqFounderPilot',
+      entityId: record.id,
+      sourceSystem: 'platform',
+      metadata: { mirrorClientId, ownerEmail, planId: record.planId, seatAllowance: `${seatAllowance}` },
+    });
+    return clean(updated)!;
+  } catch (error) {
+    const failureReason = error instanceof Error ? error.message.slice(0, 300) : 'Founder pilot provisioning failed.';
+    await collection.updateOne(
+      { id: record.id },
+      { $set: { status: 'failed', failureReason, updatedAt: new Date().toISOString() } }
+    );
+    throw error;
+  }
+}
+
+export async function listStudioIqFounderPilots() {
+  await ensureMongoBootstrap();
+  const db = await getDb();
+  const pilots = await db.collection<Stored<StudioIqFounderPilot>>('studioiq_founder_pilots')
+    .find({}).sort({ createdAt: -1 }).limit(200).toArray();
+  const clientIds = pilots.map((pilot) => pilot.mirrorClientId);
+  const [entitlements, agreements] = await Promise.all([
+    db.collection('product_entitlements').find({ productId: 'studioiq', mirrorClientId: { $in: clientIds } }).toArray(),
+    db.collection('product_commercial_agreements').find({ productId: 'studioiq', mirrorClientId: { $in: clientIds } }).toArray(),
+  ]);
+  return pilots.map((pilot) => ({
+    ...clean(pilot)!,
+    entitlement: entitlements.find((item) => item.mirrorClientId === pilot.mirrorClientId) ?? null,
+    agreement: agreements.find((item) => item.mirrorClientId === pilot.mirrorClientId) ?? null,
+  }));
+}
+
+export async function updateStudioIqFounderPilot(input: {
+  pilotId: unknown;
+  action: 'resend' | 'revoke' | 'extend' | 'replace_owner' | 'commercial_update';
+  actorUserId: string;
+  idempotencyKey: unknown;
+  replacementEmail?: unknown;
+  replacementDisplayName?: unknown;
+  extendTrialDays?: unknown;
+  agreementStatus?: CommercialAgreementStatus;
+  invoiceReference?: unknown;
+  invoiceUrl?: unknown;
+  invoiceDueAt?: unknown;
+  paidAt?: unknown;
+  notes?: unknown;
+  activateEntitlement?: boolean;
+  entitlementStatus?: Extract<ProductEntitlementStatus, 'active' | 'suspended' | 'canceled'>;
+}) {
+  await ensureMongoBootstrap();
+  const db = await getDb();
+  const collection = db.collection<Stored<StudioIqFounderPilot>>('studioiq_founder_pilots');
+  const pilot = await collection.findOne({ id: value(input.pilotId, 160) });
+  if (!pilot) throw new Error('Founder pilot not found.');
+  const idempotencyKey = value(input.idempotencyKey, 160);
+  if (!idempotencyKey) throw new Error('An idempotency key is required.');
+  const operations = db.collection<FounderPilotOperation>('studioiq_founder_pilot_operations');
+  const operationId = `studioiq_pilot_operation_${stateContentHash(`${pilot.id}:${idempotencyKey}`).slice(0, 32)}`;
+  const existingOperation = await operations.findOne({ _id: operationId });
+  if (existingOperation?.status === 'completed') return clean(pilot)!;
+  if (existingOperation?.status === 'pending') throw new Error('This pilot operation is already in progress.');
+  const operationStartedAt = new Date().toISOString();
+  if (existingOperation) {
+    await operations.updateOne(
+      { _id: operationId, status: 'failed' },
+      { $set: { status: 'pending', failureReason: null, updatedAt: operationStartedAt }, $inc: { attempts: 1 } }
+    );
+  } else {
+    await operations.insertOne({
+      _id: operationId,
+      id: operationId,
+      pilotId: pilot.id,
+      idempotencyKey,
+      action: input.action,
+      actorUserId: input.actorUserId,
+      status: 'pending',
+      attempts: 1,
+      createdAt: operationStartedAt,
+      updatedAt: operationStartedAt,
+    });
+  }
+  const complete = async <T>(result: T) => {
+    await operations.updateOne(
+      { _id: operationId, status: 'pending' },
+      { $set: { status: 'completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } }
+    );
+    return result;
+  };
+  try {
+  if (input.action === 'resend') {
+    return complete(await provisionStudioIqFounderPilot({
+      idempotencyKey: pilot.idempotencyKey,
+      organizationName: pilot.organizationName,
+      ownerEmail: pilot.ownerEmail,
+      ownerDisplayName: pilot.ownerDisplayName,
+      verifiedDomain: pilot.verifiedDomain,
+      planId: pilot.planId,
+      planName: pilot.planName,
+      seatAllowance: pilot.seatAllowance,
+      trialDays: pilot.trialDays,
+      graceDays: pilot.graceDays,
+      invitationMessage: pilot.invitationMessage,
+      actorUserId: input.actorUserId,
+      forceResend: true,
+    }));
+  }
+  if (input.action === 'replace_owner') {
+    if (pilot.status === 'active') {
+      throw new Error('An active pilot owner must be changed through the ownership-transfer workflow.');
+    }
+    const ownerEmail = normalizeEmail(input.replacementEmail);
+    await db.collection('studioiq_identity_invitations').updateMany(
+      { invitationId: pilot.identityInvitationId, status: 'invited' },
+      { $set: { status: 'revoked' } }
+    );
+    await db.collection('product_access').updateMany(
+      { productId: 'studioiq', mirrorClientId: pilot.mirrorClientId, status: 'invited' },
+      { $set: { status: 'disabled', updatedAt: new Date().toISOString() } }
+    );
+    const identityInvitationId = `studioiq_pilot_invite_${crypto.randomUUID()}`;
+    await collection.updateOne(
+      { id: pilot.id },
+      { $set: {
+        ownerEmail,
+        ownerDisplayName: value(input.replacementDisplayName, 180) || displayNameFromEmail(ownerEmail),
+        identityInvitationId,
+        status: 'provisioning',
+        updatedAt: new Date().toISOString(),
+      } }
+    );
+    const refreshed = await collection.findOne({ id: pilot.id });
+    return complete(await provisionStudioIqFounderPilot({
+      idempotencyKey: refreshed!.idempotencyKey,
+      organizationName: refreshed!.organizationName,
+      ownerEmail: refreshed!.ownerEmail,
+      ownerDisplayName: refreshed!.ownerDisplayName,
+      verifiedDomain: refreshed!.verifiedDomain,
+      planId: refreshed!.planId,
+      planName: refreshed!.planName,
+      seatAllowance: refreshed!.seatAllowance,
+      trialDays: refreshed!.trialDays,
+      graceDays: refreshed!.graceDays,
+      invitationMessage: refreshed!.invitationMessage,
+      actorUserId: input.actorUserId,
+    }));
+  }
+  if (input.action === 'revoke') {
+    const now = new Date().toISOString();
+    await Promise.all([
+      collection.updateOne({ id: pilot.id }, { $set: { status: 'revoked', updatedAt: now } }),
+      db.collection('studioiq_identity_invitations').updateMany(
+        { invitationId: pilot.identityInvitationId, status: 'invited' },
+        { $set: { status: 'revoked' } }
+      ),
+      db.collection('product_access').updateMany(
+        { productId: 'studioiq', mirrorClientId: pilot.mirrorClientId, status: 'invited' },
+        { $set: { status: 'disabled', updatedAt: now } }
+      ),
+      db.collection('product_entitlements').updateOne(
+        { productId: 'studioiq', mirrorClientId: pilot.mirrorClientId },
+        { $set: { status: 'canceled', updatedAt: now }, $inc: { revision: 1 } }
+      ),
+    ]);
+    await createAuditEvent({ actorUserId: input.actorUserId, action: 'studioiq_founder_pilot_revoked', entityType: 'StudioIqFounderPilot', entityId: pilot.id, sourceSystem: 'platform', metadata: { mirrorClientId: pilot.mirrorClientId } });
+    return complete(clean(await collection.findOne({ id: pilot.id }))!);
+  }
+  const agreementStatus = input.agreementStatus ?? (input.activateEntitlement ? 'paid' : 'proposed');
+  await updateCommercialAgreement({
+    productId: 'studioiq',
+    mirrorClientId: pilot.mirrorClientId,
+    actorUserId: input.actorUserId,
+    status: agreementStatus,
+    invoiceReference: input.invoiceReference,
+    invoiceUrl: input.invoiceUrl,
+    invoiceDueAt: input.invoiceDueAt,
+    paidAt: input.paidAt,
+    notes: input.notes,
+    activateEntitlement: input.activateEntitlement,
+    entitlementStatus: input.entitlementStatus,
+    extendTrialDays: input.action === 'extend' ? Number(input.extendTrialDays ?? 7) : undefined,
+  });
+  return complete(clean(await collection.findOne({ id: pilot.id }))!);
+  } catch (error) {
+    await operations.updateOne(
+      { _id: operationId, status: 'pending' },
+      {
+        $set: {
+          status: 'failed',
+          failureReason: error instanceof Error ? error.message.slice(0, 300) : 'Pilot operation failed.',
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    );
+    throw error;
+  }
+}

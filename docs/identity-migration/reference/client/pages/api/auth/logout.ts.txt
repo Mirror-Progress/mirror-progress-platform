@@ -1,0 +1,30 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { clearSessionCookie } from '../../../lib/session';
+import {
+  clearOpaqueAuthorizationSession,
+  resolveOpaqueAuthorizationSession,
+} from '../../../lib/state-kernel/authorization/session';
+import { AuthorizationStore } from '../../../lib/state-kernel/authorization/store';
+import { hasSameOriginMutationContext } from '../../../lib/state-kernel/authorization/service';
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+  if (!hasSameOriginMutationContext(req)) return res.status(404).json({ error: 'resource_unavailable' });
+
+  const resolved = await resolveOpaqueAuthorizationSession(req).catch(() => null);
+  if (resolved) {
+    await new AuthorizationStore().revokeSession(
+      resolved.session.sessionId,
+      resolved.principal.principalId,
+      'logout'
+    );
+  }
+  clearSessionCookie(res);
+  clearOpaqueAuthorizationSession(res);
+  return res.status(200).json({ ok: true });
+}

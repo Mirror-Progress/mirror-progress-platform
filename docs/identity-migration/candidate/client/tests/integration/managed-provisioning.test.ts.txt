@@ -1,0 +1,106 @@
+import test, { after, before } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import type { Identity } from '@mirror-progress/identity-bridge';
+import { getDb, getMongoClient } from '../../lib/mongodb';
+import { provisionManagedIdentity } from '../../lib/state-kernel/authorization/managed-provisioning';
+import { resolveMirrorIdentity, identityMappingId } from '../../lib/state-kernel/authorization/identity';
+import { MIRROR_PROGRESS_INTERNAL_SCOPE } from '../../lib/state-kernel/scope';
+
+const uri = 'mongodb://127.0.0.1:55434/mirror_identity_managed_synthetic?directConnection=true';
+if (process.env.IDENTITY_TEST_MONGO_URI !== uri) throw new Error('isolated_identity_test_database_required');
+process.env.MONGODB_URI = uri;
+process.env.MONGODB_DB_NAME = 'mirror_identity_managed_synthetic';
+process.env.AUTH_IDENTITY_PROVIDER = 'mirror';
+process.env.IDENTITY_ISSUER = 'https://accounts.staging.mirrorprogress.com/api/auth';
+process.env.IDENTITY_SESSION_STATUS_SECRET = 'managed-synthetic-status-secret-01234567890123456789';
+const originalFetch = globalThis.fetch;
+let profile = { name: 'Synthetic teammate', email: '', company: 'Mirror Progress', accountType: 'admin', role: 'admin' };
+before(async () => {
+  const db = await getDb();
+  await db.collection('authorization_policy_heads').updateOne(MIRROR_PROGRESS_INTERNAL_SCOPE,
+    { $setOnInsert: { ...MIRROR_PROGRESS_INTERNAL_SCOPE, policyRevisionId: 'managed-test-policy', policyId: 'managed-test' } },
+    { upsert: true });
+  globalThis.fetch = async (url, options) => {
+    assert.equal(new Headers(options?.headers).get('authorization'), `Bearer ${process.env.IDENTITY_SESSION_STATUS_SECRET}`);
+    if (String(url).endsWith('/internal/identity/managed-profile')) return new Response(JSON.stringify(profile),
+      { headers: { 'content-type': 'application/json' } });
+    if (String(url).endsWith('/internal/identity/session-status')) return new Response(JSON.stringify({ active: true }),
+      { headers: { 'content-type': 'application/json' } });
+    throw new Error('unexpected_request');
+  };
+});
+after(async () => { globalThis.fetch = originalFetch; await (await getMongoClient()).close(); });
+
+function invitedIdentity(): Identity {
+  const id = randomUUID();
+  return { issuer: process.env.IDENTITY_ISSUER!, subject: id, principalId: id,
+    email: `${id}@example.invalid`, emailVerified: true, authorizationEpoch: '0',
+    identitySessionId: randomUUID(), authTime: Math.floor(Date.now() / 1000), amr: [],
+    assurance: { kind: 'passkey-uv', acr: null }, mfaVerifiedAt: new Date().toISOString(), returnTo: '/admin' };
+}
+test('verified managed admin creates one canonical mapping and membership before callback resolution', async () => {
+  const identity = invitedIdentity(); profile = { name: 'Synthetic teammate', email: identity.email!,
+    company: 'Mirror Progress', accountType: 'admin', role: 'admin' };
+  await provisionManagedIdentity(identity);
+  await provisionManagedIdentity(identity);
+  const db = await getDb();
+  const mapping = await db.collection<{ _id: string; principalId: string }>('authorization_identity_mappings').findOne({
+    _id: identityMappingId(identity.issuer, identity.subject),
+  });
+  assert.equal(mapping?.principalId, identity.principalId);
+  const membership = await db.collection('authorization_memberships').findOne({ principalId: identity.principalId });
+  assert.deepEqual(membership?.roles, ['admin']);
+  assert.equal((await resolveMirrorIdentity(identity)).principal.principalId, identity.principalId);
+});
+test('a mismatched profile email cannot create a mapping', async () => {
+  const identity = invitedIdentity(); profile = { name: 'Synthetic teammate', email: 'wrong@example.invalid',
+    company: 'Mirror Progress', accountType: 'admin', role: 'admin' };
+  await provisionManagedIdentity(identity);
+  assert.equal(await (await getDb()).collection<{ _id: string }>('authorization_identity_mappings').findOne({
+    _id: identityMappingId(identity.issuer, identity.subject),
+  }), null);
+});
+test('external account joins only its selected existing company Prospect workspace', async () => {
+  const identity = invitedIdentity(), clientId = randomUUID(), company = `Synthetic Company ${clientId}`;
+  profile = { name: 'External teammate', email: identity.email!, company, accountType: 'external', role: 'client' };
+  const scope = { tenantId: `tenant:client:${clientId}`, workspaceId: `workspace:client:${clientId}` };
+  const db = await getDb();
+  await db.collection('clients').insertOne({ id: clientId, companyName: company });
+  await db.collection('authorization_policy_heads').insertOne({ ...scope, policyRevisionId: randomUUID(), policyId: 'synthetic-client' });
+  await db.collection('product_access').insertOne({ productId: 'studioiq', mirrorClientId: clientId,
+    mirrorAccountId: randomUUID(), status: 'active', externalOrganizationId: `prospect:${clientId}` });
+  await db.collection('product_entitlements').insertOne({ productId: 'studioiq', mirrorClientId: clientId,
+    status: 'active', seatAllowance: 5 });
+  await provisionManagedIdentity(identity);
+  const membership = await db.collection('authorization_memberships').findOne({ principalId: identity.principalId });
+  assert.equal(membership?.tenantId, scope.tenantId);
+  assert.deepEqual(membership?.roles, ['client']);
+  const access = await db.collection('product_access').findOne({ mirrorAccountId: identity.principalId });
+  assert.equal(access?.mirrorClientId, clientId);
+  assert.equal(access?.externalOrganizationId, `prospect:${clientId}`);
+  assert.equal(await db.collection('studioiq_workspace_memberships').countDocuments({ mirrorAccountId: identity.principalId }), 1);
+});
+test('prepared pilot owner activates the trial on first sign-in without Cognito', async () => {
+  const identity = invitedIdentity(), clientId = randomUUID(), company = `Pilot Company ${clientId}`;
+  profile = { name: 'Pilot owner', email: identity.email!, company, accountType: 'external', role: 'client' };
+  const scope = { tenantId: `tenant:client:${clientId}`, workspaceId: `workspace:client:${clientId}` };
+  const db = await getDb();
+  await db.collection('clients').insertOne({ id: clientId, companyName: company });
+  await db.collection('authorization_policy_heads').insertOne({ ...scope, policyRevisionId: randomUUID(), policyId: 'pilot-policy' });
+  await db.collection('studioiq_founder_pilots').insertOne({ id: randomUUID(), idempotencyKey: randomUUID(), mirrorClientId: clientId,
+    ownerEmail: identity.email, status: 'prepared', externalOrganizationId: `mirror:${clientId}` });
+  await db.collection('product_entitlements').insertOne({ id: randomUUID(), productId: 'studioiq',
+    mirrorClientId: clientId, status: 'pending_activation', seatAllowance: 5, trialDays: 30,
+    graceDays: 7, revision: 1, metadata: {}, createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString() });
+  await provisionManagedIdentity(identity);
+  const pilot = await db.collection('studioiq_founder_pilots').findOne({ mirrorClientId: clientId });
+  const entitlement = await db.collection('product_entitlements').findOne({ mirrorClientId: clientId });
+  const access = await db.collection('product_access').findOne({ mirrorAccountId: identity.principalId });
+  assert.equal(pilot?.status, 'active');
+  assert.equal(entitlement?.status, 'trialing');
+  assert.equal(access?.externalOrganizationId, `mirror:${clientId}`);
+  const owner = await db.collection('studioiq_workspace_memberships').findOne({ mirrorAccountId: identity.principalId });
+  assert.equal(owner?.role, 'owner');
+});

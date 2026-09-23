@@ -1,0 +1,13 @@
+src/discovery.ts(1,49): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+src/discovery.ts(2,38): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+src/discovery.ts(61,31): error TS7006: Parameter 'url' implicitly has an 'any' type.
+src/token.ts(1,35): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+src/token.ts(2,50): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+src/token.ts(63,45): error TS7006: Parameter 'header' implicitly has an 'any' type.
+src/token.ts(63,53): error TS7006: Parameter 'input' implicitly has an 'any' type.
+src/types.ts(1,38): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+test/helpers.ts(3,72): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+test/helpers.ts(4,50): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+test/helpers.ts(146,45): error TS7006: Parameter 'header' implicitly has an 'any' type.
+test/helpers.ts(146,53): error TS7006: Parameter 'token' implicitly has an 'any' type.
+test/identity-token.test.ts(4,55): error TS2307: Cannot find module 'jose' or its corresponding type declarations.

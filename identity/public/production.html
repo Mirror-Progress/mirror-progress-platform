@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-identity-mode="production">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mirror Progress · Sign in</title>
+<link rel="stylesheet" href="/style.css"><script type="module" src="/production-app.js"></script></head>
+<body>
+<header><a class="brand" href="/">MIRROR <span class="quiet">PROGRESS</span></a><span class="pill">SECURE SIGN IN</span></header>
+<main>
+<section class="intro"><p class="eyebrow">YOUR ACCOUNT</p><h1>Sign in to Mirror Progress.</h1>
+<p>Use your password, then approve the passkey prompt on your device.</p></section>
+<p id="message" class="message" role="status" aria-live="polite"></p>
+<div class="grid">
+<section class="card" id="signin-step"><p class="step">01 / PASSWORD</p><h2>Sign in</h2>
+<form id="login"><label>Email<input name="email" type="email" autocomplete="username" required></label>
+<label>Password<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label>
+<button type="submit">Continue</button></form></section>
+<section class="card" id="passkey-step" hidden><p class="step">02 / PASSKEY</p><h2>Approve on your device</h2>
+<p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation.</p>
+<button id="passkey-register" type="button" class="secondary wide">Finish with passkey</button>
+<button id="passkey-signin" type="button" class="secondary wide" hidden>Retry passkey sign-in</button></section>
+</div>
+<p id="session-status" class="small">Checking your account…</p>
+<a id="resume" class="button" hidden>Continue to application</a>
+<p><a id="open-platform" href="https://platform.mirrorprogress.com/api/auth/start?next=/admin">Open Mirror Progress</a></p>
+<p><a id="manage-invitations" href="/#manage" hidden>Manage Prospect invitations</a></p>
+<details id="setup-details"><summary>Setting up a new account?</summary>
+<p id="setup-intro">Open your invitation link and choose a password to create your account.</p>
+<p id="mailbox-guide">Have an older invitation token? Verify its matching mailbox below.</p>
+<form id="mailbox"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<button type="submit">Send verification email</button></form>
+<form id="enroll"><label id="invitation-label">Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<label id="mailbox-label">Email verification token<input name="mailboxToken" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<label>Display name<input name="name" maxlength="120" autocomplete="name" required></label>
+<label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+<button type="submit">Create account</button></form></details>
+<section class="card" id="invitation-admin" hidden><p class="step">TEAM ACCESS</p><h2>Invite someone to Prospect</h2>
+<p>Enter their details. We’ll email one secure setup link.</p>
+<form id="invite-person"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
+<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
+<label>Account type<select name="accountType" required><option value="external">External Prospect account</option><option value="admin">Mirror Progress admin</option></select></label>
+<label>Company<input name="company" maxlength="120" required></label>
+<label>Role<select name="role" required><option value="client">Company member</option><option value="admin">Admin</option><option value="project_lead">Project lead</option></select></label>
+<button type="submit">Send invitation</button></form><p id="external-delivery-status" class="small"></p><h3>Invitations</h3><div id="invitation-list" aria-live="polite"></div></section>
+<details id="account-controls"><summary>Account controls</summary>
+<button id="signout" type="button" class="secondary">Sign out</button>
+<button id="global-logout" type="button" class="secondary">Revoke all sessions</button></details>
+</main><footer>Mirror Progress · Secure account access</footer>
+</body></html>

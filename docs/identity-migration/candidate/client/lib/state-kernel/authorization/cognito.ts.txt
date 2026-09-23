@@ -1,0 +1,173 @@
+import crypto from 'crypto';
+import { identityEnabled } from './identity-provider';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+const FLOW_COOKIE = '__Host-mp_oauth_flow';
+const RETRY_COOKIE = '__Host-mp_oauth_retry';
+
+function flowCookieName(state: string) {
+  return `${FLOW_COOKIE}_${state.slice(0, 16)}`;
+}
+
+function cookieValue(req: NextApiRequest, name: string) {
+  return `${req.headers.cookie ?? ''}`
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+}
+
+function appendSetCookie(res: NextApiResponse, value: string) {
+  const existing = res.getHeader('Set-Cookie');
+  const values = Array.isArray(existing)
+    ? existing.map(String)
+    : existing
+      ? [String(existing)]
+      : [];
+  res.setHeader('Set-Cookie', [...values, value]);
+}
+
+function configuredRedirectUris() {
+  const configured = `${process.env.COGNITO_REDIRECT_URIS ?? process.env.COGNITO_REDIRECT_URI ?? ''}`
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return Array.from(new Set(configured));
+}
+
+function requestRedirectUri(req: NextApiRequest) {
+  const allowed = configuredRedirectUris();
+  const forwardedHost = `${req.headers['x-forwarded-host'] ?? ''}`.split(',')[0].trim();
+  const host = forwardedHost || `${req.headers.host ?? ''}`.trim();
+  const candidate = host ? `https://${host}/api/auth/cognito/callback` : '';
+  if (candidate && allowed.includes(candidate)) return candidate;
+  return allowed[0] ?? '';
+}
+
+function safeReturnTo(value: unknown) {
+  const candidate = `${value ?? ''}`.trim();
+  if (
+    candidate === '/workspace' ||
+    candidate.startsWith('/workspace/') ||
+    candidate === '/admin' ||
+    candidate.startsWith('/admin/') ||
+    candidate === '/apps/studioiq' ||
+    candidate.startsWith('/apps/studioiq/')
+  ) {
+    return candidate;
+  }
+  return '';
+}
+
+function config(redirectUri?: string) {
+  const region = `${process.env.AWS_REGION ?? 'us-east-1'}`;
+  const userPoolId = `${process.env.COGNITO_USER_POOL_ID ?? ''}`;
+  const clientId = `${process.env.COGNITO_CLIENT_ID ?? ''}`;
+  const domain = `${process.env.COGNITO_DOMAIN ?? ''}`.replace(/\/$/, '');
+  const selectedRedirectUri = redirectUri || configuredRedirectUris()[0] || '';
+  if (!userPoolId || !clientId || !domain || !selectedRedirectUri) throw new Error('Cognito authorization is not configured.');
+  if (!configuredRedirectUris().includes(selectedRedirectUri)) throw new Error('Cognito redirect URI is not allowlisted.');
+  return { region, userPoolId, clientId, domain, redirectUri: selectedRedirectUri, issuer: `https://cognito-idp.${region}.amazonaws.com/${userPoolId}` };
+}
+
+export async function verifyCognitoIdToken(input: {
+  idToken: string;
+  issuer: string;
+  audience: string;
+  nonce: string;
+  jwks?: ReturnType<typeof createRemoteJWKSet>;
+}) {
+  const jwks = input.jwks ?? createRemoteJWKSet(
+    new URL(`${input.issuer}/.well-known/jwks.json`)
+  );
+  const verified = await jwtVerify(input.idToken, jwks, {
+    issuer: input.issuer,
+    audience: input.audience,
+  });
+  if (verified.payload.nonce !== input.nonce || !verified.payload.sub) {
+    throw new Error('oauth_token_invalid');
+  }
+  return {
+    ...verified.payload,
+    sub: verified.payload.sub,
+    email: `${verified.payload.email ?? ''}`,
+    name: `${verified.payload.name ?? verified.payload.email ?? ''}`,
+  };
+}
+
+function seal(value: object) {
+  const secret = `${process.env.AUTH_SESSION_SECRET ?? process.env.SESSION_SECRET ?? ''}`;
+  if (!secret) throw new Error('AUTH_SESSION_SECRET is required.');
+  const payload = Buffer.from(JSON.stringify(value)).toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function unseal(value: string) {
+  const [payload, signature] = value.split('.');
+  const secret = `${process.env.AUTH_SESSION_SECRET ?? process.env.SESSION_SECRET ?? ''}`;
+  if (!payload || !signature || !secret) return null;
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { state: string; nonce: string; verifier: string; redirectUri: string; returnTo?: string; expiresAt: number };
+}
+
+export function beginCognitoAuthorization(req: NextApiRequest, res: NextApiResponse) {
+  const value = config(requestRedirectUri(req));
+  const state = crypto.randomBytes(24).toString('base64url');
+  const nonce = crypto.randomBytes(24).toString('base64url');
+  const verifier = crypto.randomBytes(48).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const returnTo = safeReturnTo(req.query?.next);
+  const flow = seal({ state, nonce, verifier, redirectUri: value.redirectUri, returnTo, expiresAt: Date.now() + 10 * 60 * 1000 });
+  // Keep the legacy cookie during rolling deployments so a callback routed to
+  // the previous task revision can still complete. New revisions prefer the
+  // state-scoped cookie, allowing multiple sign-in tabs to coexist safely.
+  appendSetCookie(res, `${flowCookieName(state)}=${flow}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax`);
+  appendSetCookie(res, `${FLOW_COOKIE}=${flow}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax`);
+  const query = new URLSearchParams({ response_type: 'code', client_id: value.clientId, redirect_uri: value.redirectUri, scope: 'openid email profile', state, nonce, code_challenge_method: 'S256', code_challenge: challenge, lang: 'en' });
+  return `${value.domain}/oauth2/authorize?${query}`;
+}
+
+export async function completeCognitoAuthorization(req: NextApiRequest, res: NextApiResponse) {
+  const incomingState = `${req.query.state ?? ''}`;
+  const scopedCookieName = /^[a-zA-Z0-9_-]{16,128}$/.test(incomingState)
+    ? flowCookieName(incomingState)
+    : '';
+  const cookie = (scopedCookieName ? cookieValue(req, scopedCookieName) : '') || cookieValue(req, FLOW_COOKIE);
+  const flow = cookie ? unseal(cookie) : null;
+  if (!flow || flow.expiresAt <= Date.now() || incomingState !== flow.state) throw new Error('oauth_state_invalid');
+  const value = config(flow.redirectUri);
+  const code = `${req.query.code ?? ''}`;
+  if (!code) throw new Error('oauth_code_missing');
+  const response = await fetch(`${value.domain}/oauth2/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', client_id: value.clientId, code, redirect_uri: value.redirectUri, code_verifier: flow.verifier }) });
+  if (!response.ok) throw new Error('oauth_token_exchange_failed');
+  const tokens = await response.json() as { id_token: string; access_token: string; refresh_token?: string };
+  const payload = await verifyCognitoIdToken({
+    idToken: tokens.id_token,
+    issuer: value.issuer,
+    audience: value.clientId,
+    nonce: flow.nonce,
+  });
+  if (scopedCookieName) {
+    appendSetCookie(res, `${scopedCookieName}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+  }
+  appendSetCookie(res, `${FLOW_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+  appendSetCookie(res, `${RETRY_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+  return { subject: payload.sub, email: `${payload.email ?? ''}`, name: `${payload.name ?? payload.email ?? ''}`, refreshToken: tokens.refresh_token, mfaVerifiedAt: new Date().toISOString(), returnTo: safeReturnTo(flow.returnTo) };
+}
+
+export function recoverCognitoAuthorization(req: NextApiRequest, res: NextApiResponse) {
+  const alreadyRetried = cookieValue(req, RETRY_COOKIE) === '1';
+  if (alreadyRetried) {
+    appendSetCookie(res, `${RETRY_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    return '';
+  }
+  appendSetCookie(res, `${RETRY_COOKIE}=1; Path=/; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
+  return '/api/auth/cognito/start?next=%2Fapps%2Fstudioiq';
+}
+
+export function cognitoIsRequired() {
+  return identityEnabled() || process.env.NODE_ENV === 'production' && `${process.env.SITE_SURFACE ?? ''}` === 'platform';
+}

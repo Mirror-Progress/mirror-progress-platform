@@ -1,0 +1,55 @@
+import { MongoServerError, type Db } from 'mongodb';
+import { getDb } from '../../mongodb';
+
+const COLLECTION = 'authorization_identity_flow_consumptions';
+const RETENTION_SECONDS = 86400;
+const MAX_FUTURE_SECONDS = 3600;
+
+interface FlowConsumption {
+  _id: string;
+  flowExpiresAt: Date;
+  retireAt: Date;
+}
+
+/** The unique _id is the cross-instance replay gate; TTL is cleanup, not authorization. */
+export function createIdentityFlowConsumer(database: () => Promise<Db>, now = Date.now) {
+  let initialized: Promise<void> | undefined;
+  return async (key: string, expiresAt: number, signal: AbortSignal): Promise<boolean> => {
+    signal.throwIfAborted();
+    const seconds = Math.floor(now() / 1000);
+    if (!/^identity-bridge:v1:[A-Za-z0-9_-]{43}$/.test(key) ||
+        !Number.isSafeInteger(expiresAt) || !Number.isSafeInteger(seconds) ||
+        expiresAt <= seconds || expiresAt > seconds + MAX_FUTURE_SECONDS) {
+      throw new Error('invalid_identity_flow_consumption');
+    }
+    const db = await database();
+    signal.throwIfAborted();
+    const collection = db.collection<FlowConsumption>(COLLECTION);
+    if (!initialized) {
+      initialized = collection.createIndex({ retireAt: 1 }, {
+        name: 'identity_flow_retention', expireAfterSeconds: 0,
+      }).then(() => undefined).catch(error => { initialized = undefined; throw error; });
+    }
+    await initialized;
+    signal.throwIfAborted();
+    try {
+      await collection.insertOne({
+        _id: key,
+        flowExpiresAt: new Date(expiresAt * 1000),
+        // Retain well beyond the validity window: delayed TTL or small clock skew
+        // must never revive an otherwise valid browser authorization transaction.
+        retireAt: new Date((expiresAt + RETENTION_SECONDS) * 1000),
+      }, { writeConcern: { w: 'majority' }, timeoutMS: 5000 });
+      // An ambiguous timeout/abort is never success, even if the write committed.
+      signal.throwIfAborted();
+      if (Math.floor(now() / 1000) >= expiresAt) throw new Error('identity_flow_expired');
+      return true;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11000) return false;
+      throw error;
+    }
+  };
+}
+
+// Shared by the explicit Mirror callback; no in-memory production fallback.
+export const consumeIdentityFlow = createIdentityFlowConsumer(getDb);

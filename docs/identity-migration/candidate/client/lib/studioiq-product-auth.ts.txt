@@ -1,0 +1,257 @@
+import crypto from 'crypto';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { findAccountById, type StoredAccount } from './accounts';
+import { getAuthenticatedAccountFromRequest } from './auth-guards';
+import { getDb } from './mongodb';
+import { findProductAccess, upsertProductAccess } from './product-access';
+import { ensureCanonicalProspectAccess } from './canonical-prospect-access';
+import type { StudioIqProductAccessIdentity } from './studioiq-collaboration';
+import {
+  ensureLegacyProductEntitlement,
+  productAccessMode,
+} from './product-commercial';
+
+function text(value: unknown) {
+  return `${value ?? ''}`.trim();
+}
+
+function authorizedSecret(req: NextApiRequest) {
+  const expected = process.env.STUDIOIQ_INTEGRATION_SECRET?.trim();
+  const provided = text(req.headers['x-studioiq-integration-secret']);
+  if (!expected || !provided || expected.length !== provided.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+}
+
+function legacyBridgeEnabled() {
+  const configured = text(process.env.STUDIOIQ_LEGACY_BRIDGE_ENABLED).toLowerCase();
+  if (configured) return ['1', 'true', 'yes', 'on'].includes(configured);
+  return process.env.NODE_ENV !== 'production';
+}
+
+function mirrorExternalUserId(accountId: string) {
+  return `mirror:${accountId}`;
+}
+
+function mirrorExternalOrganizationId(clientId: string) {
+  return `mirror:${clientId}`;
+}
+
+export async function findStudioIqProductAccessForAccount(account: StoredAccount) {
+  if (account.status !== 'active') return null;
+  const existing = await findProductAccess({
+    productId: 'studioiq',
+    mirrorAccountId: account.id,
+  }) ?? await ensureCanonicalProspectAccess(account);
+  if (!existing || existing.status !== 'active') return null;
+  if (account.clientId && existing.mirrorClientId && existing.mirrorClientId !== account.clientId) {
+    throw new Error('Prospect product access is mapped to a different Mirror organization.');
+  }
+
+  const access = existing.mirrorClientId && existing.externalUserId && existing.externalOrganizationId
+    ? existing
+    : await upsertProductAccess({
+        productId: 'studioiq',
+        mirrorAccountId: account.id,
+        mirrorClientId: account.clientId ?? existing.mirrorClientId,
+        externalUserId: existing.externalUserId || mirrorExternalUserId(account.id),
+        externalOrganizationId:
+          existing.externalOrganizationId ||
+          (account.clientId ? mirrorExternalOrganizationId(account.clientId) : null),
+        status: 'active',
+        metadata: {
+          ...existing.metadata,
+          identityAuthority: 'mirror_progress',
+        },
+      });
+
+  return access as StudioIqProductAccessIdentity;
+}
+
+export function requireStudioIqIntegrationSecret(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (!legacyBridgeEnabled()) {
+    res.status(410).json({ error: 'The legacy Prospect integration bridge is disabled.' });
+    return false;
+  }
+  if (!process.env.STUDIOIQ_INTEGRATION_SECRET?.trim()) {
+    res.status(503).json({ error: 'Prospect integration secret is not configured.' });
+    return false;
+  }
+  if (!authorizedSecret(req)) {
+    res.status(401).json({ error: 'Unauthorized Prospect product request.' });
+    return false;
+  }
+  return true;
+}
+
+export async function requireStudioIqProductAccess(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  options: { commercialAction?: boolean; requireWrite?: boolean } = {}
+) {
+  const sessionAccount = await getAuthenticatedAccountFromRequest(req);
+  if (sessionAccount) {
+    try {
+      const access = await findStudioIqProductAccessForAccount(sessionAccount);
+      if (!access) {
+        res.status(403).json({ error: 'Active Prospect product access is required.' });
+        return null;
+      }
+      const entitlement = await ensureLegacyProductEntitlement({
+        productId: 'studioiq',
+        mirrorClientId: access.mirrorClientId,
+        actorUserId: sessionAccount.id,
+      });
+      const mode = productAccessMode(entitlement.status);
+      if (!options.commercialAction && mode === 'none') {
+        res.status(402).json({
+          error: 'The Prospect workspace entitlement is not active.',
+          code: 'studioiq_entitlement_inactive',
+          entitlement_status: entitlement.status,
+        });
+        return null;
+      }
+      const writeRequest = options.requireWrite || !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET');
+      if (!options.commercialAction && writeRequest && mode !== 'write') {
+        res.status(402).json({
+          error: 'The Prospect workspace is in read-only grace.',
+          code: 'studioiq_read_only_grace',
+          entitlement_status: entitlement.status,
+        });
+        return null;
+      }
+      return access;
+    } catch (error) {
+      res.status(403).json({
+        error: error instanceof Error ? error.message : 'Prospect account mapping is invalid.',
+      });
+      return null;
+    }
+  }
+
+  if (!legacyBridgeEnabled() && !text(req.headers['x-studioiq-integration-secret'])) {
+    res.status(401).json({ error: 'Mirror Progress authentication is required.' });
+    return null;
+  }
+  if (!requireStudioIqIntegrationSecret(req, res)) return null;
+  const externalUserId =
+    text(req.query.external_user_id) ||
+    text(req.body?.external_user_id) ||
+    text(req.headers['x-studioiq-user-id']);
+  const externalOrganizationId =
+    text(req.query.external_organization_id) ||
+    text(req.body?.external_organization_id) ||
+    text(req.headers['x-studioiq-organization-id']);
+  if (!externalUserId || !externalOrganizationId) {
+    res.status(400).json({
+      error: 'external_user_id and external_organization_id are required.',
+    });
+    return null;
+  }
+  const access = await findProductAccess({ productId: 'studioiq', externalUserId });
+  if (
+    !access ||
+    access.status !== 'active' ||
+    !access.mirrorClientId ||
+    !access.externalUserId ||
+    !access.externalOrganizationId
+  ) {
+    res.status(403).json({ error: 'Active Prospect product access is required.' });
+    return null;
+  }
+  const entitlement = await ensureLegacyProductEntitlement({
+    productId: 'studioiq',
+    mirrorClientId: access.mirrorClientId,
+    actorUserId: access.mirrorAccountId,
+  });
+  const mode = productAccessMode(entitlement.status);
+  if (!options.commercialAction && mode === 'none') {
+    res.status(402).json({ error: 'The Prospect workspace entitlement is not active.', code: 'studioiq_entitlement_inactive' });
+    return null;
+  }
+  if (!options.commercialAction && (options.requireWrite || !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET')) && mode !== 'write') {
+    res.status(402).json({ error: 'The Prospect workspace is in read-only grace.', code: 'studioiq_read_only_grace' });
+    return null;
+  }
+  if (access.externalOrganizationId !== externalOrganizationId) {
+    res.status(403).json({ error: 'Prospect organization access does not match.' });
+    return null;
+  }
+  const mirrorClientId = access.mirrorClientId;
+  const [account, client] = await Promise.all([
+    findAccountById(access.mirrorAccountId),
+    getDb().then((db) => db.collection<{ id: string }>('clients').findOne({
+      id: mirrorClientId,
+    })),
+  ]);
+  if (
+    !account ||
+    account.status !== 'active' ||
+    (account.clientId && account.clientId !== mirrorClientId) ||
+    !client
+  ) {
+    res.status(403).json({ error: 'Prospect Mirror account or organization mapping is invalid.' });
+    return null;
+  }
+  return access as StudioIqProductAccessIdentity;
+}
+
+export async function requireStudioIqInvitationAccount(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const account = await getAuthenticatedAccountFromRequest(req);
+  if (account?.status === 'active' && account.clientId) return account;
+  if (legacyBridgeEnabled() && authorizedSecret(req)) return null;
+  res.status(401).json({ error: 'An active Mirror Progress account is required.' });
+  return undefined;
+}
+
+export function requireResearchIngestionSecret(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const expected = process.env.RESEARCH_INGESTION_SECRET?.trim();
+  if (!expected) {
+    res.status(503).json({ error: 'Research ingestion secret is not configured.' });
+    return false;
+  }
+
+  const runnerId = text(req.headers['x-research-runner-id']);
+  const timestamp = text(req.headers['x-research-timestamp']);
+  const contentHash = text(req.headers['x-research-content-sha256']);
+  const signature = text(req.headers['x-research-signature']);
+  if (runnerId && timestamp && contentHash && signature) {
+    const requestTime = Date.parse(timestamp);
+    const body = ['GET', 'HEAD'].includes(req.method ?? '') ? '' : JSON.stringify(req.body ?? {});
+    const actualContentHash = crypto.createHash('sha256').update(body).digest('hex');
+    const canonical = [timestamp, runnerId, req.method ?? 'GET', req.url ?? '', contentHash].join('\n');
+    const expectedSignature = crypto.createHmac('sha256', expected).update(canonical).digest('hex');
+    const fresh = Number.isFinite(requestTime) && Math.abs(Date.now() - requestTime) <= 5 * 60 * 1000;
+    const hashMatches = contentHash.length === actualContentHash.length &&
+      crypto.timingSafeEqual(Buffer.from(contentHash), Buffer.from(actualContentHash));
+    const signatureMatches = signature.length === expectedSignature.length &&
+      crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+    if (fresh && hashMatches && signatureMatches && /^[a-z0-9][a-z0-9._:-]{1,127}$/i.test(runnerId)) {
+      return true;
+    }
+  }
+
+  const allowLegacy = process.env.NODE_ENV !== 'production' ||
+    ['1', 'true', 'yes', 'on'].includes(text(process.env.RESEARCH_ALLOW_LEGACY_SECRET).toLowerCase());
+  const provided = text(req.headers['x-research-ingestion-secret']);
+  if (allowLegacy && provided && expected.length === provided.length &&
+    crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided))) {
+    return true;
+  }
+  console.warn(JSON.stringify({
+    event: 'studioiq_research_authentication_failed',
+    runnerId: runnerId || 'missing',
+    path: req.url,
+    occurredAt: new Date().toISOString(),
+  }));
+  res.status(401).json({ error: 'Unauthorized research ingestion request.' });
+  return false;
+}

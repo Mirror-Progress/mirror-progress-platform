@@ -1,0 +1,52 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getApiErrorMessage } from '../../../lib/api-errors';
+import { getSessionUserFromRequest } from '../../../lib/session';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { resolveOpaqueAuthorizationSession } from '../../../lib/state-kernel/authorization/session';
+import { getRuntimeInstanceId } from '../../../lib/runtime-instance';
+import { listProductAccessForAccount } from '../../../lib/product-access';
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  try {
+    res.setHeader('X-Mirror-Progress-Runtime', getRuntimeInstanceId());
+    if (`${process.env.SITE_SURFACE ?? ''}` === 'campaign') {
+      return res.status(200).json({ user: null });
+    }
+    const resolved = await resolveOpaqueAuthorizationSession(req).catch(() => null);
+    if (resolved) {
+      const products = await listProductAccessForAccount(resolved.principal.principalId).catch(() => []);
+      return res.status(200).json({
+        user: {
+          id: resolved.principal.principalId,
+          name: resolved.principal.displayName,
+          email: resolved.principal.email,
+          company: 'Mirror Progress',
+          role: resolved.membership.roles[0] ?? 'client',
+          status: resolved.principal.status,
+          clientId: resolved.membership.tenantId.startsWith('tenant:client:')
+            ? resolved.membership.tenantId.slice('tenant:client:'.length)
+            : null,
+          assignedProjectIds: resolved.assignments
+            .filter((item) => item.resourceType === 'project')
+            .map((item) => item.resourceId),
+          productIds: products.map((item) => item.productId),
+        },
+      });
+    }
+    if (cognitoIsRequired()) return res.status(200).json({ user: null });
+    const user = getSessionUserFromRequest(req);
+    return res.status(200).json({ user });
+  } catch (error) {
+    return res.status(500).json({
+      error: getApiErrorMessage(error, 'Unable to read session state.'),
+      user: null,
+    });
+  }
+}
