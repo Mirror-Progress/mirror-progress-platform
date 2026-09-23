@@ -102,6 +102,8 @@ async function refresh(): Promise<Record<string, unknown> | null> {
     node<HTMLElement>("session-status").textContent = state.mfaCompleted === true ? "You’re signed in." :
       passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
     if (state.mfaCompleted === true) {
+      node<HTMLElement>("auth-steps").hidden = true;
+      node<HTMLElement>("setup-details").hidden = true;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
       void loadInvitations();
       openPlatform();
@@ -135,6 +137,8 @@ async function finishPasskey(): Promise<void> {
   }
   const state = await api("/api/identity/session");
   if (state.mfaCompleted !== true) throw new Error("privileged_passkey_required");
+  node<HTMLElement>("auth-steps").hidden = true;
+  node<HTMLElement>("setup-details").hidden = true;
   if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
   show(manageRequested ? "Signed in. You can manage invitations below." : "Signed in. Opening Mirror Progress…");
   await loadInvitations();

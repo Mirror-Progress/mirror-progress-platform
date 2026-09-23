@@ -34,7 +34,7 @@ function harden(response: Response, secure = false): Response {
   headers.set("referrer-policy", "no-referrer");
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-frame-options", "DENY");
-  headers.set("content-security-policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  headers.set("content-security-policy", "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   headers.set("permissions-policy", "publickey-credentials-get=(self), publickey-credentials-create=(self)");
   return new Response(response.body, { status: response.status, headers });
 }
@@ -94,11 +94,20 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     const url = new URL(request.url);
     if (url.origin !== config.origin) throw new PolicyError("invalid_origin", 400);
     if (url.pathname === "/production-app.js" && config.mode !== "production") throw new PolicyError("not_found", 404);
-    if (request.method === "GET" && ["/", "/consent", "/app.js", "/production-app.js", "/style.css"].includes(url.pathname)) {
-      const file = url.pathname === "/app.js" ? "app.js" : url.pathname === "/production-app.js" && config.mode === "production" ? "production-app.js" : url.pathname === "/style.css" ? "style.css" : config.mode === "production" ? "production.html" : staging ? "staging.html" : "index.html";
+    const brandAssets: Record<string, { file: string; type: string }> = {
+      "/dark-left.png": { file: "brand/dark-left.png", type: "image/png" },
+      "/mirror-wordmark.svg": { file: "brand/mirror-wordmark.svg", type: "image/svg+xml" },
+      "/Satoshi-Regular.ttf": { file: "fonts/Satoshi-Regular.ttf", type: "font/ttf" },
+      "/Satoshi-Bold.ttf": { file: "fonts/Satoshi-Bold.ttf", type: "font/ttf" },
+      "/Inter-Variable.ttf": { file: "fonts/Inter-VariableFont_opsz,wght.ttf", type: "font/ttf" },
+      "/GeistMono-Variable.ttf": { file: "fonts/GeistMono-Variable.ttf", type: "font/ttf" },
+    };
+    if (request.method === "GET" && (["/", "/consent", "/app.js", "/production-app.js", "/style.css"].includes(url.pathname) || (config.mode === "production" && brandAssets[url.pathname]))) {
+      const asset = config.mode === "production" ? brandAssets[url.pathname] : undefined;
+      const file = asset?.file ?? (url.pathname === "/app.js" ? "app.js" : url.pathname === "/production-app.js" && config.mode === "production" ? "production-app.js" : url.pathname === "/style.css" ? "style.css" : config.mode === "production" ? "production.html" : staging ? "staging.html" : "index.html");
       const data = await readFile(join(process.cwd(), "public", file));
       return new Response(new Uint8Array(data), { headers: {
-        "content-type": file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html; charset=utf-8",
+        "content-type": asset?.type ?? (file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html; charset=utf-8"),
       } });
     }
     if (request.method === "GET" && url.pathname === "/health/live") return json({ status: "live", mode: config.mode ?? "synthetic" });
