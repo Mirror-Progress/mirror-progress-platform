@@ -15,14 +15,18 @@ export interface OperatorApproval {
   approver: string; approvedAt: number; expiresAt: number;
 }
 export function assertStagingAuthorized(principal: Principal, live: LiveSession, evidence: Evidence | null,
-  proof: EnrollmentProof | null, approval: OperatorApproval | null, now: number, maxAge = MFA_MAX_AGE_MS): Evidence {
+  proof: EnrollmentProof | null, approval: OperatorApproval | null, now: number, maxAge = MFA_MAX_AGE_MS, requireMigrationApproval = true): Evidence {
   if (principal.disabled) throw new PolicyError("principal_disabled");
   decimalEpoch(principal.epoch);
   if (!proof || proof.principalId !== principal.id || proof.userId !== live.userId || !proof.emailVerified ||
       !proof.issuer || !proof.reconciler || !proof.email || proof.email !== proof.verifiedEmail || !Number.isFinite(proof.mailboxAt) || proof.mailboxAt > now) {
     throw new PolicyError("mailbox_evidence_required", 401);
   }
-  if (principal.privileged) {
+  if (principal.privileged && !requireMigrationApproval) {
+    if (evidence?.factor !== "passkey_uv") throw new PolicyError("privileged_passkey_required", 401);
+    maxAge = Math.min(maxAge, STEP_UP_MAX_AGE_MS);
+  }
+  if (principal.privileged && requireMigrationApproval) {
     if (!approval || approval.principalId !== principal.id || approval.userId !== live.userId ||
         approval.epoch !== principal.epoch || approval.email !== proof.email || !approval.approver ||
         [principal.id, proof.issuer, proof.reconciler].includes(approval.approver) ||

@@ -35,14 +35,14 @@ export class StagingStore extends Store {
       AND s."createdAt">clock_timestamp()-interval '8 hours'
       AND a.user_id=u.id AND a.principal_id=p.id AND a.epoch=p.authorization_epoch
       AND a.factor IN ('passkey_uv','password_totp') AND a.mfa_at<=clock_timestamp()
-      AND (NOT p.privileged OR (a.factor='passkey_uv' AND EXISTS (
+      AND (NOT p.privileged OR (a.factor='passkey_uv' AND ($6::boolean OR EXISTS (
         SELECT 1 FROM mirror_staging_approval o WHERE o.principal_id=p.id AND o.user_id=u.id
         AND o.email=u.email AND o.epoch=p.authorization_epoch AND o.approver NOT IN (p.id,i.issuer,r.reconciler)
         AND o.approved_at<a.mfa_at AND o.expires_at>clock_timestamp()
         AND o.approved_at=(SELECT max(newest.approved_at) FROM mirror_staging_approval newest
           WHERE newest.principal_id=p.id AND newest.user_id=u.id AND newest.epoch=p.authorization_epoch)
-      )))
-    ) AS active`, [sessionId, userId, principalId, epoch, requirePrivileged]);
+      ))))
+    ) AS active`, [sessionId, userId, principalId, epoch, requirePrivileged, this.config.mode === "production" && this.config.freshInstall === true]);
     return rows[0]?.active === true;
   }
   override async authorize(sessionId: string, expectedUserId?: string, maxAge?: number) {
@@ -83,7 +83,7 @@ export class StagingStore extends Store {
         mailboxAt: time(r.verified_at), issuer: r.issuer, reconciler: r.reconciler },
       r.approver === null ? null : { principalId: r.approval_principal, userId: r.approval_user,
         epoch: r.approval_epoch, email: r.approval_email, approver: r.approver,
-        approvedAt: time(r.approved_at), expiresAt: time(r.approval_expires) }, Date.now(), maxAge);
+        approvedAt: time(r.approved_at), expiresAt: time(r.approval_expires) }, Date.now(), maxAge, !(this.config.mode === "production" && this.config.freshInstall === true));
     return { principal, evidence: verified };
   }
   private async invitation(db: PoolClient, hash: string) {
@@ -130,7 +130,8 @@ export class StagingStore extends Store {
         const consumed = await db.query(`UPDATE mirror_staging_invitation SET consumed_at=clock_timestamp()
           WHERE digest=$1 AND consumed_at IS NULL AND expires_at>clock_timestamp() RETURNING digest`, [invitationHash]);
         if (!used.rowCount || !consumed.rowCount) throw new PolicyError("invalid_invitation", 400);
-        const userId = randomUUID();
+        // Fresh accounts reserve their new subject with their new principal at bootstrap; no legacy linking.
+        const userId = this.config.mode === "production" && this.config.freshInstall ? i.principal_id : randomUUID();
         // No find-by-email, update-existing-user, signup, auto-link, or session creation.
         await db.query(`INSERT INTO "user" (id,name,email,"emailVerified","createdAt","updatedAt","twoFactorEnabled")
           VALUES ($1,$2,$3,true,now(),now(),false)`, [userId, name, i.email]);
@@ -149,7 +150,7 @@ export class StagingStore extends Store {
       throw error;
     }
   }
-  /** Explicitly invoked worker with injected transport; server.ts starts NO delivery worker. */
+  /** Durable mailbox outbox. Production fresh-install delivery requires explicit SES configuration. */
   async dispatchOne(transport: EnrollmentTransport): Promise<"idle" | "sent" | "retry" | "failed"> {
     const item = await this.transaction(async db => {
       await db.query(`UPDATE mirror_staging_delivery d SET status='cancelled',sealed_payload=NULL,lease_until=NULL

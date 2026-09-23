@@ -15,7 +15,8 @@ export function openDelivery(key: string, id: string, sealed: string): string {
 }
 export interface EnrollmentMessage { idempotencyKey: string; to: string; url: string; expiresAt: Date }
 export interface EnrollmentTransport {
-  // Implementations must deduplicate this ID and use a bounded request timeout.
+  // Implementations deduplicate accepted IDs where supported and use a bounded timeout.
+  // Providers without an idempotency API may redeliver the same token after an ambiguous failure.
   // Acceptance is delivery bookkeeping, NEVER evidence of mailbox possession.
   send(message: EnrollmentMessage): Promise<void>;
 }

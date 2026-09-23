@@ -121,3 +121,12 @@ test("ALB staging listener requires explicit private proxy ranges without changi
   for (const delta of [{ IDENTITY_TRANSPORT: "unknown" }, { IDENTITY_ALB_SUBNET_CIDRS: "0.0.0.0/0,10.0.1.0/24" },
     { IDENTITY_ALB_SUBNET_CIDRS: "" }, { IDENTITY_BIND_HOST: "127.0.0.1" }]) assert.throws(() => loadConfig({ ...alb, ...delta }));
 });
+
+test('fresh-install admin needs verified mailbox and fresh passkey, without migration approval', () => {
+  assertStagingAuthorized(privileged, live, uv, proof, null, now, undefined, false);
+  for (const bad of [null, evidence, { ...uv, mfaAt: now - 300_000 }])
+    assert.throws(() => assertStagingAuthorized(privileged, live, bad, proof, null, now, undefined, false));
+  assert.throws(() => assertStagingAuthorized(privileged, live, uv, { ...proof, emailVerified: false }, null, now, undefined, false));
+  assert.throws(() => assertStagingAuthorized({ ...privileged, disabled: true }, live, uv, proof, null, now, undefined, false));
+  assert.throws(() => loadConfig({ ...env, IDENTITY_ACCOUNT_MODE: 'fresh' }));
+});

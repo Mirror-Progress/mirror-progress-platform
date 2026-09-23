@@ -2,6 +2,8 @@ import { createAuthClient } from "better-auth/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { enrollmentMessage } from "../core/staging-policy.js";
 import { safeResumePath } from "../core/policy.js";
+const production = document.documentElement.dataset.identityMode === "production";
+const invitationToken = new URLSearchParams(location.hash.slice(1)).get("invitation");
 const staging = ["staging", "production"].includes(document.documentElement.dataset.identityMode ?? "");
 // Fragments are not sent in HTTP requests; remove the bearer from browser history before any fetch.
 const mailboxToken = staging ? new URLSearchParams(location.hash.slice(1)).get("mailboxToken") : null;
@@ -43,6 +45,9 @@ function form(id:string,fn:(values:Record<string,string>)=>Promise<void>){
 function button(id:string,fn:()=>Promise<void>){element(id).addEventListener("click",()=>{void fn().catch(error=>message(failure(error),true)).finally(()=>{void refresh();});});}
 form("login",async values=>{const result=await api("/api/auth/sign-in/email",{email:values.email,password:values.password});message(result.twoFactorRedirect===true?"Password verified. Enter your TOTP code.":"Password verified. Register a factor, then perform a fresh authentication.");});
 if (staging) {
+  if (invitationToken && /^[A-Za-z0-9_-]{43}$/.test(invitationToken)) {
+    for (const id of ["mailbox", "enroll"]) (element<HTMLFormElement>(id).elements.namedItem("invitation") as HTMLInputElement).value = invitationToken;
+  }
   const input=element<HTMLFormElement>("enroll").elements.namedItem("mailboxToken") as HTMLInputElement;
   if (mailboxToken && /^[A-Za-z0-9_-]{43}$/.test(mailboxToken)) {
     input.value=mailboxToken;message("Mailbox token loaded. Enter the matching invitation and choose your password. No account has been created yet.");
@@ -50,11 +55,11 @@ if (staging) {
   form("mailbox",async values=>{
     await api("/api/identity/request-mailbox",{invitation:values.invitation});
     (element<HTMLFormElement>("enroll").elements.namedItem("invitation") as HTMLInputElement).value=values.invitation??"";
-    message("Mailbox request queued or already recorded. No live provider is configured in this batch. Queue acceptance does not verify your email.");
+    message(production ? "Check your email for the verification link. Keep this page open so you can finish setup." : "Mailbox request queued or already recorded. No live provider is configured in this batch. Queue acceptance does not verify your email.");
   });
 }
 form("enroll",async values=>{await api("/api/identity/enroll",values);message(staging?
-  "Mailbox possession verified; credentials created without application access. Sign in with your password and register your required factor. Privileged access still needs independent approval and a later passkey authentication.":
+  (production ? "Email verified. Sign in with your password, register a passkey, then use it to sign in." : "Mailbox possession verified; credentials created without application access. Sign in with your password and register your required factor. Privileged access still needs independent approval and a later passkey authentication."):
   "Synthetic identity enrolled. Sign in with your password to register your first factor. Mailbox ownership is not verified in this laboratory.");});
 form("totp-setup",async values=>{
   const data=await api("/api/auth/two-factor/enable",{password:values.password});
@@ -66,8 +71,8 @@ form("totp-setup",async values=>{
 });
 form("verify",async values=>{const result=await api("/api/auth/two-factor/verify-totp",{code:values.code});message(result.mfaCompleted===true?"TOTP authentication complete.":"Registration confirmed only. Sign out, then sign in with password and TOTP.");});
 form("recovery",async values=>{await api("/api/auth/two-factor/verify-backup-code",{code:values.code});message("Recovery code consumed. Identity sessions revoked. Assisted credential recovery and downstream invalidation delivery are not implemented.");});
-button("passkey-register",async()=>{const result=await authClient.passkey.addPasskey({name:staging?"Mirror staging device":"Mirror local device"});if(result.error)throw new Error(result.error.message??"Passkey registration failed");message("Passkey registered. Now use ‘Authenticate with a passkey’ to prove possession and user verification.");});
-button("passkey-signin",async()=>{const result=await authClient.signIn.passkey();if(result.error)throw new Error(result.error.message??"Passkey authentication failed");message(staging?"Passkey user verification completed. Check access below; independent approval is also required for privileged access.":"Passkey authentication completed with user verification.");});
+button("passkey-register",async()=>{const result=await authClient.passkey.addPasskey({name:production?"Mirror Progress device":staging?"Mirror staging device":"Mirror local device"});if(result.error)throw new Error(result.error.message??"Passkey registration failed");message("Passkey registered. Now use ‘Authenticate with a passkey’ to prove possession and user verification.");});
+button("passkey-signin",async()=>{const result=await authClient.signIn.passkey();if(result.error)throw new Error(result.error.message??"Passkey authentication failed");message(production ? "Passkey verified. Continue to your application." : staging?"Passkey user verification completed. Check access below; independent approval is also required for privileged access.":"Passkey authentication completed with user verification.");});
 button("signout",async()=>{await api("/api/auth/sign-out",{});message("Signed out of Identity.");});
 button("global-logout",async()=>{await api("/api/identity/global-logout",{});message("Identity sessions revoked. A downstream invalidation event is queued but has not been delivered.");});
 button("refresh",refresh);

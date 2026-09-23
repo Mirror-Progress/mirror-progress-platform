@@ -27,6 +27,7 @@ export function hostedDatabase(url: string, runtime: boolean, profile: HostedPro
 }
 export function loadStagingConfig(env: NodeJS.ProcessEnv): Config { return loadHostedConfig(env, STAGING_PROFILE); }
 export function loadHostedConfig(env: NodeJS.ProcessEnv, profile: HostedProfile): Config {
+  if (profile.mode !== "production" && env.IDENTITY_ACCOUNT_MODE) throw new PolicyError("identity_profile_mismatch", 500);
   if (env.IDENTITY_MODE !== profile.mode) throw new PolicyError("identity_profile_mismatch", 500);
   let redirects: unknown;
   try { redirects = JSON.parse(env.IDENTITY_REDIRECT_URIS ?? "null"); } catch { /* rejected below */ }

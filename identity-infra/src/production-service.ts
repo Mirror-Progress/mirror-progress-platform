@@ -13,17 +13,17 @@ import * as waf from 'aws-cdk-lib/aws-wafv2';
 import { ProductionIdentityFoundation, validateProductionFoundationConfig, type ProductionFoundationConfig } from './production-foundation.js';
 export interface ProductionServiceConfig extends ProductionFoundationConfig {
   publicSubnetIds: [string, string]; publicSubnetCidrs: [string, string];
-  hostedZoneId: string; imageDigest: string; desiredCount: 0;
+  hostedZoneId: string; imageDigest: string; desiredCount: 0 | 1 | 2;
 }
 const hostname = 'accounts.mirrorprogress.com';
-/** Production candidate only. Synthesis requires desiredCount=0; starting it is a separate reviewed release change. */
+/** Fresh production service. Bootstrap at zero; start after schema initialization. */
 export class ProductionIdentityService extends Stack {
   readonly migration: ecs.FargateTaskDefinition;
   readonly service: ecs.FargateService;
   constructor(scope: Construct, id: string, config: ProductionServiceConfig, foundation: ProductionIdentityFoundation, props: StackProps = {}) {
     validateProductionFoundationConfig(config);
     if (!/^sha256:[a-f0-9]{64}$/.test(config.imageDigest) || !/^Z[A-Z0-9]+$/.test(config.hostedZoneId) ||
-        config.desiredCount !== 0 || config.publicSubnetIds.length !== 2 || new Set(config.publicSubnetIds).size !== 2 ||
+        ![0, 1, 2].includes(config.desiredCount) || config.publicSubnetIds.length !== 2 || new Set(config.publicSubnetIds).size !== 2 ||
         config.publicSubnetIds.some(s => !/^subnet-[a-f0-9]{8,17}$/.test(s) || [...config.privateSubnetIds, ...config.isolatedSubnetIds].includes(s)) ||
         config.publicSubnetCidrs.length !== 2 || new Set(config.publicSubnetCidrs).size !== 2 ||
         config.publicSubnetCidrs.some(c => !/^10\.\d{1,3}\.\d{1,3}\.0\/24$/.test(c) || c.split('/')[0]!.split('.').some(n => Number(n) > 255))) throw new Error('invalid_production_service_config');
@@ -38,7 +38,7 @@ export class ProductionIdentityService extends Stack {
     // Import secret handles without keys: grants belong to these execution roles, never back-reference this stack in foundation key policies.
     const injected = (name: string, secret: sm.ISecret) => ecs.Secret.fromSecretsManager(sm.Secret.fromSecretCompleteArn(this, name, secret.secretArn));
     const environment = {
-      IDENTITY_MODE: 'production', IDENTITY_TRANSPORT: 'alb', IDENTITY_BIND_HOST: '0.0.0.0',
+      IDENTITY_MODE: 'production', IDENTITY_ACCOUNT_MODE: 'fresh', IDENTITY_MAIL_DELIVERY: 'ses', IDENTITY_MAIL_FROM: 'identity@mirrorprogress.com', IDENTITY_TRANSPORT: 'alb', IDENTITY_BIND_HOST: '0.0.0.0',
       IDENTITY_ORIGIN: `https://${hostname}`, IDENTITY_RP_ID: hostname,
       IDENTITY_OIDC_CLIENT_ID: 'mirror-production', IDENTITY_REDIRECT_URIS: '["https://platform.mirrorprogress.com/api/auth/callback"]',
       IDENTITY_ALB_SUBNET_CIDRS: config.publicSubnetCidrs.join(','), IDENTITY_DATABASE_HOST: foundation.database.dbInstanceEndpointAddress,
@@ -58,6 +58,7 @@ export class ProductionIdentityService extends Stack {
     container.addMountPoints({ sourceVolume: 'ephemeral-tls', containerPath: '/run/identity', readOnly: false });
     container.linuxParameters!.dropCapabilities(ecs.Capability.ALL);
     this.migration = definition('MigrationTask');
+    task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:SendEmail'], resources: [`arn:aws:ses:${config.region}:${config.account}:identity/mirrorprogress.com`], conditions: { StringEquals: { 'ses:FromAddress': 'identity@mirrorprogress.com' }, 'ForAllValues:StringLike': { 'ses:Recipients': ['*@mirrorprogress.com'] } } }));
     const migration = this.migration.addContainer('Migration', { image, user: '1000:1000', readonlyRootFilesystem: true,
       command: ['node', 'dist/scripts/migrate-production-container.js'], environment,
       secrets: { ...secrets, IDENTITY_OWNER_CREDENTIALS: injected('OwnerSecret', foundation.database.secret!) },

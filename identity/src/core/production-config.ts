@@ -9,5 +9,7 @@ export function productionDatabase(url: string, runtime: boolean): URL { return 
 export function loadProductionConfig(env: NodeJS.ProcessEnv): Config {
   const config = loadHostedConfig(env, PRODUCTION);
   if (!config.sessionStatusSecret) throw new Error("production_session_status_secret_required");
+  if (env.IDENTITY_ACCOUNT_MODE && env.IDENTITY_ACCOUNT_MODE !== "fresh") throw new Error("invalid_production_account_mode");
+  config.freshInstall = env.IDENTITY_ACCOUNT_MODE === "fresh";
   return config;
 }

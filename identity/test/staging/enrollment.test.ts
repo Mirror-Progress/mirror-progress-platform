@@ -296,3 +296,22 @@ test("disabled or changed-epoch recovery approvals fail without changing credent
     assert.equal((await owner.query('SELECT consumed_at FROM mirror_staging_recovery WHERE id=$1', [id])).rows[0].consumed_at, null);
   }
 });
+
+test('fresh production policy removes migration approval only, retaining mailbox, passkey and revocation checks', async () => {
+  const f = await fixture(true), mailbox = await delivered(f);
+  const fresh = new StagingStore(pool,{...config,freshInstall:true});
+  const enrolled = await fresh.enrollWithMailbox(f.token, mailbox, 'Fresh synthetic owner', await hashPassword(password));
+  if(production)assert.equal(enrolled.userId,f.id);
+  const browser = new Browser();assert.equal((await browser.request('/api/auth/sign-in/email',{email:f.email,password})).status,200);
+  const identity = await auth.api.getSession({headers:browser.headers});assert.ok(identity);
+  assert.equal(await fresh.sessionActive(identity.session.id,enrolled.userId,f.id,f.epoch,true),false);
+  // State fixture only, not a passkey-ceremony claim; existing Chromium test verifies actual UV.
+  await owner.query("UPDATE mirror_assurance SET factor='passkey_uv',password_at=NULL,mfa_at=clock_timestamp() WHERE session_id=$1",[identity.session.id]);
+  assert.equal(await fresh.sessionActive(identity.session.id,enrolled.userId,f.id,f.epoch,true),production);
+  if(production)assert.equal((await fresh.authorize(identity.session.id)).principal.id,f.id);
+  else await assert.rejects(fresh.authorize(identity.session.id));
+  await assert.rejects(store.authorize(identity.session.id));
+  await owner.query('UPDATE "user" SET "emailVerified"=false WHERE id=$1',[enrolled.userId]);
+  assert.equal(await fresh.sessionActive(identity.session.id,enrolled.userId,f.id,f.epoch,true),false);
+  await assert.rejects(fresh.authorize(identity.session.id));
+});

@@ -11,8 +11,8 @@ if (process.argv.length !== 3) throw new Error('production_inventory_json_requir
 const input = JSON.parse(readFileSync(resolve(process.argv[2]!), 'utf8')) as {
   infrastructure: ProductionServiceConfig; applicationExecutionRoleArn: string;
 };
-if (!input.infrastructure || input.infrastructure.stage !== 'production' || input.infrastructure.desiredCount !== 0) {
-  throw new Error('stopped_production_inventory_required');
+if (!input.infrastructure || input.infrastructure.stage !== 'production' || ![0, 1, 2].includes(input.infrastructure.desiredCount)) {
+  throw new Error('production_inventory_required');
 }
 const app = new App({ outdir: fileURLToPath(new URL('../../cdk.out-production', import.meta.url)) });
 const foundation = new ProductionIdentityFoundation(app, 'MirrorIdentityProductionFoundation', input.infrastructure);

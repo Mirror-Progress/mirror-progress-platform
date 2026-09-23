@@ -36,9 +36,9 @@ test('production synthesis isolates durable state, remains stopped and never cha
  assert.equal(reads.length,1);assert.equal(reads[0].Resource.length,2);assert(!JSON.stringify(reads).includes('Owner'));
  assert.equal(app.synth().stacks.length,3);
 });
-test('production cannot synthesize a running service, take staging config or grant the staging app role',()=>{
+test('production rejects invalid scale, staging config and the staging app role',()=>{
  assert.throws(()=>validateProductionFoundationConfig({...config,stage:'staging'} as any));
  const app=new App(), f=new ProductionIdentityFoundation(app,'Foundation',config);
- assert.throws(()=>new ProductionIdentityService(app,'Service',{...config,desiredCount:1} as any,f));
+ assert.throws(()=>new ProductionIdentityService(app,'Service',{...config,desiredCount:3} as any,f));
  assert.throws(()=>new ProductionApplicationIntegration(app,'App','arn:aws:iam::111111111111:role/MirrorProgressSecuritySta-PlatformTaskExecutionRole-synthetic',f));
 });

@@ -2,6 +2,7 @@ import { PolicyError } from "./policy.js";
 import { loadProductionConfig } from "./production-config.js";
 import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
+  freshInstall?: boolean;
   sessionStatusSecret?: string;
   albProxyCidrs?: readonly string[];
   mode?: "staging" | "production";

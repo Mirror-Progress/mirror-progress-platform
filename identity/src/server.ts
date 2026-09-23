@@ -1,3 +1,4 @@
+import { SesEnrollmentTransport } from "./core/ses-delivery.js";
 import { createReadinessServer } from "./core/readiness.js";
 import { readFile } from "node:fs/promises";
 import { StagingStore } from "./staging/store.js";
@@ -27,6 +28,15 @@ const app = createApp(config, store, createAuth(config, store));
 const tls = config.staging ? { cert: await readFile(config.staging.certFile), key: await readFile(config.staging.keyFile) } : undefined;
 const server = createIdentityHttpServer(config.origin, app, tls, config.albProxyCidrs);
 let draining = false;
+const delivery = process.env.IDENTITY_MAIL_DELIVERY === "ses" && config.mode === "production" && config.freshInstall ? new SesEnrollmentTransport() : undefined;
+if (process.env.IDENTITY_MAIL_DELIVERY && !delivery) throw new Error("invalid_delivery_configuration");
+let sending = false;
+const deliveryTimer = delivery ? setInterval(() => {
+  if (draining || sending) return;
+  sending = true;
+  void (store as StagingStore).dispatchOne(delivery).catch(() => { console.error("Enrollment delivery unavailable"); }).finally(() => { sending = false; });
+}, 2000) : undefined;
+deliveryTimer?.unref();
 const readiness = config.albProxyCidrs ? createReadinessServer(async () => {
   if (draining) throw new Error("draining");
   await pool.query(Object.assign({ text: 'SELECT session_id FROM mirror_assurance LIMIT 0' }, { query_timeout: 3000 }));
@@ -37,6 +47,8 @@ server.listen(config.port, config.bindHost, () => {
 });
 for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
   draining = true;
+  if (deliveryTimer) clearInterval(deliveryTimer);
+  delivery?.close();
   readiness?.close();
   server.close(() => { void pool.end().then(() => process.exit(0)); });
   setTimeout(() => process.exit(1), 10_000).unref();
