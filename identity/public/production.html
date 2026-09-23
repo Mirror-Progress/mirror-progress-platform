@@ -4,17 +4,18 @@
 <title>Mirror Progress · Sign in</title>
 <link rel="stylesheet" href="/style.css"><script type="module" src="/production-app.js"></script></head>
 <body>
-<header><a class="brand" href="/">MIRROR <span class="quiet">PROGRESS</span></a><span class="pill">SECURE SIGN IN</span></header>
+<header><a class="brand" href="/" aria-label="Mirror Progress home"><img src="/mirror-wordmark.svg" alt="Mirror Progress"></a><span class="pill"><span class="pill-dot" aria-hidden="true"></span> SECURE ACCOUNT ACCESS</span></header>
 <main>
-<section class="intro"><p class="eyebrow">YOUR ACCOUNT</p><h1>Sign in to Mirror Progress.</h1>
-<p>Use your password, then approve the passkey prompt on your device.</p></section>
+<section class="intro"><p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span> THE MIRROR PROGRESS PLATFORM</p><h1>Progress starts<br><em>here.</em></h1>
+<p>One account for your work across Mirror Progress and Prospect.</p>
+<div class="brand-motion" aria-label="Find the right work. Carry its context forward."><span aria-hidden="true">Find the right work.</span><span aria-hidden="true">Carry its context forward.</span></div></section>
 <p id="message" class="message" role="status" aria-live="polite"></p>
-<div class="grid">
-<section class="card" id="signin-step"><p class="step">01 / PASSWORD</p><h2>Sign in</h2>
+<div class="grid" id="auth-steps">
+<section class="card" id="signin-step"><p class="step">YOUR ACCOUNT</p><h2>Welcome back.</h2><p>Sign in to continue to your workspace.</p>
 <form id="login"><label>Email<input name="email" type="email" autocomplete="username" required></label>
 <label>Password<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label>
-<button type="submit">Continue</button></form></section>
-<section class="card" id="passkey-step" hidden><p class="step">02 / PASSKEY</p><h2>Approve on your device</h2>
+<button type="submit">Sign in with password <span aria-hidden="true">↗</span></button></form></section>
+<section class="card" id="passkey-step" hidden><p class="step">FINAL STEP</p><h2>Approve on your device</h2>
 <p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation.</p>
 <button id="passkey-register" type="button" class="secondary wide">Finish with passkey</button>
 <button id="passkey-signin" type="button" class="secondary wide" hidden>Retry passkey sign-in</button></section>
