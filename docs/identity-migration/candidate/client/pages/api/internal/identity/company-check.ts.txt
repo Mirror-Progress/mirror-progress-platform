@@ -12,7 +12,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (expected.length < 48 || presented.length !== expected.length + 7 ||
       !crypto.timingSafeEqual(Buffer.from(presented), Buffer.from(`Bearer ${expected}`))) return res.status(404).end();
   const company = typeof req.body?.company === 'string' ? req.body.company.trim() : '';
-  if (!company || company.length > 120 || Object.keys(req.body ?? {}).length !== 1) return res.status(400).json({ available: false });
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!company || company.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      Object.keys(req.body ?? {}).some((key) => !['company', 'email'].includes(key))) {
+    return res.status(400).json({ available: false });
+  }
   try {
     const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const db = await getDb();
@@ -23,15 +27,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ] }).limit(2).toArray();
     if (clients.length !== 1 || !clients[0]?.id) return res.status(200).json({ available: false });
     const clientId = clients[0].id;
-    const [policy, organizations, entitlement] = await Promise.all([
+    const [policy, organizations, entitlement, pilot] = await Promise.all([
       db.collection('authorization_policy_heads').findOne({ tenantId: `tenant:client:${clientId}`,
         workspaceId: `workspace:client:${clientId}` }),
       db.collection<{ externalOrganizationId?: string }>('product_access').distinct('externalOrganizationId',
         { productId: 'studioiq', mirrorClientId: clientId, status: 'active' }),
       findProductEntitlement({ productId: 'studioiq', mirrorClientId: clientId, refresh: false }),
+      db.collection<{ ownerEmail: string; status: string; externalOrganizationId: string }>('studioiq_founder_pilots')
+        .findOne({ mirrorClientId: clientId, ownerEmail: email, status: 'prepared' }),
     ]);
-    if (!policy?.policyRevisionId || organizations.length !== 1 || !organizations[0] ||
-        !entitlement || productAccessMode(entitlement.status) === 'none') return res.status(200).json({ available: false });
+    const activeWorkspace = organizations.length === 1 && Boolean(organizations[0]) &&
+      Boolean(entitlement && productAccessMode(entitlement.status) !== 'none');
+    const preparedPilot = organizations.length === 0 &&
+      Boolean(pilot?.externalOrganizationId && entitlement?.status === 'pending_activation');
+    if (!policy?.policyRevisionId || (!activeWorkspace && !preparedPilot)) {
+      return res.status(200).json({ available: false });
+    }
     await assertProductSeatAvailable({ productId: 'studioiq', mirrorClientId: clientId });
     return res.status(200).json({ available: true });
   } catch { return res.status(200).json({ available: false }); }

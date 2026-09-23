@@ -1,0 +1,113 @@
+import type { GetServerSideProps } from 'next';
+import React, { useCallback, useEffect, useState } from 'react';
+import AdminShell from '../../components/admin/AdminShell';
+import { requireAdminPageAccess } from '../../lib/auth-guards';
+
+type Pilot = {
+  id: string;
+  organizationName: string;
+  ownerEmail: string;
+  verifiedDomain: string | null;
+  planName: string;
+  seatAllowance: number;
+  trialDays: number;
+  graceDays: number;
+  status: string;
+  deliveryStatus: string;
+  failureReason: string | null;
+  mirrorClientId: string;
+  updatedAt: string;
+  entitlement: { status?: string; trialStartsAt?: string | null; trialEndsAt?: string | null; graceEndsAt?: string | null } | null;
+  agreement: { status?: string; invoiceReference?: string | null; invoiceUrl?: string | null } | null;
+};
+
+async function readJson<T>(response: Response): Promise<T> {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Request failed.');
+  return payload as T;
+}
+
+export default function StudioIqPilotsPage() {
+  const [pilots, setPilots] = useState<Pilot[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [busy, setBusy] = useState('');
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [form, setForm] = useState({
+    organizationName: 'MAD Architects', ownerEmail: '', ownerDisplayName: '', verifiedDomain: '',
+    seatAllowance: 25, trialDays: 30, graceDays: 7, invitationMessage: 'Mirror Progress has prepared a 30-day Prospect founder pilot for your team.',
+  });
+  const [agreement, setAgreement] = useState({ status: 'proposed', invoiceReference: '', invoiceUrl: '', invoiceDueAt: '', notes: '' });
+  const selected = pilots.find((pilot) => pilot.id === selectedId) ?? pilots[0] ?? null;
+  const load = useCallback(async () => {
+    const payload = await readJson<{ pilots: Pilot[] }>(await fetch('/api/admin/products/studioiq/pilots'));
+    setPilots(payload.pilots);
+    if (!selectedId && payload.pilots[0]) setSelectedId(payload.pilots[0].id);
+  }, [selectedId]);
+  useEffect(() => { void load().catch((reason) => setError(reason.message)); }, [load]);
+
+  const createPilot = async (event: React.FormEvent) => {
+    event.preventDefault(); setBusy('create'); setError(''); setNotice('');
+    try {
+      const payload = await readJson<{ pilot: Pilot }>(await fetch('/api/admin/products/studioiq/pilots', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          idempotency_key: crypto.randomUUID(), organization_name: form.organizationName, owner_email: form.ownerEmail,
+          owner_display_name: form.ownerDisplayName, verified_domain: form.verifiedDomain, plan_id: 'firm_pilot', plan_name: 'Firm Pilot',
+          seat_allowance: form.seatAllowance, trial_days: form.trialDays, grace_days: form.graceDays, invitation_message: form.invitationMessage,
+        }),
+      }));
+      setSelectedId(payload.pilot.id); setNotice(`Pilot prepared for ${payload.pilot.ownerEmail}. Send the invitation from Mirror Identity.`); await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to provision pilot.'); }
+    finally { setBusy(''); }
+  };
+
+  const action = async (name: string, body: Record<string, unknown> = {}) => {
+    if (!selected) return; setBusy(name); setError(''); setNotice('');
+    try {
+      await readJson(await fetch('/api/admin/products/studioiq/pilots', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pilot_id: selected.id, action: name, idempotency_key: crypto.randomUUID(), ...body }) }));
+      setNotice('Prospect pilot updated.'); await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to update pilot.'); }
+    finally { setBusy(''); }
+  };
+
+  return <AdminShell title="Prospect Founder Pilots" description="Provision product-only organizations, issue founder credits, monitor activation, and govern manual conversion without storing payment credentials.">
+    {error ? <div className="mb-[14px] rounded-[6px] border border-red-500/40 bg-red-500/10 p-[14px] text-[13px]">{error}</div> : null}
+    {notice ? <div className="mb-[14px] rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 p-[14px] text-[13px]">{notice}</div> : null}
+    <div className="grid gap-[18px] xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)]">
+      <form className="theme-panel grid content-start gap-[14px] rounded-[8px] p-[20px]" onSubmit={createPilot}>
+        <div><span className="theme-page-subtle text-[10px] uppercase">New pilot</span><h2 className="mt-[5px] font-dmSans text-[22px]">Prepare invitation</h2></div>
+        <Field label="Organization"><input required value={form.organizationName} onChange={(event) => setForm({ ...form, organizationName: event.target.value })} /></Field>
+        <Field label="Initial owner email"><input required type="email" value={form.ownerEmail} onChange={(event) => setForm({ ...form, ownerEmail: event.target.value })} /></Field>
+        <Field label="Owner name"><input value={form.ownerDisplayName} onChange={(event) => setForm({ ...form, ownerDisplayName: event.target.value })} /></Field>
+        <Field label="Verified domain"><input value={form.verifiedDomain} onChange={(event) => setForm({ ...form, verifiedDomain: event.target.value })} /></Field>
+        <div className="grid grid-cols-3 gap-[10px]"><Field label="Seats"><input type="number" min="1" value={form.seatAllowance} onChange={(event) => setForm({ ...form, seatAllowance: Number(event.target.value) })} /></Field><Field label="Trial days"><input type="number" min="1" value={form.trialDays} onChange={(event) => setForm({ ...form, trialDays: Number(event.target.value) })} /></Field><Field label="Grace days"><input type="number" min="0" value={form.graceDays} onChange={(event) => setForm({ ...form, graceDays: Number(event.target.value) })} /></Field></div>
+        <Field label="Invitation note"><textarea rows={4} value={form.invitationMessage} onChange={(event) => setForm({ ...form, invitationMessage: event.target.value })} /></Field>
+        <button className="theme-primary-button min-h-[42px] rounded-[6px] px-[14px] text-[12px]" disabled={Boolean(busy)}>{busy === 'create' ? 'Preparing...' : 'Prepare pilot'}</button>
+      </form>
+      <section className="grid content-start gap-[14px]">
+        <div className="theme-panel overflow-hidden rounded-[8px]">
+          <div className="grid grid-cols-[minmax(0,1fr)_110px_110px] border-b border-[color:var(--theme-border)] px-[16px] py-[10px] text-[9px] uppercase text-[color:var(--theme-page-text-muted)]"><span>Workspace</span><span>Entitlement</span><span>Delivery</span></div>
+          {pilots.map((pilot) => <button key={pilot.id} type="button" onClick={() => setSelectedId(pilot.id)} className={`grid w-full grid-cols-[minmax(0,1fr)_110px_110px] items-center border-b border-[color:var(--theme-border)] px-[16px] py-[14px] text-left ${selected?.id === pilot.id ? 'bg-[color:var(--theme-card-bg)]' : ''}`}><span className="min-w-0"><strong className="block truncate text-[13px]">{pilot.organizationName}</strong><small className="theme-page-muted mt-[3px] block truncate text-[11px]">{pilot.ownerEmail} / {pilot.seatAllowance} seats</small></span><span className="text-[11px] capitalize">{pilot.entitlement?.status?.replaceAll('_', ' ') ?? pilot.status}</span><span className="text-[11px] capitalize">{pilot.deliveryStatus.replaceAll('_', ' ')}</span></button>)}
+          {!pilots.length ? <p className="theme-page-muted p-[24px] text-[13px]">No Prospect founder pilots yet.</p> : null}
+        </div>
+        {selected ? <section className="theme-panel rounded-[8px] p-[20px]">
+          <div className="flex flex-wrap items-start justify-between gap-[16px]"><div><span className="theme-page-subtle text-[9px] uppercase">{selected.mirrorClientId}</span><h2 className="mt-[5px] font-dmSans text-[24px]">{selected.organizationName}</h2><p className="theme-page-muted mt-[5px] text-[12px]">{selected.planName} / {selected.trialDays}-day credit / {selected.graceDays}-day grace</p></div><div className="flex flex-wrap gap-[8px]">{selected.status === 'prepared' ? <a className="theme-button-secondary flex min-h-[36px] items-center rounded-[5px] px-[12px] text-[11px]" href="https://accounts.mirrorprogress.com/">Send invitation in Mirror Identity</a> : <button className="theme-button-secondary min-h-[36px] rounded-[5px] px-[12px] text-[11px]" disabled={Boolean(busy)} onClick={() => void action('resend')}>Resend</button>}<button className="theme-button-secondary min-h-[36px] rounded-[5px] px-[12px] text-[11px]" disabled={Boolean(busy)} onClick={() => void action('extend', { extend_trial_days: 7 })}>Extend 7 days</button><button className="min-h-[36px] rounded-[5px] border border-red-500/50 px-[12px] text-[11px] text-red-400" disabled={Boolean(busy)} onClick={() => window.confirm('Revoke this pilot invitation and entitlement?') && void action('revoke')}>Revoke</button></div></div>
+          <div className="mt-[20px] grid gap-[12px] border-t border-[color:var(--theme-border)] pt-[18px] md:grid-cols-2"><Field label="Agreement status"><select value={agreement.status} onChange={(event) => setAgreement({ ...agreement, status: event.target.value })}><option value="proposed">Proposed</option><option value="invoice_sent">Invoice sent</option><option value="paid">Paid</option><option value="canceled">Canceled</option></select></Field><Field label="Invoice reference"><input value={agreement.invoiceReference} onChange={(event) => setAgreement({ ...agreement, invoiceReference: event.target.value })} /></Field><Field label="Invoice URL"><input type="url" value={agreement.invoiceUrl} onChange={(event) => setAgreement({ ...agreement, invoiceUrl: event.target.value })} /></Field><Field label="Invoice due"><input type="date" value={agreement.invoiceDueAt} onChange={(event) => setAgreement({ ...agreement, invoiceDueAt: event.target.value })} /></Field></div>
+          <Field label="Internal agreement note"><textarea className="mt-[12px]" rows={3} value={agreement.notes} onChange={(event) => setAgreement({ ...agreement, notes: event.target.value })} /></Field>
+          <div className="mt-[14px] flex flex-wrap gap-[8px]"><button className="theme-button-secondary min-h-[38px] rounded-[5px] px-[13px] text-[11px]" disabled={Boolean(busy)} onClick={() => void action('commercial_update', { agreement_status: agreement.status, invoice_reference: agreement.invoiceReference, invoice_url: agreement.invoiceUrl, invoice_due_at: agreement.invoiceDueAt, notes: agreement.notes })}>Save agreement</button><button className="theme-primary-button min-h-[38px] rounded-[5px] px-[13px] text-[11px]" disabled={Boolean(busy)} onClick={() => void action('commercial_update', { agreement_status: 'paid', paid_at: new Date().toISOString(), activate_entitlement: true, invoice_reference: agreement.invoiceReference, invoice_url: agreement.invoiceUrl, notes: agreement.notes })}>Mark paid and activate</button>{selected.entitlement?.status === 'suspended' ? <button className="theme-button-secondary min-h-[38px] rounded-[5px] px-[13px] text-[11px]" disabled={Boolean(busy)} onClick={() => void action('commercial_update', { agreement_status: selected.agreement?.status ?? 'paid', entitlement_status: 'active' })}>Restore access</button> : <button className="theme-button-secondary min-h-[38px] rounded-[5px] px-[13px] text-[11px]" disabled={Boolean(busy)} onClick={() => window.confirm('Suspend Prospect access while preserving all workspace data?') && void action('commercial_update', { agreement_status: selected.agreement?.status ?? 'proposed', entitlement_status: 'suspended' })}>Suspend access</button>}</div>
+        </section> : null}
+      </section>
+    </div>
+  </AdminShell>;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="grid gap-[6px] text-[10px] uppercase text-[color:var(--theme-page-text-muted)] [&_input]:min-h-[40px] [&_input]:rounded-[5px] [&_input]:border [&_input]:border-[color:var(--theme-border)] [&_input]:bg-transparent [&_input]:px-[10px] [&_input]:text-[13px] [&_input]:normal-case [&_select]:min-h-[40px] [&_select]:rounded-[5px] [&_select]:border [&_select]:border-[color:var(--theme-border)] [&_select]:bg-transparent [&_select]:px-[10px] [&_select]:text-[13px] [&_select]:normal-case [&_textarea]:rounded-[5px] [&_textarea]:border [&_textarea]:border-[color:var(--theme-border)] [&_textarea]:bg-transparent [&_textarea]:p-[10px] [&_textarea]:text-[13px] [&_textarea]:normal-case">{label}{children}</label>;
+}
+
+export const getServerSideProps: GetServerSideProps<Record<string, never>> = async (context) => {
+  const access = await requireAdminPageAccess<Record<string, never>>(context);
+  if (access.redirect) return access.redirect;
+  if (!['super_admin', 'admin'].includes(access.account.role)) return { notFound: true };
+  return { props: {} };
+};

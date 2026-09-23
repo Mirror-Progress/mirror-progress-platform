@@ -189,7 +189,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         const check = await fetch("https://platform.mirrorprogress.com/api/internal/identity/company-check", {
           method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3000),
           headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
-          body: JSON.stringify({ company }),
+          body: JSON.stringify({ company, email }),
         }).catch(() => null);
         if (!check?.ok || check.redirected || (await check.json().catch(() => null))?.available !== true) {
           throw new PolicyError("company_unavailable", 409);

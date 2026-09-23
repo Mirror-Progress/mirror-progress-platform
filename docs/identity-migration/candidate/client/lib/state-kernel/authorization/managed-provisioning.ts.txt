@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import type { Identity } from '@mirror-progress/identity-bridge';
 import { getDb, getMongoClient } from '../../mongodb';
-import { assertProductSeatAvailable, findProductEntitlement, productAccessMode } from '../../product-commercial';
+import { activateProductEntitlementTrialInSession, assertProductSeatAvailable, findProductEntitlement, productAccessMode } from '../../product-commercial';
 import { stateKernelRecordContext, stateKernelStorageId, MIRROR_PROGRESS_INTERNAL_SCOPE } from '../scope';
 import type { AuthorizationRole, IdentityPrincipal, StateKernelScope, TenantMembership } from '../types';
 import { identityMappingId } from './identity';
@@ -48,6 +48,7 @@ export async function provisionManagedIdentity(identity: Identity): Promise<void
   let scope: StateKernelScope = MIRROR_PROGRESS_INTERNAL_SCOPE;
   let clientId: string | null = null;
   let organizationId: string | null = null;
+  let preparedPilotId: string | null = null;
   if (profile.accountType === 'external') {
     const escaped = profile.company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const clients = await database.collection<{ id: string }>('clients').find({
@@ -60,12 +61,20 @@ export async function provisionManagedIdentity(identity: Identity): Promise<void
     scope = { tenantId: `tenant:client:${clientId}`, workspaceId: `workspace:client:${clientId}` };
     const organizations = await database.collection<{ externalOrganizationId?: string }>('product_access').distinct(
       'externalOrganizationId', { productId: 'studioiq', mirrorClientId: clientId, status: 'active' });
-    if (organizations.length !== 1 || typeof organizations[0] !== 'string' || !organizations[0]) {
-      throw new Error('managed_prospect_unavailable');
-    }
-    organizationId = organizations[0];
     const entitlement = await findProductEntitlement({ productId: 'studioiq', mirrorClientId: clientId, refresh: false });
-    if (!entitlement || productAccessMode(entitlement.status) === 'none') throw new Error('managed_prospect_unavailable');
+    if (organizations.length === 1 && typeof organizations[0] === 'string' && organizations[0] &&
+        entitlement && productAccessMode(entitlement.status) !== 'none') {
+      organizationId = organizations[0];
+    } else {
+      const pilot = await database.collection<{ id: string; ownerEmail: string; externalOrganizationId: string }>('studioiq_founder_pilots')
+        .findOne({ mirrorClientId: clientId, ownerEmail: profile.email, status: 'prepared' });
+      if (organizations.length !== 0 || !pilot?.id || !pilot.externalOrganizationId ||
+          entitlement?.status !== 'pending_activation') {
+        throw new Error('managed_prospect_unavailable');
+      }
+      organizationId = pilot.externalOrganizationId;
+      preparedPilotId = pilot.id;
+    }
     await assertProductSeatAvailable({ productId: 'studioiq', mirrorClientId: clientId });
   }
   const head = await database.collection('authorization_policy_heads').findOne(scope);
@@ -101,7 +110,8 @@ export async function provisionManagedIdentity(identity: Identity): Promise<void
           createdAt: string; updatedAt: string }>('product_access').insertOne({ _id: accessId, id: accessId,
           productId: 'studioiq', mirrorAccountId: id, mirrorClientId: clientId,
           externalUserId: `mirror:${id}`, externalOrganizationId: organizationId,
-          status: 'active', metadata: { identityAuthority: 'mirror_progress', workspaceRole: 'member', bootstrap: 'managed_invitation' },
+          status: 'active', metadata: { identityAuthority: 'mirror_progress',
+            workspaceRole: preparedPilotId ? 'owner' : 'member', bootstrap: 'managed_invitation' },
           createdAt: now, updatedAt: now }, { session });
         const memberId = `studioiq_managed_member_${crypto.createHash('sha256').update(id).digest('hex').slice(0, 24)}`;
         await database.collection<{ _id: string; id: string; productId: string; mirrorClientId: string;
@@ -111,8 +121,17 @@ export async function provisionManagedIdentity(identity: Identity): Promise<void
             _id: memberId, id: memberId, productId: 'studioiq', mirrorClientId: clientId,
             externalOrganizationId: organizationId, mirrorAccountId: id, externalUserId: `mirror:${id}`,
             displayName: profile.name, email: profile.email, emailLower: profile.email,
-            role: 'member', status: 'active', joinedAt: now, createdAt: now, updatedAt: now,
+            role: preparedPilotId ? 'owner' : 'member', status: 'active', joinedAt: now, createdAt: now, updatedAt: now,
           }, { session });
+        if (preparedPilotId) {
+          const activated = await activateProductEntitlementTrialInSession({ db: database, session,
+            productId: 'studioiq', mirrorClientId: clientId, activatedAt: now });
+          if (!activated) throw new Error('managed_trial_activation_conflict');
+          const updated = await database.collection('studioiq_founder_pilots').updateOne(
+            { id: preparedPilotId, ownerEmail: profile.email, status: 'prepared' },
+            { $set: { status: 'active', deliveryStatus: 'accepted', updatedAt: now } }, { session });
+          if (updated.modifiedCount !== 1) throw new Error('managed_pilot_activation_conflict');
+        }
       }
     });
   } finally { await session.endSession(); }

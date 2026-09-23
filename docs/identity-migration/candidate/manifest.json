@@ -120,17 +120,27 @@
     {
       "path": "lib/state-kernel/authorization/managed-provisioning.ts",
       "baselineSha256": null,
-      "sha256": "c51d93a0a4eeed0f7fb264c49f91775b127840c3b7e264aecb07ee2e3974ce12"
+      "sha256": "19416025163c4b2cacc142d9bb626fdc0b9079b44ebfe40c45cc517b0dafb326"
     },
     {
       "path": "pages/api/internal/identity/company-check.ts",
       "baselineSha256": null,
-      "sha256": "cd409338df8c6a3e29b87a6f68dd9c24320aead8c331c13463872dbfaa2f97a3"
+      "sha256": "3191d87655fa0a49a99c41c60d8bf06e2095a0754998a0dcd5e6d056ae65c240"
     },
     {
       "path": "tests/integration/managed-provisioning.test.ts",
       "baselineSha256": null,
-      "sha256": "9ef36d757880d0bfc7126cfe6f046c6d4218d3b5fb2da4d17f51f86001deeb36"
+      "sha256": "0d7f229447ecdd38535aae9b82e41d329eb531e882833d982249ae81c58a7cda"
+    },
+    {
+      "path": "lib/studioiq-founder-pilots.ts",
+      "baselineSha256": "3a1be07b15821e5abc24e00bbfe35b91ebd8364d41b1ad2a2493e885b4b134f6",
+      "sha256": "6648b562030153fb68b81fbaf3449d95954af59e97ff5c989cb10ceb1b368e30"
+    },
+    {
+      "path": "pages/admin/studioiq-pilots.tsx",
+      "baselineSha256": "5a40f6d6877598fb4f8cdcc821fa8017b931d9e888b944315c19b51466b94696",
+      "sha256": "a5d56b65b42d714c635d72d8df49e758ec15772561f7e8793e21ef1c665e01aa"
     }
   ]
 }
