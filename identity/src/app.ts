@@ -13,6 +13,7 @@ import type { MirrorAuth } from "./auth.js";
 import { Store } from "./db.js";
 import type { SessionIdentity } from "./db.js";
 import { StagingStore } from "./staging/store.js";
+import { invitationRecipientDeliverable } from "./core/ses-delivery.js";
 
 function json(data: unknown, status = 200, headers?: Headers): Response {
   const h = new Headers(headers);
@@ -120,6 +121,26 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         stringField(body, "principalId", 1, 255), decimalEpoch(body.epoch), body.requirePrivileged);
       return json({ active });
     }
+    if (url.pathname === "/internal/identity/managed-profile") {
+      if (config.mode !== "production" || !config.freshInstall || !config.sessionStatusSecret || request.method !== "POST") {
+        throw new PolicyError("route_not_exposed", 404);
+      }
+      const presented = request.headers.get("authorization") ?? "";
+      if (request.headers.has("origin") || !timingSafeEqual(
+        createHash("sha256").update(presented).digest(),
+        createHash("sha256").update(`Bearer ${config.sessionStatusSecret}`).digest())) {
+        throw new PolicyError("service_authentication_required", 401);
+      }
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 4 || Object.keys(body).some(k => !["sessionId", "subject", "principalId", "epoch"].includes(k))) {
+        throw new PolicyError("invalid_profile_request", 400);
+      }
+      const profile = await (store as StagingStore).managedProfile(
+        stringField(body, "sessionId", 1, 255), stringField(body, "subject", 1, 255),
+        stringField(body, "principalId", 1, 255), decimalEpoch(body.epoch));
+      if (!profile) throw new PolicyError("route_not_exposed", 404);
+      return json(profile);
+    }
     await store.rateLimit(`ip:${ip}`, 60);
     const origin = request.headers.get("origin");
     const tokenExchange = url.pathname === "/api/auth/oauth2/token";
@@ -129,6 +150,73 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     }
     if (request.headers.get("sec-fetch-site") === "cross-site" && !tokenExchange && request.method !== "GET") {
       throw new PolicyError("cross_site_request_denied");
+    }
+    if (request.method === "POST" && url.pathname === "/api/identity/invitation-info") {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 1 || !Object.hasOwn(body, "invitation")) throw new PolicyError("invalid_invitation", 400);
+      await store.rateLimit(`invite-info:${ip}`, 8, 900_000);
+      const info = await (store as StagingStore).managedInvitationInfo(body.invitation);
+      if (!info) throw new PolicyError("invalid_invitation", 400);
+      return json(info);
+    }
+    if (url.pathname === "/api/identity/admin/invitations" &&
+        (request.method === "GET" || request.method === "POST")) {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const identity = await requiredSession(request.headers);
+      const managed = store as StagingStore;
+      const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
+      if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) {
+        throw new PolicyError("route_not_exposed", 404);
+      }
+      if (request.method === "GET") return json({ invitations: await managed.managedInvitations(),
+        externalDeliveryReady: await invitationRecipientDeliverable("recipient@example.com").catch(() => false) });
+      const body = await readObject(request);
+      if (Object.keys(body).some(key => !["name", "email", "company", "accountType", "role"].includes(key))) {
+        throw new PolicyError("unexpected_invitation_field", 400);
+      }
+      const name = stringField(body, "name", 1, 120).trim();
+      const email = stringField(body, "email", 3, 254).trim().toLowerCase();
+      const company = stringField(body, "company", 1, 120).trim();
+      const accountType = stringField(body, "accountType", 1, 8);
+      const role = stringField(body, "role", 1, 20);
+      if (!name || !company || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+          !((accountType === "external" && role === "client") ||
+            (accountType === "admin" && company === "Mirror Progress" && ["admin", "project_lead"].includes(role)))) {
+        throw new PolicyError("invalid_invitation", 400);
+      }
+      if (accountType === "external") {
+        const check = await fetch("https://platform.mirrorprogress.com/api/internal/identity/company-check", {
+          method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3000),
+          headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
+          body: JSON.stringify({ company }),
+        }).catch(() => null);
+        if (!check?.ok || check.redirected || (await check.json().catch(() => null))?.available !== true) {
+          throw new PolicyError("company_unavailable", 409);
+        }
+      }
+      if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
+      await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
+      return json(await managed.issueManagedInvitation(identity.session.id, {
+        name, email, company, accountType: accountType as "admin" | "external",
+        role: role as "admin" | "project_lead" | "client",
+      }), 202);
+    }
+    const managedAction = /^\/api\/identity\/admin\/invitations\/([a-f0-9-]{36})\/(resend|revoke)$/.exec(url.pathname);
+    if (managedAction && request.method === "POST") {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const identity = await requiredSession(request.headers);
+      const managed = store as StagingStore;
+      const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
+      if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) {
+        throw new PolicyError("route_not_exposed", 404);
+      }
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 0) throw new PolicyError("unexpected_invitation_field", 400);
+      const target = managedAction[1]!;
+      return json(managedAction[2] === "resend"
+        ? await managed.resendManagedInvitation(identity.session.id, target)
+        : await managed.revokeManagedInvitation(identity.session.id, target));
     }
     if (staging && request.method === "POST" && url.pathname === "/api/identity/request-mailbox") {
       const body = await readObject(request);
@@ -150,9 +238,10 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const name = stringField(body, "name", 1, 120).trim();
       if (!name) throw new PolicyError("invalid_name", 400);
       await store.rateLimit(`enroll:${ip}`, 5);
-      if (staging) await (store as StagingStore).enrollWithMailbox(body.invitation, body.mailboxToken, name, await hashPassword(password));
-      else await store.enroll(body.invitation, name, await hashPassword(password));
-      return json({ enrolled: true, mfaCompleted: false, emailVerified: staging,
+      const enrolled = staging
+        ? await (store as StagingStore).enrollWithMailbox(body.invitation, body.mailboxToken, name, await hashPassword(password))
+        : await store.enroll(body.invitation, name, await hashPassword(password));
+      return json({ enrolled: true, email: enrolled.email, mfaCompleted: false, emailVerified: staging,
         next: "Sign in with your password, enroll TOTP or a passkey, then perform a fresh authentication." }, 201);
     }
     if (request.method === "GET" && url.pathname === "/api/identity/session") {
@@ -162,6 +251,9 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       try {
         const { principal, evidence } = await store.authorize(identity.session.id, identity.user.id);
         return json({ authenticated: true, mfaCompleted: true, principalId: principal.id,
+          ...(config.mode === "production" && config.freshInstall ? {
+            accountType: await (store as StagingStore).managedAccountType(principal.id),
+          } : {}),
           assurance: { method: evidence.factor, verifiedAt: evidence.mfaAt, expiresAt: evidence.expiresAt },
           ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
       } catch (error) {

@@ -13,7 +13,7 @@ export function openDelivery(key: string, id: string, sealed: string): string {
   decipher.setAAD(Buffer.from(`mirror-mailbox-v1:${id}`)); decipher.setAuthTag(data.subarray(12, 28));
   return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString("utf8");
 }
-export interface EnrollmentMessage { idempotencyKey: string; to: string; url: string; expiresAt: Date }
+export interface EnrollmentMessage { idempotencyKey: string; to: string; url: string; expiresAt: Date; inviteeName?: string; company?: string }
 export interface EnrollmentTransport {
   // Implementations deduplicate accepted IDs where supported and use a bounded timeout.
   // Providers without an idempotency API may redeliver the same token after an ambiguous failure.

@@ -19,6 +19,102 @@ export class StagingStore extends Store {
     if (p.disabled) throw new PolicyError("principal_disabled");
   }
   override async enroll(): Promise<never> { throw new PolicyError("mailbox_proof_required", 401); }
+  async canManageInvitations(userId: string): Promise<boolean> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) return false;
+    const { rows } = await this.pool.query<{ allowed: boolean }>(`SELECT EXISTS(
+      SELECT 1 FROM mirror_binding b JOIN mirror_managed_invitation_admin a ON a.principal_id=b.principal_id
+      WHERE b.user_id=$1 AND a.active) AS allowed`, [userId]);
+    return rows[0]?.allowed === true;
+  }
+  async issueManagedInvitation(sessionId: string, input: {
+    name: string; email: string; company: string; accountType: "admin" | "external";
+    role: "admin" | "project_lead" | "client";
+  }): Promise<{ principalId: string; status: "queued" }> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+    const principalId = randomUUID(), token = opaqueToken(), hash = digest(token), id = randomUUID();
+    try {
+      await this.transaction(async db => {
+        await db.query("SELECT mirror_managed_issue($1,$2,$3,$4,$5,$6,$7,$8)",
+          [sessionId, principalId, hash, input.email, input.name, input.company, input.accountType, input.role]);
+        const { rows } = await db.query<{ expires_at: Date }>(
+          "SELECT expires_at FROM mirror_staging_invitation WHERE digest=$1", [hash]);
+        const expiry = rows[0]?.expires_at;
+        if (!expiry) throw new PolicyError("invitation_unavailable", 409);
+        await db.query(`INSERT INTO mirror_staging_mailbox(id,invitation_digest,token_digest,expires_at)
+          VALUES ($1,$2,$2,$3)`, [id, hash, expiry]);
+        await db.query("INSERT INTO mirror_staging_delivery(id,sealed_payload,purpose) VALUES ($1,$2,'invitation')",
+          [id, sealDelivery(this.config.staging!.deliveryKey, id, token)]);
+      });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && ["23505", "42501"].includes(String(error.code))) {
+        throw new PolicyError("invitation_conflict", 409);
+      }
+      throw error;
+    }
+    return { principalId, status: "queued" };
+  }
+  async resendManagedInvitation(sessionId: string, principalId: string): Promise<{ status: "queued" }> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+    const token = opaqueToken(), hash = digest(token), id = randomUUID();
+    await this.transaction(async db => {
+      await db.query("SELECT mirror_managed_resend($1,$2,$3)", [sessionId, principalId, hash]);
+      const { rows } = await db.query<{ expires_at: Date }>(
+        "SELECT expires_at FROM mirror_staging_invitation WHERE digest=$1", [hash]);
+      if (!rows[0]) throw new PolicyError("invitation_unavailable", 409);
+      await db.query(`INSERT INTO mirror_staging_mailbox(id,invitation_digest,token_digest,expires_at)
+        VALUES ($1,$2,$2,$3)`, [id, hash, rows[0].expires_at]);
+      await db.query("INSERT INTO mirror_staging_delivery(id,sealed_payload,purpose) VALUES ($1,$2,'invitation')",
+        [id, sealDelivery(this.config.staging!.deliveryKey, id, token)]);
+    });
+    return { status: "queued" };
+  }
+  async revokeManagedInvitation(sessionId: string, principalId: string): Promise<{ status: "revoked" }> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+    await this.pool.query("SELECT mirror_managed_revoke($1,$2)", [sessionId, principalId]);
+    return { status: "revoked" };
+  }
+  async managedInvitations(): Promise<Array<Record<string, unknown>>> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+    const { rows } = await this.pool.query(`SELECT m.principal_id AS "principalId",m.email,m.display_name AS name,
+      m.company_name AS company,m.account_type AS "accountType",m.requested_role AS role,
+      m.created_at AS "createdAt",i.expires_at AS "expiresAt",m.revoked_at AS "revokedAt",
+      d.status AS "deliveryStatus",e.user_id IS NOT NULL AS accepted
+      FROM mirror_managed_invitation m JOIN mirror_staging_invitation i ON i.digest=m.invitation_digest
+      JOIN mirror_staging_mailbox b ON b.invitation_digest=i.digest
+      JOIN mirror_staging_delivery d ON d.id=b.id
+      LEFT JOIN mirror_staging_enrollment e ON e.principal_id=m.principal_id
+      ORDER BY m.created_at DESC LIMIT 200`);
+    return rows;
+  }
+  async managedInvitationInfo(rawInvitation: unknown): Promise<{ name: string; company: string } | null> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) return null;
+    const hash = tokenDigest(rawInvitation);
+    const { rows } = await this.pool.query<{ name: string; company: string }>(`SELECT m.display_name AS name,
+      m.company_name AS company FROM mirror_managed_invitation m
+      JOIN mirror_staging_invitation i ON i.digest=m.invitation_digest
+      JOIN mirror_staging_delivery d ON d.id=(SELECT b.id FROM mirror_staging_mailbox b WHERE b.invitation_digest=i.digest)
+      WHERE m.invitation_digest=$1 AND m.revoked_at IS NULL AND i.consumed_at IS NULL
+        AND i.expires_at>clock_timestamp() AND d.accepted_at IS NOT NULL`, [hash]);
+    return rows[0] ?? null;
+  }
+  async managedProfile(sessionId: string, subject: string, principalId: string, epoch: string) {
+    if (this.config.mode !== "production" || !this.config.freshInstall || subject !== principalId ||
+        !await this.sessionActive(sessionId, subject, principalId, epoch)) return null;
+    const { rows } = await this.pool.query<{ name: string; email: string; company: string;
+      accountType: string; role: string }>(`SELECT m.display_name AS name,m.email,m.company_name AS company,
+      m.account_type AS "accountType",m.requested_role AS role
+      FROM mirror_managed_invitation m JOIN mirror_staging_invitation i ON i.digest=m.invitation_digest
+      JOIN mirror_staging_enrollment e ON e.principal_id=m.principal_id AND e.invitation_digest=i.digest
+      WHERE m.principal_id=$1 AND m.revoked_at IS NULL AND i.consumed_at IS NOT NULL
+        AND e.email=m.email`, [principalId]);
+    return rows[0] ?? null;
+  }
+  async managedAccountType(principalId: string): Promise<"admin" | "external" | null> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) return null;
+    const { rows } = await this.pool.query<{ account_type: "admin" | "external" }>(
+      "SELECT account_type FROM mirror_managed_invitation WHERE principal_id=$1 AND revoked_at IS NULL", [principalId]);
+    return rows[0]?.account_type ?? null;
+  }
   override async sessionActive(sessionId: string, userId: string, principalId: string, epoch: string, requirePrivileged = false): Promise<boolean> {
     const { rows } = await this.pool.query(`SELECT EXISTS (
       SELECT 1 FROM "session" s JOIN mirror_binding b ON b.user_id=s."userId"
@@ -91,11 +187,12 @@ export class StagingStore extends Store {
     if (!found.rows[0]) throw new PolicyError("invalid_invitation", 400);
     // Same lock order in request and consume. Epoch/disable updates wait for this transaction.
     const locked = await db.query<Principal>("SELECT * FROM mirror_lock_principal($1)", [found.rows[0].principal_id]);
-    const { rows } = await db.query(`SELECT i.*,i.epoch::text AS invitation_epoch FROM mirror_staging_invitation i
-      WHERE digest=$1 FOR UPDATE`, [hash]);
+    const { rows } = await db.query(`SELECT i.*,i.epoch::text AS invitation_epoch,mi.revoked_at AS managed_revoked
+      FROM mirror_staging_invitation i LEFT JOIN mirror_managed_invitation mi ON mi.invitation_digest=i.digest
+      WHERE i.digest=$1 FOR UPDATE OF i`, [hash]);
     const clock = await db.query<{ at: Date }>("SELECT clock_timestamp() AS at");
     const i = rows[0], p = locked.rows[0], at = clock.rows[0]!.at;
-    if (!i || !p || p.disabled || p.epoch !== i.invitation_epoch || i.consumed_at || time(i.expires_at) <= time(at)) {
+    if (!i || !p || p.disabled || p.epoch !== i.invitation_epoch || i.consumed_at || i.managed_revoked || time(i.expires_at) <= time(at)) {
       throw new PolicyError("invalid_invitation", 400);
     }
     return { ...i, at };
@@ -160,9 +257,11 @@ export class StagingStore extends Store {
           OR p.disabled OR p.authorization_epoch<>i.epoch)`);
       await db.query(`UPDATE mirror_staging_delivery SET status='failed',sealed_payload=NULL,lease_until=NULL
         WHERE status='sending' AND lease_until<=clock_timestamp() AND attempts>=5`);
-      const { rows } = await db.query(`SELECT d.id,d.sealed_payload,d.attempts,i.email,m.expires_at
+      const { rows } = await db.query(`SELECT d.id,d.sealed_payload,d.attempts,d.purpose,i.email,m.expires_at,
+        mi.display_name,mi.company_name
         FROM mirror_staging_delivery d JOIN mirror_staging_mailbox m ON m.id=d.id
         JOIN mirror_staging_invitation i ON i.digest=m.invitation_digest
+        LEFT JOIN mirror_managed_invitation mi ON mi.invitation_digest=i.digest
         WHERE d.attempts<5 AND (d.status='queued' OR (d.status='sending' AND d.lease_until<=clock_timestamp()))
         ORDER BY m.created_at FOR UPDATE OF d SKIP LOCKED LIMIT 1`);
       if (!rows[0]) return null;
@@ -174,7 +273,10 @@ export class StagingStore extends Store {
     try {
       const token = openDelivery(this.config.staging!.deliveryKey, item.id, item.sealed_payload);
       await transport.send({ idempotencyKey: item.id, to: item.email,
-        url: `${this.config.origin}/#mailboxToken=${encodeURIComponent(token)}`, expiresAt: item.expires_at });
+        url: `${this.config.origin}/#${item.purpose === 'invitation' ? 'invitation' : 'mailboxToken'}=${encodeURIComponent(token)}`,
+        expiresAt: item.expires_at, ...(item.purpose === 'invitation' ? {
+          inviteeName: item.display_name, company: item.company_name,
+        } : {}) });
       await this.pool.query(`UPDATE mirror_staging_delivery SET status='sent',accepted_at=clock_timestamp(),
         sealed_payload=NULL,lease_until=NULL,last_error=NULL WHERE id=$1 AND status='sending' AND attempts=$2`, [item.id, item.attempt]);
       return "sent";

@@ -1,0 +1,119 @@
+import crypto from 'crypto';
+import type { Identity } from '@mirror-progress/identity-bridge';
+import { getDb, getMongoClient } from '../../mongodb';
+import { assertProductSeatAvailable, findProductEntitlement, productAccessMode } from '../../product-commercial';
+import { stateKernelRecordContext, stateKernelStorageId, MIRROR_PROGRESS_INTERNAL_SCOPE } from '../scope';
+import type { AuthorizationRole, IdentityPrincipal, StateKernelScope, TenantMembership } from '../types';
+import { identityMappingId } from './identity';
+
+type Profile = { name: string; email: string; company: string; accountType: 'admin' | 'external'; role: 'admin' | 'project_lead' | 'client' };
+type Stored<T> = T & { _id: string };
+type Mapping = { _id: string; issuer: string; subject: string; principalId: string; enabled: boolean; reviewRef: string };
+
+async function managedProfile(identity: Identity): Promise<Profile | null> {
+  const issuer = process.env.IDENTITY_ISSUER ?? '';
+  const secret = process.env.IDENTITY_SESSION_STATUS_SECRET ?? '';
+  if (identity.issuer !== issuer || !identity.emailVerified || !identity.principalId ||
+      !identity.identitySessionId || !identity.authorizationEpoch || secret.length < 48) return null;
+  const url = new URL(issuer);
+  if (url.protocol !== 'https:' || url.pathname !== '/api/auth' || url.username || url.password || url.search || url.hash) return null;
+  try {
+    const response = await fetch(`${url.origin}/internal/identity/managed-profile`, {
+      method: 'POST', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(3000),
+      headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: identity.identitySessionId, subject: identity.subject,
+        principalId: identity.principalId, epoch: identity.authorizationEpoch }),
+    });
+    if (!response.ok || response.redirected || response.headers.get('content-type')?.split(';')[0] !== 'application/json') return null;
+    const body = await response.text();
+    if (body.length > 1024) return null;
+    const profile = JSON.parse(body) as Profile;
+    if (!profile || !profile.email || profile.email !== identity.email?.toLowerCase() ||
+        !profile.name || !profile.company ||
+        !((profile.accountType === 'external' && profile.role === 'client') ||
+          (profile.accountType === 'admin' && ['admin', 'project_lead'].includes(profile.role)))) return null;
+    return profile;
+  } catch { return null; }
+}
+
+/** A signed, freshly verified Mirror Identity invite may create only its own new mapping. */
+export async function provisionManagedIdentity(identity: Identity): Promise<void> {
+  const database = await getDb();
+  const id = identity.principalId;
+  if (!id || identity.subject !== id) return;
+  const mappingId = identityMappingId(identity.issuer, identity.subject);
+  if (await database.collection<Mapping>('authorization_identity_mappings').findOne({ _id: mappingId })) return;
+  const profile = await managedProfile(identity);
+  if (!profile) return;
+  let scope: StateKernelScope = MIRROR_PROGRESS_INTERNAL_SCOPE;
+  let clientId: string | null = null;
+  let organizationId: string | null = null;
+  if (profile.accountType === 'external') {
+    const escaped = profile.company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const clients = await database.collection<{ id: string }>('clients').find({
+      $or: [{ companyName: { $regex: `^${escaped}$`, $options: 'i' } },
+        { name: { $regex: `^${escaped}$`, $options: 'i' } },
+        { company: { $regex: `^${escaped}$`, $options: 'i' } }],
+    }).limit(2).toArray();
+    if (clients.length !== 1 || !clients[0]?.id) throw new Error('managed_company_unavailable');
+    clientId = clients[0].id;
+    scope = { tenantId: `tenant:client:${clientId}`, workspaceId: `workspace:client:${clientId}` };
+    const organizations = await database.collection<{ externalOrganizationId?: string }>('product_access').distinct(
+      'externalOrganizationId', { productId: 'studioiq', mirrorClientId: clientId, status: 'active' });
+    if (organizations.length !== 1 || typeof organizations[0] !== 'string' || !organizations[0]) {
+      throw new Error('managed_prospect_unavailable');
+    }
+    organizationId = organizations[0];
+    const entitlement = await findProductEntitlement({ productId: 'studioiq', mirrorClientId: clientId, refresh: false });
+    if (!entitlement || productAccessMode(entitlement.status) === 'none') throw new Error('managed_prospect_unavailable');
+    await assertProductSeatAvailable({ productId: 'studioiq', mirrorClientId: clientId });
+  }
+  const head = await database.collection('authorization_policy_heads').findOne(scope);
+  if (!head?.policyRevisionId) throw new Error('managed_policy_unavailable');
+  const now = new Date().toISOString();
+  const context = stateKernelRecordContext(scope);
+  const principal: IdentityPrincipal = { ...context, principalId: id,
+    cognitoSubject: `mirror-fresh:${id}`, email: profile.email, displayName: profile.name,
+    status: 'active', authorizationEpoch: 0, createdAt: now, updatedAt: now };
+  const membershipId = `membership:mirror-fresh:${id}`;
+  const membership: TenantMembership = { ...context, membershipId, principalId: id,
+    roles: [profile.role as AuthorizationRole], attributes: clientId ? { clientId: [clientId], products: ['studioiq'] } : {},
+    status: 'active', membershipRevision: `membership:${id}`, sensitivityCeiling: 'sensitive',
+    createdAt: now, updatedAt: now };
+  const mapping = { _id: mappingId, issuer: identity.issuer, subject: identity.subject,
+    principalId: id, enabled: true, reviewRef: 'Owner-issued managed invitation with verified mailbox and passkey' };
+  const session = (await getMongoClient()).startSession();
+  try {
+    await session.withTransaction(async () => {
+      const existing = await database.collection<Mapping>('authorization_identity_mappings').findOne({ _id: mappingId }, { session });
+      if (existing) return;
+      await database.collection<Stored<IdentityPrincipal>>('authorization_principals').insertOne({
+        _id: stateKernelStorageId(scope, id), ...principal,
+      }, { session });
+      await database.collection<Stored<TenantMembership>>('authorization_memberships').insertOne({
+        _id: stateKernelStorageId(scope, membershipId), ...membership,
+      }, { session });
+      await database.collection<Mapping>('authorization_identity_mappings').insertOne(mapping, { session });
+      if (clientId && organizationId) {
+        const accessId = `studioiq_managed_${crypto.createHash('sha256').update(id).digest('hex').slice(0, 24)}`;
+        await database.collection<{ _id: string; id: string; productId: string; mirrorAccountId: string; mirrorClientId: string;
+          externalUserId: string; externalOrganizationId: string; status: string; metadata: Record<string, string>;
+          createdAt: string; updatedAt: string }>('product_access').insertOne({ _id: accessId, id: accessId,
+          productId: 'studioiq', mirrorAccountId: id, mirrorClientId: clientId,
+          externalUserId: `mirror:${id}`, externalOrganizationId: organizationId,
+          status: 'active', metadata: { identityAuthority: 'mirror_progress', workspaceRole: 'member', bootstrap: 'managed_invitation' },
+          createdAt: now, updatedAt: now }, { session });
+        const memberId = `studioiq_managed_member_${crypto.createHash('sha256').update(id).digest('hex').slice(0, 24)}`;
+        await database.collection<{ _id: string; id: string; productId: string; mirrorClientId: string;
+          externalOrganizationId: string; mirrorAccountId: string; externalUserId: string;
+          displayName: string; email: string; emailLower: string; role: string; status: string;
+          joinedAt: string; createdAt: string; updatedAt: string }>('studioiq_workspace_memberships').insertOne({
+            _id: memberId, id: memberId, productId: 'studioiq', mirrorClientId: clientId,
+            externalOrganizationId: organizationId, mirrorAccountId: id, externalUserId: `mirror:${id}`,
+            displayName: profile.name, email: profile.email, emailLower: profile.email,
+            role: 'member', status: 'active', joinedAt: now, createdAt: now, updatedAt: now,
+          }, { session });
+      }
+    });
+  } finally { await session.endSession(); }
+}

@@ -60,7 +60,7 @@
     {
       "path": "pages/api/auth/callback.ts",
       "baselineSha256": null,
-      "sha256": "30deaf835f689a4a1d2c7de916561d55c2d17433cf8452169f027b208636afff"
+      "sha256": "f3f8da624750ac64f145069b52d63a133ff36db81405c53e589bcf59c21cb26d"
     },
     {
       "path": "pages/api/auth/cognito/start.ts",
@@ -111,6 +111,26 @@
       "path": "lib/studioiq-product-auth.ts",
       "baselineSha256": "40e2697a9fd668ce3bd703184a29fde2e031bb7213043902d53f6a400b503eb3",
       "sha256": "bb02657b223472b50ec62414de7d6901704f919ce0949d8ca7dbdcb466e218fc"
+    },
+    {
+      "path": "components/admin/AdminShell.tsx",
+      "baselineSha256": "b3df93367b9e30056a315dc1bf4ef75e5bb9a40b0f563dbc8358f0380c8b49c6",
+      "sha256": "bcedc3d565c44bacd2db12eecf1f9485c3677a72c689b1da02d25a8ebc356fac"
+    },
+    {
+      "path": "lib/state-kernel/authorization/managed-provisioning.ts",
+      "baselineSha256": null,
+      "sha256": "c51d93a0a4eeed0f7fb264c49f91775b127840c3b7e264aecb07ee2e3974ce12"
+    },
+    {
+      "path": "pages/api/internal/identity/company-check.ts",
+      "baselineSha256": null,
+      "sha256": "cd409338df8c6a3e29b87a6f68dd9c24320aead8c331c13463872dbfaa2f97a3"
+    },
+    {
+      "path": "tests/integration/managed-provisioning.test.ts",
+      "baselineSha256": null,
+      "sha256": "9ef36d757880d0bfc7126cfe6f046c6d4218d3b5fb2da4d17f51f86001deeb36"
     }
   ]
 }

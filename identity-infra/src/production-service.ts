@@ -58,7 +58,8 @@ export class ProductionIdentityService extends Stack {
     container.addMountPoints({ sourceVolume: 'ephemeral-tls', containerPath: '/run/identity', readOnly: false });
     container.linuxParameters!.dropCapabilities(ecs.Capability.ALL);
     this.migration = definition('MigrationTask');
-    task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:SendEmail'], resources: [`arn:aws:ses:${config.region}:${config.account}:identity/mirrorprogress.com`], conditions: { StringEquals: { 'ses:FromAddress': 'identity@mirrorprogress.com' }, 'ForAllValues:StringLike': { 'ses:Recipients': ['*@mirrorprogress.com'] } } }));
+    task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:SendEmail'], resources: [`arn:aws:ses:${config.region}:${config.account}:identity/mirrorprogress.com`], conditions: { StringEquals: { 'ses:FromAddress': 'identity@mirrorprogress.com' } } }));
+    task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:GetAccount'], resources: ['*'] }));
     const migration = this.migration.addContainer('Migration', { image, user: '1000:1000', readonlyRootFilesystem: true,
       command: ['node', 'dist/scripts/migrate-production-container.js'], environment,
       secrets: { ...secrets, IDENTITY_OWNER_CREDENTIALS: injected('OwnerSecret', foundation.database.secret!) },

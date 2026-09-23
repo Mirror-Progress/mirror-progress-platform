@@ -89,7 +89,7 @@ before(async () => {
   // Discard only its old synthetic signing keys so the library never decrypts with the wrong key.
   await owner.query("DELETE FROM jwks");
   await owner.query("CREATE TABLE IF NOT EXISTS mirror_schema_migration(name text PRIMARY KEY, checksum text NOT NULL)");
-  for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery"]) {
+  for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery", "004-managed-invitations"]) {
     const sql = await readFile(`migrations/${name}.sql`, "utf8"), checksum = createHash("sha256").update(sql).digest("hex");
     const prior = await owner.query("SELECT checksum FROM mirror_schema_migration WHERE name=$1", [name]);
     if (prior.rows.length) assert.equal(prior.rows[0].checksum, checksum);
@@ -337,4 +337,53 @@ test('fresh production policy removes migration approval only, retaining mailbox
   await owner.query('UPDATE "user" SET "emailVerified"=false WHERE id=$1',[enrolled.userId]);
   assert.equal(await fresh.sessionActive(identity.session.id,enrolled.userId,f.id,f.epoch,true),false);
   await assert.rejects(fresh.authorize(identity.session.id));
+});
+
+test('managed invite sends one setup link and enrolls its exact mailbox without a second message', async () => {
+  if (!production) return;
+  const ownerId = randomUUID(), sessionId = randomUUID();
+  const ownerEmail = `managed-owner-${randomUUID()}@example.invalid`;
+  const inviteEmail = `managed-invite-${randomUUID()}@example.invalid`;
+  await owner.query('INSERT INTO mirror_principal(id,privileged,authorization_epoch) VALUES ($1,true,0)', [ownerId]);
+  await owner.query(`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt")
+    VALUES ($1,'Synthetic invite owner',$2,true,now(),now())`, [ownerId, ownerEmail]);
+  await owner.query('INSERT INTO mirror_binding(user_id,principal_id) VALUES ($1,$1)', [ownerId]);
+  await owner.query(`INSERT INTO "session"(id,"expiresAt",token,"updatedAt","userId")
+    VALUES ($1,now()+interval '8 hours',$2,now(),$3)`, [sessionId, randomUUID(), ownerId]);
+  await owner.query(`INSERT INTO mirror_assurance(session_id,user_id,principal_id,epoch,mfa_at,factor,expires_at)
+    VALUES ($1,$2,$2,0,now(),'passkey_uv',now()+interval '8 hours')`, [sessionId, ownerId]);
+  await owner.query('INSERT INTO mirror_managed_invitation_admin(principal_id) VALUES ($1)', [ownerId]);
+  const fresh = new StagingStore(pool, { ...config, freshInstall: true });
+  const issued = await fresh.issueManagedInvitation(sessionId, {
+    name: 'Synthetic Teammate', email: inviteEmail, company: 'Mirror Progress', accountType: 'admin', role: 'admin',
+  });
+  assert.equal(issued.status, 'queued');
+  const transport = new FakeEnrollmentTransport();
+  assert.equal(await fresh.dispatchOne(transport), 'sent');
+  const message = [...transport.messages.values()].find(item => item.to === inviteEmail);
+  assert.ok(message);
+  assert.equal(message.company, 'Mirror Progress');
+  const invitation = new URLSearchParams(new URL(message.url).hash.slice(1)).get('invitation');
+  assert.ok(invitation);
+  assert.deepEqual(await fresh.managedInvitationInfo(invitation), { name: 'Synthetic Teammate', company: 'Mirror Progress' });
+  assert.equal((await fresh.resendManagedInvitation(sessionId, issued.principalId)).status, 'queued');
+  assert.equal(await fresh.managedInvitationInfo(invitation), null);
+  assert.equal(await fresh.dispatchOne(transport), 'sent');
+  const replacementMessage = [...transport.messages.values()].filter(item => item.to === inviteEmail).at(-1);
+  assert.ok(replacementMessage);
+  const replacement = new URLSearchParams(new URL(replacementMessage.url).hash.slice(1)).get('invitation');
+  assert.ok(replacement);
+  assert.notEqual(replacement, invitation);
+  const enrolled = await fresh.enrollWithMailbox(replacement, replacement, 'Synthetic Teammate', await hashPassword(password));
+  assert.equal(enrolled.userId, issued.principalId);
+  assert.equal(enrolled.email, inviteEmail);
+  await assert.rejects(fresh.enrollWithMailbox(invitation, invitation, 'Synthetic Teammate', await hashPassword(password)));
+  await assert.rejects(fresh.resendManagedInvitation(sessionId, issued.principalId));
+  const rows = await owner.query(`SELECT count(*) FROM mirror_staging_delivery d
+    JOIN mirror_staging_mailbox b ON b.id=d.id JOIN mirror_staging_invitation i ON i.digest=b.invitation_digest
+    WHERE i.principal_id=$1`, [issued.principalId]);
+  assert.equal(rows.rows[0].count, '2');
+  assert.equal((await fresh.revokeManagedInvitation(sessionId, issued.principalId)).status, 'revoked');
+  const disabled = await owner.query('SELECT disabled,authorization_epoch::text AS epoch FROM mirror_principal WHERE id=$1', [issued.principalId]);
+  assert.deepEqual(disabled.rows[0], { disabled: true, epoch: '1' });
 });

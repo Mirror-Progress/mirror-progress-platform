@@ -22,16 +22,25 @@
 <p id="session-status" class="small">Checking your account…</p>
 <a id="resume" class="button" hidden>Continue to application</a>
 <p><a id="open-platform" href="https://platform.mirrorprogress.com/api/auth/start?next=/admin">Open Mirror Progress</a></p>
+<p><a id="manage-invitations" href="/#manage" hidden>Manage Prospect invitations</a></p>
 <details id="setup-details"><summary>Setting up a new account?</summary>
-<p>Use the invitation you were given. We’ll email a verification link to the matching mailbox.</p>
+<p id="setup-intro">Open your invitation link and choose a password to create your account.</p>
+<p id="mailbox-guide">Have an older invitation token? Verify its matching mailbox below.</p>
 <form id="mailbox"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
 <button type="submit">Send verification email</button></form>
-<p>After opening the email link, choose a password below. The invitation and email link work together.</p>
-<form id="enroll"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
-<label>Email verification token<input name="mailboxToken" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<form id="enroll"><label id="invitation-label">Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<label id="mailbox-label">Email verification token<input name="mailboxToken" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
 <label>Display name<input name="name" maxlength="120" autocomplete="name" required></label>
 <label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
 <button type="submit">Create account</button></form></details>
+<section class="card" id="invitation-admin" hidden><p class="step">TEAM ACCESS</p><h2>Invite someone to Prospect</h2>
+<p>Enter their details. We’ll email one secure setup link.</p>
+<form id="invite-person"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
+<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
+<label>Account type<select name="accountType" required><option value="external">External Prospect account</option><option value="admin">Mirror Progress admin</option></select></label>
+<label>Company<input name="company" maxlength="120" required></label>
+<label>Role<select name="role" required><option value="client">Company member</option><option value="admin">Admin</option><option value="project_lead">Project lead</option></select></label>
+<button type="submit">Send invitation</button></form><p id="external-delivery-status" class="small"></p><h3>Invitations</h3><div id="invitation-list" aria-live="polite"></div></section>
 <details id="account-controls"><summary>Account controls</summary>
 <button id="signout" type="button" class="secondary">Sign out</button>
 <button id="global-logout" type="button" class="secondary">Revoke all sessions</button></details>

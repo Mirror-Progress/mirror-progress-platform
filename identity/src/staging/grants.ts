@@ -9,11 +9,14 @@ GRANT SELECT,INSERT,UPDATE,DELETE ON "user","session","account","verification","
   mirror_assurance,mirror_password_flow,mirror_totp_replay,mirror_rate_limit,
   mirror_staging_mailbox,mirror_staging_delivery TO mirror_identity_staging_runtime;
 GRANT SELECT ON mirror_principal,mirror_binding,mirror_staging_reconciliation,mirror_staging_invitation,
-  mirror_staging_enrollment,mirror_staging_approval,"oauthClient","oauthResource","oauthClientResource"
+  mirror_staging_enrollment,mirror_staging_approval,mirror_managed_invitation,mirror_managed_invitation_admin,
+  "oauthClient","oauthResource","oauthClientResource"
   TO mirror_identity_staging_runtime;
 GRANT INSERT ON mirror_binding,mirror_staging_enrollment TO mirror_identity_staging_runtime;
 GRANT UPDATE (consumed_at) ON mirror_staging_invitation TO mirror_identity_staging_runtime;
 GRANT EXECUTE ON FUNCTION mirror_lock_principal(text),mirror_revoke_subject(text,text) TO mirror_identity_staging_runtime;
+GRANT EXECUTE ON FUNCTION mirror_managed_issue(text,text,text,text,text,text,text,text),
+  mirror_managed_resend(text,text,text),mirror_managed_revoke(text,text) TO mirror_identity_staging_runtime;
 GRANT EXECUTE ON FUNCTION mirror_staging_reconcile(text,bigint,text,text),mirror_staging_issue(text,bigint,text,text),
   mirror_staging_approve(text,bigint,text),mirror_staging_request_recovery(text,text,bigint,text,text),
   mirror_staging_approve_recovery(text,text) TO mirror_identity_staging_operator;

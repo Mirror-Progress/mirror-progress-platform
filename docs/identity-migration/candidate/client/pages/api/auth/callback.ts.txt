@@ -7,6 +7,7 @@ import { AuthorizationStore } from '../../../lib/state-kernel/authorization/stor
 import { createOpaqueAuthorizationSession } from '../../../lib/state-kernel/authorization/session';
 import { activateInvitedPortalIdentity } from '../../../lib/client-portal/onboarding';
 import { activateInvitedStudioIqIdentity } from '../../../lib/studioiq-account-provisioning';
+import { provisionManagedIdentity } from '../../../lib/state-kernel/authorization/managed-provisioning';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
   if (req.method !== 'GET') return res.status(405).end();
@@ -15,6 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const bridge = identityBridge();
     const identity = await bridge.completeAuthorization({ method: 'GET', rawUrl: req.url ?? '' },
       bridge.readFlowCookie(req.headers.cookie, req.query.state), pagesCookieResponse(res));
+    await provisionManagedIdentity(identity);
     const resolved = await resolveMirrorIdentity(identity), store = new AuthorizationStore();
     let principal = resolved.principal;
     const scope = { tenantId: principal.tenantId, workspaceId: principal.workspaceId };
