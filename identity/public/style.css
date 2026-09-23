@@ -45,6 +45,12 @@ html[data-identity-mode="production"] form button[type="submit"]{width:100%;marg
 html[data-identity-mode="production"] .secondary{background:transparent;color:#1d514c;border-color:#9cbbb3}
 html[data-identity-mode="production"] .secondary:hover:not(:disabled){background:#eff8ec}
 html[data-identity-mode="production"] #session-status{grid-row:3;font-size:12px!important;color:#d1e9df;margin:19px 0 8px}
+html[data-identity-mode="production"] #resume{grid-row:4}
+html[data-identity-mode="production"] main>p:has(#open-platform){grid-row:5}
+html[data-identity-mode="production"] main>p:has(#manage-invitations){grid-row:6}
+html[data-identity-mode="production"] #setup-details{grid-row:7}
+html[data-identity-mode="production"] #invitation-admin{grid-row:8}
+html[data-identity-mode="production"] #account-controls{grid-row:9}
 html[data-identity-mode="production"] #open-platform,html[data-identity-mode="production"] #manage-invitations{color:#d2f36d;font-size:13px;text-underline-offset:4px}
 html[data-identity-mode="production"] main>p:has(#open-platform),html[data-identity-mode="production"] main>p:has(#manage-invitations){grid-column:2;margin:8px 0}
 html[data-identity-mode="production"] #setup-details,html[data-identity-mode="production"] #account-controls{color:#f2faf6;border-top:1px solid rgba(226,249,241,.28);margin-top:25px;padding-top:18px}
