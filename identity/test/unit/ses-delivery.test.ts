@@ -6,5 +6,5 @@ test('SES sender bounds recipients and token destination before sending; dedupli
  await assert.rejects(transport.send({...message,to:'outside@example.invalid'}));
  await assert.rejects(transport.send({...message,url:'https://attacker.invalid/#mailboxToken='+'a'.repeat(43)}));
  assert.equal(commands.length,0);await transport.send(message);await transport.send(message);assert.equal(commands.length,1);
- assert.equal(commands[0].input.FromEmailAddress,'identity@mirrorprogress.com');
+ assert.equal(commands[0].input.FromEmailAddress,'hello@mirrorprogress.com');
 });

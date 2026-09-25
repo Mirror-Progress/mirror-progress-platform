@@ -30,7 +30,7 @@ export class SesEnrollmentTransport implements EnrollmentTransport {
       ? invitationEmail({ to: message.to, name: message.inviteeName ?? '', company: message.company ?? '', url: message.url, expiresAt: message.expiresAt })
       : null;
     await this.client.send(new SendEmailCommand({
-      FromEmailAddress: 'identity@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
+      FromEmailAddress: 'hello@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
       Content: { Simple: { Subject: { Data: branded?.subject ?? 'Set up your Mirror Progress account', Charset: 'UTF-8' },
         Body: { Text: { Data: branded?.text ?? `Open this link to verify your email and finish setting up your Mirror Progress account:\n\n${message.url}\n\nUse the invitation provided with your account setup. This link expires in 10 minutes or sooner. If you did not request this, ignore this message.`, Charset: 'UTF-8' },
           ...(branded ? { Html: { Data: branded.html, Charset: 'UTF-8' } } : {}) } } },
