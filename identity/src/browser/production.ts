@@ -4,7 +4,7 @@ import { safeResumePath } from "../core/policy.js";
 
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
 let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/admin";
-const manageRequested = location.hash === "#manage";
+const manageRequested = location.hash === "#manage" || new URLSearchParams(location.search).get("manage") === "1";
 const openPlatform = () => {
   if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested)
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
