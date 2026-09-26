@@ -10,14 +10,17 @@ const hash = new URLSearchParams(location.hash.slice(1));
 const remoteToken = hash.get("remoteEnroll");
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const remoteEnrollRequested = Boolean(remoteToken && tokenPattern.test(remoteToken));
+if (remoteEnrollRequested) platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
+let setupActive = false;
 const openPlatform = () => {
-  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested)
+  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested && !setupActive)
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
 };
 const storageKey = "mirror-identity-setup-invitation";
 const invitationFromLink = hash.get("invitation");
 const mailboxToken = hash.get("mailboxToken");
-const directManagedInvite = Boolean(invitationFromLink && !mailboxToken);
+let directManagedInvite = Boolean(invitationFromLink && !mailboxToken);
+setupActive = directManagedInvite;
 if (location.hash && !manageRequested && !devicesRequested && !remoteEnrollRequested) history.replaceState(null, "", location.pathname + location.search);
 const node = <T extends HTMLElement>(id: string): T => {
   const found = document.getElementById(id);
@@ -109,8 +112,9 @@ async function refresh(): Promise<Record<string, unknown> | null> {
       remoteEnrollRequested ? "Your one-time setup link is ready. Sign in with your password to add this phone." :
       passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
     if (state.mfaCompleted === true) {
-      node<HTMLElement>("auth-steps").hidden = true;
-      node<HTMLElement>("setup-details").hidden = true;
+      node<HTMLElement>("auth-steps").hidden = !setupActive;
+      node<HTMLElement>("setup-details").hidden = !setupActive;
+      node<HTMLElement>("passkey-step").hidden = setupActive;
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
       void loadInvitations();
@@ -220,15 +224,24 @@ try {
     if (!invitation) localStorage.removeItem(storageKey);
   }
 } catch { /* The original tab still works if storage is disabled. */ }
+if (invitation && tokenPattern.test(invitation) && !mailboxToken && !manageRequested && !devicesRequested) {
+  directManagedInvite = true;
+  setupActive = true;
+  document.title = "Mirror Progress · Create account";
+  document.documentElement.dataset.invitation = "true";
+  node<HTMLDetailsElement>("setup-details").open = true;
+}
 if (invitation && tokenPattern.test(invitation)) {
   for (const id of ["mailbox", "enroll"]) (node<HTMLFormElement>(id).elements.namedItem("invitation") as HTMLInputElement).value = invitation;
 }
-if (directManagedInvite && invitationFromLink && tokenPattern.test(invitationFromLink)) {
-  (node<HTMLFormElement>("enroll").elements.namedItem("mailboxToken") as HTMLInputElement).value = invitationFromLink;
+if (directManagedInvite && invitation && tokenPattern.test(invitation)) {
+  (node<HTMLFormElement>("enroll").elements.namedItem("mailboxToken") as HTMLInputElement).value = invitation;
   for (const id of ["mailbox", "mailbox-guide", "invitation-label", "mailbox-label"]) node<HTMLElement>(id).hidden = true;
-  show("You’re invited to Prospect. Choose a password to create your account.");
-  void api("/api/identity/invitation-info", { invitation: invitationFromLink }).then(info => {
+  show("");
+  void api("/api/identity/invitation-info", { invitation }).then(info => {
     (node<HTMLFormElement>("enroll").elements.namedItem("name") as HTMLInputElement).value = String(info.name ?? "");
+    node<HTMLInputElement>("invited-email").value = String(info.email ?? "");
+    node<HTMLElement>("invited-email-label").hidden = false;
     node<HTMLElement>("setup-intro").textContent = `You’re joining ${String(info.company ?? "Prospect")}. Create your account below.`;
   }).catch(() => show("This invitation has expired or was already used. Ask your admin for a new link.", true));
 }
@@ -241,11 +254,23 @@ if (remoteEnrollRequested) {
   show("One-time phone setup link opened. Enter your existing email and password to create a passkey here.");
 }
 if (invitationFromLink || mailboxToken) node<HTMLDetailsElement>("setup-details").open = true;
+node<HTMLButtonElement>("show-signin").addEventListener("click", () => {
+  setupActive = false;
+  try { localStorage.removeItem(storageKey); } catch {}
+  document.title = "Mirror Progress · Sign in";
+  delete document.documentElement.dataset.invitation;
+  node<HTMLDetailsElement>("setup-details").open = false;
+  show("");
+  node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });
+});
 submit("mailbox", async values => { await api("/api/identity/request-mailbox", { invitation: values.invitation });
   (node<HTMLFormElement>("enroll").elements.namedItem("invitation") as HTMLInputElement).value = values.invitation ?? "";
   show("Check your email for the verification link, then open it in this browser."); });
 submit("enroll", async values => { const enrolled = await api("/api/identity/enroll", values);
   try { localStorage.removeItem(storageKey); } catch {}
+  setupActive = false;
+  document.title = "Mirror Progress · Sign in";
+  delete document.documentElement.dataset.invitation;
   node<HTMLDetailsElement>("setup-details").open = false;
   const email = String(enrolled.email ?? "");
   (node<HTMLFormElement>("login").elements.namedItem("email") as HTMLInputElement).value = email;

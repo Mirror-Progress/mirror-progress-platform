@@ -86,11 +86,11 @@ export class StagingStore extends Store {
       ORDER BY m.created_at DESC LIMIT 200`);
     return rows;
   }
-  async managedInvitationInfo(rawInvitation: unknown): Promise<{ name: string; company: string } | null> {
+  async managedInvitationInfo(rawInvitation: unknown): Promise<{ name: string; company: string; email: string } | null> {
     if (this.config.mode !== "production" || !this.config.freshInstall) return null;
     const hash = tokenDigest(rawInvitation);
-    const { rows } = await this.pool.query<{ name: string; company: string }>(`SELECT m.display_name AS name,
-      m.company_name AS company FROM mirror_managed_invitation m
+    const { rows } = await this.pool.query<{ name: string; company: string; email: string }>(`SELECT m.display_name AS name,
+      m.company_name AS company,m.email FROM mirror_managed_invitation m
       JOIN mirror_staging_invitation i ON i.digest=m.invitation_digest
       JOIN mirror_staging_delivery d ON d.id=(SELECT b.id FROM mirror_staging_mailbox b WHERE b.invitation_digest=i.digest)
       WHERE m.invitation_digest=$1 AND m.revoked_at IS NULL AND i.consumed_at IS NULL
