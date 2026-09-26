@@ -2789,18 +2789,20 @@
 
 /* Prospect header controls: warm mineral glass with a shared light/dark material. */
 .shell {
-  --control-glass: linear-gradient(145deg, rgba(255,255,255,.15), rgba(255,255,255,.035) 58%, rgba(0,0,0,.08));
-  --control-edge: rgba(232,246,228,.2);
+  --control-glass: radial-gradient(circle at 16% -25%,rgba(230,250,220,.17),transparent 60%),linear-gradient(145deg, rgba(220,241,211,.12), rgba(199,229,197,.045) 58%, rgba(7,24,14,.07));
+  --control-hover-glass: radial-gradient(circle at 16% -25%,rgba(230,250,220,.25),transparent 60%),linear-gradient(145deg, rgba(220,241,211,.18), rgba(199,229,197,.085) 58%, rgba(7,24,14,.06));
+  --control-edge: rgba(232,246,228,.17);
   --control-ink: #edf5e9;
   --control-mark: #d7ee9c;
-  --control-shadow: 0 5px 14px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.16), inset 0 -1px rgba(0,0,0,.12);
+  --control-shadow: 0 3px 10px rgba(0,0,0,.13), inset 0 1px rgba(255,255,255,.1), inset 0 -1px rgba(0,0,0,.07);
 }
 :global(:root[data-theme='light']) .shell {
-  --control-glass: linear-gradient(145deg, rgba(255,255,251,.96), rgba(232,239,226,.84) 62%, rgba(211,224,210,.8));
-  --control-edge: rgba(218,235,215,.75);
+  --control-glass: radial-gradient(circle at 16% -25%,rgba(255,255,255,.42),transparent 60%),linear-gradient(145deg, rgba(250,255,246,.76), rgba(230,244,225,.65) 62%, rgba(211,232,211,.58));
+  --control-hover-glass: radial-gradient(circle at 16% -25%,rgba(255,255,255,.56),transparent 60%),linear-gradient(145deg, rgba(250,255,246,.89), rgba(230,244,225,.78) 62%, rgba(211,232,211,.7));
+  --control-edge: rgba(219,238,213,.53);
   --control-ink: #19372a;
   --control-mark: #286847;
-  --control-shadow: 0 5px 15px rgba(5,24,14,.18), inset 0 1px rgba(255,255,255,.85), inset 0 -1px rgba(23,63,41,.13);
+  --control-shadow: 0 4px 12px rgba(5,24,14,.13), inset 0 1px rgba(255,255,255,.58), inset 0 -1px rgba(23,63,41,.09);
 }
 .headerActions { gap: 7px; }
 .agentLauncher,
@@ -2816,7 +2818,7 @@
   box-shadow: var(--control-shadow);
   backdrop-filter: blur(18px) saturate(1.22);
   -webkit-backdrop-filter: blur(18px) saturate(1.22);
-  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s ease, border-color .22s ease, background .22s ease;
+  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s ease, border-color .22s ease, background .22s ease, opacity .22s ease;
 }
 .agentLauncher,
 .agentMinimized { gap: 8px; align-items: center; justify-content: center; font-weight: 650; letter-spacing: -.01em; }
@@ -2834,7 +2836,7 @@
 .identity:hover,
 .themeToggle:hover,
 .agentLauncher:hover,
-.agentMinimized:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--control-mark) 54%, white); background: var(--control-glass); box-shadow: 0 10px 22px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.25); }
+.agentMinimized:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--control-mark) 45%, white); background: var(--control-hover-glass); box-shadow: 0 8px 18px rgba(0,0,0,.17), inset 0 1px rgba(255,255,255,.2); }
 .menuToggle:active,
 .identity:active,
 .themeToggle:active,
