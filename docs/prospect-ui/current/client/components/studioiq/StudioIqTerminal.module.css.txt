@@ -2823,7 +2823,7 @@
 .agentLauncher,
 .agentMinimized { gap: 8px; align-items: center; justify-content: center; font-weight: 650; letter-spacing: -.01em; }
 .agentLauncher { min-width: 81px; height: 40px; padding: 0 12px; border-radius: 11px; }
-.agentMinimized { display: inline-flex; min-height: 43px; padding: 0 15px; border-radius: 13px; }
+.agentMinimized { position: fixed; right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 75; display: inline-flex; min-height: 43px; padding: 0 15px; border-radius: 13px; }
 .agentLauncher > span:first-child,
 .agentMinimized > span:first-child { color: var(--control-ink); margin: 0; }
 .agentLauncher .agentMark,

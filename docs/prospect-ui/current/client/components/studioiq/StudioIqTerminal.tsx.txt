@@ -90,6 +90,10 @@ export function StudioIqTerminal(props: {
   }, [loadDiscovery]);
 
   useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) setAgentOpen(false);
+  }, []);
+
+  useEffect(() => {
     const saved = Number(window.localStorage.getItem('prospect-chat-share-v1'));
     if (saved >= 0.2 && saved <= 0.65) setChatShare(saved);
     const observer = new ResizeObserver(([entry]) => setLayoutWidth(entry.contentRect.width));
@@ -161,7 +165,7 @@ export function StudioIqTerminal(props: {
           </div>
         </Link>
         <div className={styles.headerActions}>
-          <button className={styles.agentLauncher} type="button" onClick={() => { setAgentOpen(true); setAgentExpanded((current) => !current); }} aria-label="Open Prospect assistant chat"><span>Ask</span><span className={styles.agentMark} role="img" aria-label="MP" /></button>
+          <button className={styles.agentLauncher} type="button" onClick={() => { if (agentOpen) setAgentExpanded((current) => !current); else { setAgentOpen(true); setAgentExpanded(false); } }} aria-label="Open Prospect assistant chat"><span>Ask</span><span className={styles.agentMark} role="img" aria-label="MP" /></button>
           <div className={styles.accountMenu} ref={accountMenuRef}>
             <button
               className={styles.menuToggle}
@@ -241,7 +245,7 @@ export function StudioIqTerminal(props: {
           onReload={loadDiscovery}
         /></div>
         {agentOpen && agentExpanded ? <div className={styles.workspaceResize} role="separator" aria-label="Resize Prospect and chat" aria-orientation="vertical" aria-valuenow={Math.round(chatShare * 100)} aria-valuemin={20} aria-valuemax={65} tabIndex={0} onPointerDown={resizeChat} onKeyDown={onChatResizeKey} onDoubleClick={() => setChatShareSaved(0.34)} /> : null}
-        {agentOpen ? <aside className={`${styles.agentDock} ${agentExpanded ? styles.agentDockExpanded : ''}`} aria-label="Prospect assistant chat"><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={agentExpanded} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={() => setAgentOpen(false)} /></aside> : <button type="button" className={styles.agentMinimized} onClick={() => setAgentOpen(true)}><span>Ask</span><span className={styles.agentMark} role="img" aria-label="MP" /></button>}
+        {agentOpen ? <aside className={`${styles.agentDock} ${agentExpanded ? styles.agentDockExpanded : ''}`} aria-label="Prospect assistant chat"><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={agentExpanded} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={() => setAgentOpen(false)} /></aside> : null}
       </div>
     </div>
   );
