@@ -14,6 +14,9 @@ import { Store } from "./db.js";
 import type { SessionIdentity } from "./db.js";
 import { StagingStore } from "./staging/store.js";
 import { invitationRecipientDeliverable } from "./core/ses-delivery.js";
+import { REMOTE_ENROLL_EMAIL, REMOTE_GRANT_MS, REMOTE_LINK_MS, remoteGrantKey, remoteIssueKey,
+  signRemoteGrant, verifyRemoteGrant } from "./core/remote-enrollment.js";
+import { opaqueToken } from "./core/tokens.js";
 
 function json(data: unknown, status = 200, headers?: Headers): Response {
   const h = new Headers(headers);
@@ -59,6 +62,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
   if (staging !== (store instanceof StagingStore)) throw new Error("Store policy must match service mode");
   const FLOW_COOKIE = `${staging ? "__Host-" : ""}mirror_identity.password_flow`;
   const TWO_FACTOR_COOKIE = `${staging ? "__Secure-" : ""}mirror_identity.two_factor`;
+  const REMOTE_COOKIE = "__Host-mirror_identity.remote_enroll";
   const flowCookie = (value: string, maxAge = 300): string =>
     `${FLOW_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${staging ? "; Secure" : ""}`;
   const openIdMetadata = oauthProviderOpenIdConfigMetadata(auth);
@@ -79,6 +83,17 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       FROM "user" u WHERE u.id=$1`, [identity.user.id]);
     if (rows[0]?.enrolled) await store.authorize(identity.session.id, identity.user.id, 300_000);
     else await store.freshEnrollmentSession(identity, config.mode === "production" && config.freshInstall ? 900_000 : 300_000);
+  };
+  const remoteGrant = async (headers: Headers, identity: SessionIdentity): Promise<string | null> => {
+    if (config.mode !== "production" || !config.freshInstall) return null;
+    const nonce = verifyRemoteGrant(config.secret, cookieValue(headers, REMOTE_COOKIE), identity.user.id,
+      identity.session.id, Date.now());
+    const key = nonce && remoteGrantKey(nonce);
+    if (!key) return null;
+    const { rows } = await store.pool.query<{ valid: boolean }>(`SELECT EXISTS (
+      SELECT 1 FROM mirror_rate_limit WHERE key=$1 AND count=1 AND window_start>$2
+    ) AS valid`, [key, Date.now() - REMOTE_GRANT_MS]);
+    return rows[0]?.valid === true ? key : null;
   };
   const handle = async (request: Request, ip: string): Promise<Response> => {
   const invoke = (request: Request, path: string, body?: unknown, freshLogin = false) => {
@@ -382,6 +397,45 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (staging) await store.authorize(identity.session.id, identity.user.id);
       return json({ authenticated: true, mfaCompleted: true }, 200, headers);
     }
+    if (request.method === "POST" && url.pathname === "/api/identity/remote-enroll/confirm" &&
+        config.mode === "production" && config.freshInstall) {
+      const identity = await requiredSession(request.headers);
+      await store.freshEnrollmentSession(identity, 10 * 60_000);
+      const { rows: users } = await store.pool.query<{ email: string; verified: boolean }>(
+        `SELECT email,"emailVerified" AS verified FROM "user" WHERE id=$1`, [identity.user.id]);
+      if (users[0]?.email.toLowerCase() !== REMOTE_ENROLL_EMAIL || users[0]?.verified !== true) {
+        throw new PolicyError("remote_enrollment_unavailable", 403);
+      }
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 1) throw new PolicyError("invalid_remote_enrollment", 400);
+      const issueKey = remoteIssueKey(identity.user.id, body.token as string);
+      if (!issueKey) throw new PolicyError("invalid_remote_enrollment", 400);
+      await store.rateLimit(`remote-enroll-confirm:${identity.user.id}`, 8, REMOTE_LINK_MS);
+      const db = await store.pool.connect();
+      let cookie: string | null = null;
+      try {
+        await db.query("BEGIN");
+        const issued = await db.query(`UPDATE mirror_rate_limit SET count=2
+          WHERE key=$1 AND count=1 AND window_start>$2 RETURNING key`, [issueKey, Date.now() - REMOTE_LINK_MS]);
+        if (issued.rowCount !== 1) {
+          await db.query("ROLLBACK");
+          if (await remoteGrant(request.headers, identity)) return json({ ready: true });
+          throw new PolicyError("remote_enrollment_link_used_or_expired", 401);
+        }
+        const nonce = opaqueToken();
+        const grantKey = remoteGrantKey(nonce)!;
+        await db.query(`INSERT INTO mirror_rate_limit(key,window_start,count) VALUES ($1,$2,1)`, [grantKey, Date.now()]);
+        const grant = signRemoteGrant(config.secret, identity.user.id, identity.session.id, nonce, Date.now() + REMOTE_GRANT_MS);
+        cookie = `${REMOTE_COOKIE}=${grant}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=300`;
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally { db.release(); }
+      const headers = new Headers();
+      headers.append("set-cookie", cookie!);
+      return json({ ready: true }, 200, headers);
+    }
     const passkeyPaths = new Map([
       ["/api/auth/passkey/generate-register-options", "GET"],
       ["/api/auth/passkey/verify-registration", "POST"],
@@ -390,7 +444,16 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     ]);
     if (passkeyPaths.get(url.pathname) === request.method) {
       const registration = url.pathname.includes("register-options") || url.pathname.endsWith("verify-registration");
-      if (registration) await credentialManagement(await requiredSession(request.headers));
+      let recoveryKey: string | null = null;
+      if (registration) {
+        const identity = await requiredSession(request.headers);
+        try { await credentialManagement(identity); }
+        catch (error) {
+          if (!(error instanceof PolicyError)) throw error;
+          recoveryKey = await remoteGrant(request.headers, identity);
+          if (!recoveryKey) throw error;
+        }
+      }
       let body = request.method === "POST" ? await readObject(request) : undefined;
       if (staging) {
         if (request.headers.get("sec-fetch-site") === "cross-site") throw new PolicyError("cross_site_request_denied");
@@ -407,7 +470,28 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         }
       }
       const scope: { passkeyVerifiedAt?: number } = {};
-      const response = await ceremony.run(scope, () => invoke(request, url.pathname + url.search, body));
+      const recoveryVerification = recoveryKey && url.pathname.endsWith("verify-registration") ? recoveryKey : null;
+      if (recoveryVerification) {
+        const claimed = await store.pool.query(`UPDATE mirror_rate_limit SET count=2
+          WHERE key=$1 AND count=1 AND window_start>$2 RETURNING key`,
+          [recoveryVerification, Date.now() - REMOTE_GRANT_MS]);
+        if (claimed.rowCount !== 1) throw new PolicyError("remote_enrollment_used_or_expired", 401);
+      }
+      let response: Response;
+      try { response = await ceremony.run(scope, () => invoke(request, url.pathname + url.search, body)); }
+      catch (error) {
+        if (recoveryVerification) await store.pool.query("UPDATE mirror_rate_limit SET count=1 WHERE key=$1 AND count=2", [recoveryVerification]);
+        throw error;
+      }
+      if (recoveryVerification) {
+        if (response.ok) {
+          await store.pool.query("UPDATE mirror_rate_limit SET count=3 WHERE key=$1 AND count=2", [recoveryVerification]);
+          const headers = new Headers(response.headers);
+          headers.append("set-cookie", `${REMOTE_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+          return new Response(response.body, { status: response.status, headers });
+        }
+        await store.pool.query("UPDATE mirror_rate_limit SET count=1 WHERE key=$1 AND count=2", [recoveryVerification]);
+      }
       if (staging && response.ok && url.pathname.endsWith("generate-authenticate-options")) {
         // v1.7.5 emits "preferred" here. Request UV explicitly; the verified-result hook also enforces it.
         return json({ ...await response.json() as Record<string, unknown>, userVerification: "required" }, 200, response.headers);
