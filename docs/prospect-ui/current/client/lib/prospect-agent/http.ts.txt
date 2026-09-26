@@ -1,0 +1,36 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { runProspectAgent, type AgentEvent } from './run';
+import type { ProspectCatalog } from './catalog';
+
+type ChatTurn = { role: 'user' | 'assistant'; text: string };
+
+export async function streamProspectAgent(req: NextApiRequest, res: NextApiResponse, catalog: ProspectCatalog) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  if (!question || question.length > 2000) return res.status(400).json({ error: 'Enter a question under 2,000 characters.' });
+  const history: ChatTurn[] = Array.isArray(req.body?.history)
+    ? req.body.history.slice(-8).filter((turn: unknown): turn is ChatTurn =>
+      Boolean(turn && typeof turn === 'object' && 'role' in turn && 'text' in turn &&
+        (turn.role === 'user' || turn.role === 'assistant') && typeof turn.text === 'string' && turn.text.length <= 12000))
+    : [];
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  });
+  const emit = (event: AgentEvent | { type: 'error'; error: string }) => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
+  };
+  try {
+    await runProspectAgent({ question, history, catalog, emit });
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') console.error('[prospect-agent]', error);
+    const name = error instanceof Error ? error.name : '';
+    const message = name === 'AccessDeniedException' ? 'Amazon Bedrock access is unavailable for this local session.'
+      : 'Prospect could not complete this answer. Please try again.';
+    emit({ type: 'error', error: message });
+  } finally {
+    res.end();
+  }
+}

@@ -1,0 +1,118 @@
+import { useEffect, useRef, useState } from 'react';
+import { ArrowUpIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import styles from './ProspectAgentPanel.module.css';
+
+type Entry = { role: 'user' | 'assistant'; text: string };
+type Activity = { label: string; detail?: string; state: 'running' | 'done' | 'error' };
+
+type AgentEvent = { type: 'activity' | 'token' | 'error' | 'done'; label?: string; detail?: string; text?: string; error?: string };
+
+function activityLabel(label: string): string {
+  const legacy: Record<string, string> = {
+    'Reading Prospect projects': 'Checking projects',
+    'Choosing a project tool': 'Finding the right information',
+    'Continuing the investigation': 'Reviewing details',
+    'Listing projects': 'Browsing projects',
+    'Searching projects': 'Finding matching projects',
+    'Writing an answer': 'Putting the answer together',
+  };
+  return legacy[label] ?? label;
+}
+
+export function ProspectAgentPanel({ endpoint, localLab = false, expanded, onToggleExpand, onClose }: { endpoint: string; localLab?: boolean; expanded: boolean; onToggleExpand: () => void; onClose: () => void }) {
+  const [messages, setMessages] = useState<Entry[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(true);
+  const scroller = useRef<HTMLDivElement>(null);
+  const composerField = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const field = composerField.current;
+    if (!field) return;
+    field.style.height = 'auto';
+    field.style.height = `${Math.min(field.scrollHeight, 116)}px`;
+  }, [draft]);
+
+  async function ask(question: string) {
+    const clean = question.trim();
+    if (!clean || busy) return;
+    const history = messages.slice(-8).map((entry) => ({ ...entry, text: entry.text.slice(0, 12000) }));
+    setMessages((current) => [...current, { role: 'user', text: clean }]);
+    setDraft('');
+    setActivities([]);
+    setActivityOpen(true);
+    setBusy(true);
+    let answer = '';
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question: clean, history }),
+      });
+      if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `The assistant is unavailable right now (${response.status}).`);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streamDone = false;
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) { streamDone = true; break; }
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() ?? '';
+        for (const frame of frames) {
+          const data = frame.split('\n').find((line) => line.startsWith('data: '));
+          if (!data) continue;
+          const event = JSON.parse(data.slice(6)) as AgentEvent;
+          if (event.type === 'activity') {
+            setActivities((current) => {
+              const label = activityLabel(event.label ?? 'Working');
+              if (current.at(-1)?.label === label) return current;
+              return [...current.map((item) => ({ ...item, state: 'done' as const })),
+                { label, detail: event.detail?.includes('Bedrock') ? undefined : event.detail, state: 'running' }];
+            });
+          } else if (event.type === 'token') {
+            answer += event.text ?? '';
+            const next = answer;
+            setMessages((current) => current.at(-1)?.role === 'assistant'
+              ? [...current.slice(0, -1), { role: 'assistant', text: next }]
+              : [...current, { role: 'assistant', text: next }]);
+            scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
+          } else if (event.type === 'error') {
+            throw new Error(event.error ?? 'Agent request failed.');
+          }
+        }
+      }
+      if (!answer) throw new Error('The assistant did not return an answer.');
+      setActivities((current) => current.map((item) => ({ ...item, state: 'done' as const })));
+      setActivityOpen(false);
+    } catch (error) {
+      setActivities((current) => [...current.map((item) => ({ ...item, state: 'done' as const })),
+        { label: 'Stopped', detail: error instanceof Error ? error.message : 'Unknown error', state: 'error' }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <section className={styles.panel} aria-label="Prospect assistant chat">
+    <header className={styles.header}><div className={styles.identity}><span className={styles.avatar} aria-hidden="true"><span className={styles.avatarMark} /></span><div><span className={styles.kicker}>PROSPECT</span><h2>Your assistant</h2></div></div><div className={styles.headerActions}><button className={styles.expand} type="button" onClick={onToggleExpand} aria-label={expanded ? 'Compact chat' : 'Expand chat canvas'} title={expanded ? 'Compact chat' : 'Expand canvas'}>{expanded ? <ArrowsPointingInIcon aria-hidden="true" /> : <ArrowsPointingOutIcon aria-hidden="true" />}</button><button className={styles.close} type="button" onClick={onClose} aria-label="Close chat" title="Close chat"><XMarkIcon aria-hidden="true" /></button></div></header>
+    <div className={`${styles.activity} ${busy ? styles.activityBusy : ''}`}>
+      <button type="button" className={styles.activityToggle} onClick={() => setActivityOpen((current) => !current)} aria-expanded={activityOpen}>{activities.length && !busy ? <>What <span className={styles.inlineMark} role="img" aria-label="MP" /> checked</> : <><span className={styles.inlineMark} role="img" aria-label="MP" /> {busy ? 'is working' : 'is ready'}</>} <ChevronDownIcon className={styles.chevron} aria-hidden="true" /></button>
+      {busy ? <div className={styles.progressTrack} role="progressbar" aria-label="Assistant is working"><span /></div> : null}
+      {activityOpen ? <div className={styles.activityList} aria-live="polite">{activities.length === 0 ? <span className={styles.idle}>Ask a question to explore your projects.</span> : activities.map((item, index) => <div className={styles.activityItem} key={index}><span className={item.state === 'error' ? styles.errorDot : styles.stepDot} /><div><strong>{activityLabel(item.label)}</strong>{item.detail && !item.detail.includes('Bedrock') && !item.detail.includes(' tool') ? <small>{item.detail}</small> : null}</div></div>)}</div> : null}
+    </div>
+    <div className={styles.messages} ref={scroller} aria-live="polite">
+      {messages.length === 0 ? <div className={styles.empty}><div className={styles.icon}><span className={styles.emptyMark} aria-hidden="true" /></div><h3>Ask about any project.</h3><p>Search Prospect, compare opportunities, and understand the evidence behind them.</p><div className={styles.prompts}>{['Show me all projects', 'Which projects need attention?', 'Compare opportunities by location'].map((prompt) => <button key={prompt} type="button" onClick={() => void ask(prompt)}>{prompt}</button>)}</div></div> : messages.map((entry, index) => <div className={`${styles.message} ${entry.role === 'user' ? styles.user : styles.assistant}`} key={index}><span>{entry.role === 'user' ? 'You' : <span className={styles.messageMark} role="img" aria-label="MP" />}</span><div className={styles.messageBody}>{entry.role === 'assistant' ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>, pre: ({ children }) => <pre className={styles.codeBlock}>{children}</pre> }}>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}</div></div>)}
+    </div>
+    <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void ask(draft); }}><textarea ref={composerField} aria-label="Ask the Prospect assistant about projects" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(draft); } }} placeholder="Ask about a project…" rows={1} maxLength={2000} /><button type="submit" disabled={busy || !draft.trim()} aria-label="Send message" title={busy ? 'Wait for the current answer' : 'Send message'}><ArrowUpIcon aria-hidden="true" /></button></form>
+    {localLab ? <p className={styles.scope}>Local research sample · Read-only</p> : <p className={styles.scope}>Your Prospect workspace · Read-only</p>}
+  </section>;
+}
