@@ -7,7 +7,7 @@ import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
 import type { Config } from "./core/config.js";
 import { PolicyError, validateAuthorizationQuery } from "./core/policy.js";
-import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest } from "./core/tokens.js";
+import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest, digest } from "./core/tokens.js";
 import { ceremony } from "./auth.js";
 import type { MirrorAuth } from "./auth.js";
 import { Store } from "./db.js";
@@ -195,7 +195,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const newPassword = stringField(body, "newPassword", 14, 128);
       if (!/^[A-Za-z0-9_-]{24,128}$/.test(token)) throw new PolicyError("invalid_reset_token", 400);
       await store.rateLimit(`password-reset-complete-ip:${ip}`, 10, 900_000);
-      await store.rateLimit(`password-reset-token:${tokenDigest(token)}`, 5, 3_600_000);
+      await store.rateLimit(`password-reset-token:${digest(token)}`, 5, 3_600_000);
       const response = await invoke(request, "/api/auth/reset-password", { token, newPassword });
       if (!response.ok) return json({ error: "invalid_or_expired_reset" }, 400);
       return json({ reset: true });
