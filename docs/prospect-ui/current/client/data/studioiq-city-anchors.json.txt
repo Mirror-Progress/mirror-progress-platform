@@ -1,0 +1,1149 @@
+[
+  {
+    "city": "Malmö",
+    "country": "Sweden",
+    "latitude": 55.6059,
+    "longitude": 13.0007,
+    "geonamesId": 2692969,
+    "kind": "city"
+  },
+  {
+    "city": "Fortaleza, Ceará",
+    "country": "Brazil",
+    "latitude": -3.7172,
+    "longitude": -38.5431,
+    "geonamesId": 3399415,
+    "kind": "city"
+  },
+  {
+    "city": "New Taipei City",
+    "country": "Taiwan",
+    "latitude": 25.062,
+    "longitude": 121.457,
+    "geonamesId": 12908892,
+    "kind": "city"
+  },
+  {
+    "city": "Toronto",
+    "country": "Canada",
+    "latitude": 43.7064,
+    "longitude": -79.3986,
+    "geonamesId": 6167865,
+    "kind": "city"
+  },
+  {
+    "city": "Mainz",
+    "country": "Germany",
+    "latitude": 49.9819,
+    "longitude": 8.2801,
+    "geonamesId": 2874225,
+    "kind": "city"
+  },
+  {
+    "city": "Helsinki",
+    "country": "Finland",
+    "latitude": 60.1695,
+    "longitude": 24.9354,
+    "geonamesId": 658225,
+    "kind": "city"
+  },
+  {
+    "city": "Ivry-sur-Seine",
+    "country": "France",
+    "latitude": 48.8157,
+    "longitude": 2.3849,
+    "geonamesId": 3012621,
+    "kind": "city"
+  },
+  {
+    "city": "Dijon",
+    "country": "France",
+    "latitude": 47.3134,
+    "longitude": 5.0139,
+    "geonamesId": 3021372,
+    "kind": "city"
+  },
+  {
+    "city": "Brisbane",
+    "country": "Australia",
+    "latitude": -27.4679,
+    "longitude": 153.0281,
+    "geonamesId": 2174003,
+    "kind": "city"
+  },
+  {
+    "city": "Carouge / Geneva",
+    "country": "Switzerland",
+    "latitude": 46.181,
+    "longitude": 6.1392,
+    "geonamesId": 2661265,
+    "kind": "city"
+  },
+  {
+    "city": "Waitakaruru",
+    "country": "New Zealand",
+    "latitude": -37.25,
+    "longitude": 175.3833,
+    "geonamesId": 2179870,
+    "kind": "city"
+  },
+  {
+    "city": "Brussels",
+    "country": "Belgium",
+    "latitude": 50.8505,
+    "longitude": 4.3488,
+    "geonamesId": 2800866,
+    "kind": "city"
+  },
+  {
+    "city": "Tweed Heads",
+    "country": "Australia",
+    "latitude": -28.1767,
+    "longitude": 153.5452,
+    "geonamesId": 2145765,
+    "kind": "city"
+  },
+  {
+    "city": "Zwolle",
+    "country": "Netherlands",
+    "latitude": 52.5125,
+    "longitude": 6.0944,
+    "geonamesId": 2743477,
+    "kind": "city"
+  },
+  {
+    "city": "Haugesund",
+    "country": "Norway",
+    "latitude": 59.4138,
+    "longitude": 5.268,
+    "geonamesId": 3153623,
+    "kind": "city"
+  },
+  {
+    "city": "Riviera / Veveyse",
+    "country": "Switzerland",
+    "latitude": 46.463,
+    "longitude": 6.8434,
+    "geonamesId": 2658145,
+    "kind": "region"
+  },
+  {
+    "city": "Albi",
+    "country": "France",
+    "latitude": 43.9298,
+    "longitude": 2.148,
+    "geonamesId": 3038261,
+    "kind": "city"
+  },
+  {
+    "city": "Paris",
+    "country": "France",
+    "latitude": 48.8534,
+    "longitude": 2.3488,
+    "geonamesId": 2988507,
+    "kind": "city"
+  },
+  {
+    "city": "Concarneau",
+    "country": "France",
+    "latitude": 47.8754,
+    "longitude": -3.919,
+    "geonamesId": 3024035,
+    "kind": "city"
+  },
+  {
+    "city": "Telfs",
+    "country": "Austria",
+    "latitude": 47.3071,
+    "longitude": 11.0682,
+    "geonamesId": 2763810,
+    "kind": "city"
+  },
+  {
+    "city": "Abu Dhabi",
+    "country": "United Arab Emirates",
+    "latitude": 24.4512,
+    "longitude": 54.397,
+    "geonamesId": 292968,
+    "kind": "city"
+  },
+  {
+    "city": "Bratislava",
+    "country": "Slovakia",
+    "latitude": 48.1482,
+    "longitude": 17.1067,
+    "geonamesId": 3060972,
+    "kind": "city"
+  },
+  {
+    "city": "Christchurch",
+    "country": "New Zealand",
+    "latitude": -43.5333,
+    "longitude": 172.6333,
+    "geonamesId": 2192362,
+    "kind": "city"
+  },
+  {
+    "city": "Plovdiv",
+    "country": "Bulgaria",
+    "latitude": 42.1539,
+    "longitude": 24.75,
+    "geonamesId": 728193,
+    "kind": "city"
+  },
+  {
+    "city": "São Paulo",
+    "country": "Brazil",
+    "latitude": -23.5475,
+    "longitude": -46.6361,
+    "geonamesId": 3448439,
+    "kind": "city"
+  },
+  {
+    "city": "Leganes",
+    "country": "Spain",
+    "latitude": 40.3272,
+    "longitude": -3.7635,
+    "geonamesId": 3118594,
+    "kind": "city"
+  },
+  {
+    "city": "Doha",
+    "country": "Qatar",
+    "latitude": 25.2855,
+    "longitude": 51.531,
+    "geonamesId": 290030,
+    "kind": "city"
+  },
+  {
+    "city": "Tulum",
+    "country": "Mexico",
+    "latitude": 20.2117,
+    "longitude": -87.4633,
+    "geonamesId": 3515040,
+    "kind": "city"
+  },
+  {
+    "city": "Diriyah",
+    "country": "Saudi Arabia",
+    "latitude": 24.7519,
+    "longitude": 46.5387,
+    "geonamesId": 110312,
+    "kind": "city"
+  },
+  {
+    "city": "Irapuato",
+    "country": "Mexico",
+    "latitude": 20.671,
+    "longitude": -101.3558,
+    "geonamesId": 4004330,
+    "kind": "city"
+  },
+  {
+    "city": "Menton",
+    "country": "France",
+    "latitude": 43.7765,
+    "longitude": 7.5043,
+    "geonamesId": 2994497,
+    "kind": "city"
+  },
+  {
+    "city": "Skopje",
+    "country": "North Macedonia",
+    "latitude": 41.9965,
+    "longitude": 21.4314,
+    "geonamesId": 785842,
+    "kind": "city"
+  },
+  {
+    "city": "Makkah",
+    "country": "Saudi Arabia",
+    "latitude": 21.4266,
+    "longitude": 39.8256,
+    "geonamesId": 104515,
+    "kind": "city"
+  },
+  {
+    "city": "Karjat",
+    "country": "India",
+    "latitude": 18.9107,
+    "longitude": 73.3235,
+    "geonamesId": 1267742,
+    "kind": "city"
+  },
+  {
+    "city": "Bachok",
+    "country": "Malaysia",
+    "latitude": 6.0667,
+    "longitude": 102.4,
+    "geonamesId": 1736380,
+    "kind": "city"
+  },
+  {
+    "city": "Taitung",
+    "country": "Taiwan",
+    "latitude": 22.7599,
+    "longitude": 121.1446,
+    "geonamesId": 1668295,
+    "kind": "city"
+  },
+  {
+    "city": "Taipei",
+    "country": "Taiwan",
+    "latitude": 25.0531,
+    "longitude": 121.5264,
+    "geonamesId": 1668341,
+    "kind": "city"
+  },
+  {
+    "city": "Buenos Aires",
+    "country": "Argentina",
+    "latitude": -34.6131,
+    "longitude": -58.3772,
+    "geonamesId": 3435910,
+    "kind": "city"
+  },
+  {
+    "city": "Singapore",
+    "country": "Singapore",
+    "latitude": 1.2897,
+    "longitude": 103.8501,
+    "geonamesId": 1880252,
+    "kind": "city"
+  },
+  {
+    "city": "Morelia",
+    "country": "Mexico",
+    "latitude": 19.7008,
+    "longitude": -101.1844,
+    "geonamesId": 3995402,
+    "kind": "city"
+  },
+  {
+    "city": "Port Harcourt",
+    "country": "Nigeria",
+    "latitude": 4.7774,
+    "longitude": 7.0134,
+    "geonamesId": 2324774,
+    "kind": "city"
+  },
+  {
+    "city": "Schwerin",
+    "country": "Germany",
+    "latitude": 53.6294,
+    "longitude": 11.4132,
+    "geonamesId": 2834282,
+    "kind": "city",
+    "titleHint": "Zoo"
+  },
+  {
+    "city": "San Francisco",
+    "country": "United States",
+    "latitude": 37.7749,
+    "longitude": -122.4194,
+    "geonamesId": 5391959,
+    "kind": "city"
+  },
+  {
+    "city": "Wanaka",
+    "country": "New Zealand",
+    "latitude": -44.7,
+    "longitude": 169.15,
+    "geonamesId": 2184707,
+    "kind": "city"
+  },
+  {
+    "city": "Freiburg",
+    "country": "Germany",
+    "latitude": 47.9959,
+    "longitude": 7.8522,
+    "geonamesId": 2925177,
+    "kind": "city",
+    "titleHint": "University Hospital"
+  },
+  {
+    "city": "Munich",
+    "country": "Germany",
+    "latitude": 48.1374,
+    "longitude": 11.5755,
+    "geonamesId": 2867714,
+    "kind": "city"
+  },
+  {
+    "city": "Hyeres",
+    "country": "France",
+    "latitude": 43.1204,
+    "longitude": 6.1286,
+    "geonamesId": 3012937,
+    "kind": "city"
+  },
+  {
+    "city": "Melbourne",
+    "country": "Australia",
+    "latitude": -37.814,
+    "longitude": 144.9633,
+    "geonamesId": 2158177,
+    "kind": "city"
+  },
+  {
+    "city": "Westland",
+    "country": "Netherlands",
+    "latitude": 51.9967,
+    "longitude": 4.2273,
+    "geonamesId": 6544261,
+    "kind": "region"
+  },
+  {
+    "city": "Rishikesh",
+    "country": "India",
+    "latitude": 30.1078,
+    "longitude": 78.2926,
+    "geonamesId": 1258128,
+    "kind": "city"
+  },
+  {
+    "city": "Riyadh",
+    "country": "Saudi Arabia",
+    "latitude": 24.6877,
+    "longitude": 46.7219,
+    "geonamesId": 108410,
+    "kind": "city"
+  },
+  {
+    "city": "Greater Paris",
+    "country": "France",
+    "latitude": 48.8534,
+    "longitude": 2.3488,
+    "geonamesId": 2988507,
+    "kind": "region"
+  },
+  {
+    "city": "Split",
+    "country": "Croatia",
+    "latitude": 43.5089,
+    "longitude": 16.4392,
+    "geonamesId": 3190261,
+    "kind": "city"
+  },
+  {
+    "city": "Lower Hutt",
+    "country": "New Zealand",
+    "latitude": -41.2167,
+    "longitude": 174.9167,
+    "geonamesId": 2188164,
+    "kind": "city"
+  },
+  {
+    "city": "Pavia",
+    "country": "Italy",
+    "latitude": 45.1921,
+    "longitude": 9.1592,
+    "geonamesId": 3171366,
+    "kind": "city"
+  },
+  {
+    "city": "Wurzburg",
+    "country": "Germany",
+    "latitude": 49.7939,
+    "longitude": 9.9512,
+    "geonamesId": 2805615,
+    "kind": "city"
+  },
+  {
+    "city": "Potsdam",
+    "country": "Germany",
+    "latitude": 52.3989,
+    "longitude": 13.0657,
+    "geonamesId": 2852458,
+    "kind": "city"
+  },
+  {
+    "city": "Barneveld",
+    "country": "Netherlands",
+    "latitude": 52.14,
+    "longitude": 5.5847,
+    "geonamesId": 2759407,
+    "kind": "city"
+  },
+  {
+    "city": "Phang Nga",
+    "country": "Thailand",
+    "latitude": 8.4509,
+    "longitude": 98.5298,
+    "geonamesId": 1151464,
+    "kind": "city"
+  },
+  {
+    "city": "Meersburg",
+    "country": "Germany",
+    "latitude": 47.6942,
+    "longitude": 9.2711,
+    "geonamesId": 2872486,
+    "kind": "city"
+  },
+  {
+    "city": "Monchengladbach",
+    "country": "Germany",
+    "latitude": 51.1854,
+    "longitude": 6.4417,
+    "geonamesId": 2869894,
+    "kind": "city"
+  },
+  {
+    "city": "Celje",
+    "country": "Slovenia",
+    "latitude": 46.2309,
+    "longitude": 15.2604,
+    "geonamesId": 3202781,
+    "kind": "city"
+  },
+  {
+    "city": "Reggio Emilia",
+    "country": "Italy",
+    "latitude": 44.6983,
+    "longitude": 10.6312,
+    "geonamesId": 3169522,
+    "kind": "city"
+  },
+  {
+    "city": "Saalfeld",
+    "country": "Germany",
+    "latitude": 50.6483,
+    "longitude": 11.3654,
+    "geonamesId": 2842688,
+    "kind": "city"
+  },
+  {
+    "city": "Dusseldorf",
+    "country": "Germany",
+    "latitude": 51.2232,
+    "longitude": 6.7793,
+    "geonamesId": 2934246,
+    "kind": "city"
+  },
+  {
+    "city": "Ischia",
+    "country": "Italy",
+    "latitude": 40.7379,
+    "longitude": 13.9486,
+    "geonamesId": 3175458,
+    "kind": "city"
+  },
+  {
+    "city": "Gazipur",
+    "country": "Bangladesh",
+    "latitude": 23.9984,
+    "longitude": 90.4223,
+    "geonamesId": 1200109,
+    "kind": "city"
+  },
+  {
+    "city": "Munster",
+    "country": "Germany",
+    "latitude": 51.9624,
+    "longitude": 7.6257,
+    "geonamesId": 2867543,
+    "kind": "city",
+    "titleHint": "University Hospital"
+  },
+  {
+    "city": "Niseko",
+    "country": "Japan",
+    "latitude": 42.8089,
+    "longitude": 140.686,
+    "geonamesId": 11776771,
+    "kind": "city"
+  },
+  {
+    "city": "Mexico City",
+    "country": "Mexico",
+    "latitude": 19.4285,
+    "longitude": -99.1277,
+    "geonamesId": 3530597,
+    "kind": "city"
+  },
+  {
+    "city": "Imola",
+    "country": "Italy",
+    "latitude": 44.3592,
+    "longitude": 11.7132,
+    "geonamesId": 3175537,
+    "kind": "city"
+  },
+  {
+    "city": "Homburg",
+    "country": "Germany",
+    "latitude": 49.3264,
+    "longitude": 7.3387,
+    "geonamesId": 2899449,
+    "kind": "city"
+  },
+  {
+    "city": "Escaudain",
+    "country": "France",
+    "latitude": 50.3332,
+    "longitude": 3.3443,
+    "geonamesId": 3019827,
+    "kind": "city"
+  },
+  {
+    "city": "Hoorn",
+    "country": "Netherlands",
+    "latitude": 52.6425,
+    "longitude": 5.0597,
+    "geonamesId": 2753638,
+    "kind": "city"
+  },
+  {
+    "city": "Nieuwleusen",
+    "country": "Netherlands",
+    "latitude": 52.5825,
+    "longitude": 6.2819,
+    "geonamesId": 2750161,
+    "kind": "city"
+  },
+  {
+    "city": "Budapest",
+    "country": "Hungary",
+    "latitude": 47.4984,
+    "longitude": 19.0404,
+    "geonamesId": 3054643,
+    "kind": "city"
+  },
+  {
+    "city": "Montréal",
+    "country": "Canada",
+    "latitude": 45.5088,
+    "longitude": -73.5878,
+    "geonamesId": 6077243,
+    "kind": "city"
+  },
+  {
+    "city": "Reinbek",
+    "country": "Germany",
+    "latitude": 53.5177,
+    "longitude": 10.2486,
+    "geonamesId": 2848845,
+    "kind": "city"
+  },
+  {
+    "city": "Navrongo",
+    "country": "Ghana",
+    "latitude": 10.8947,
+    "longitude": -1.0908,
+    "geonamesId": 2297505,
+    "kind": "city"
+  },
+  {
+    "city": "Les Abymes",
+    "country": "France",
+    "latitude": 16.273,
+    "longitude": -61.5051,
+    "geonamesId": 3578959,
+    "kind": "city"
+  },
+  {
+    "city": "Birkenfeld",
+    "country": "Germany",
+    "latitude": 49.6525,
+    "longitude": 7.1667,
+    "geonamesId": 2948595,
+    "kind": "city",
+    "titleHint": "outdoor pool"
+  },
+  {
+    "city": "Remscheid",
+    "country": "Germany",
+    "latitude": 51.1798,
+    "longitude": 7.1925,
+    "geonamesId": 2848273,
+    "kind": "city"
+  },
+  {
+    "city": "Cervignano del Friuli",
+    "country": "Italy",
+    "latitude": 45.8208,
+    "longitude": 13.3393,
+    "geonamesId": 3178992,
+    "kind": "city"
+  },
+  {
+    "city": "Sibiu",
+    "country": "Romania",
+    "latitude": 45.8,
+    "longitude": 24.15,
+    "geonamesId": 667268,
+    "kind": "city"
+  },
+  {
+    "city": "Modena",
+    "country": "Italy",
+    "latitude": 44.6478,
+    "longitude": 10.9254,
+    "geonamesId": 3173331,
+    "kind": "city"
+  },
+  {
+    "city": "Aosta Valley",
+    "country": "Italy",
+    "latitude": 45.75,
+    "longitude": 7.25,
+    "geonamesId": 3164857,
+    "kind": "region"
+  },
+  {
+    "city": "Rome",
+    "country": "Italy",
+    "latitude": 41.8919,
+    "longitude": 12.5113,
+    "geonamesId": 3169070,
+    "kind": "city"
+  },
+  {
+    "city": "Annemasse",
+    "country": "France",
+    "latitude": 46.1944,
+    "longitude": 6.2378,
+    "geonamesId": 3037538,
+    "kind": "city"
+  },
+  {
+    "city": "Nanterre",
+    "country": "France",
+    "latitude": 48.892,
+    "longitude": 2.2067,
+    "geonamesId": 2990970,
+    "kind": "city"
+  },
+  {
+    "city": "Apeldoorn",
+    "country": "Netherlands",
+    "latitude": 52.21,
+    "longitude": 5.9694,
+    "geonamesId": 2759706,
+    "kind": "city"
+  },
+  {
+    "city": "Ceres, California",
+    "country": "United States",
+    "latitude": 37.5949,
+    "longitude": -120.9577,
+    "geonamesId": 5335650,
+    "kind": "city"
+  },
+  {
+    "city": "Lethbridge County, Alberta",
+    "country": "Canada",
+    "latitude": 49.8297,
+    "longitude": -112.8041,
+    "geonamesId": 5928933,
+    "kind": "region"
+  },
+  {
+    "city": "Richmond, British Columbia",
+    "country": "Canada",
+    "latitude": 49.17,
+    "longitude": -123.1368,
+    "geonamesId": 6122085,
+    "kind": "city"
+  },
+  {
+    "city": "Calgary, Alberta",
+    "country": "Canada",
+    "latitude": 51.0501,
+    "longitude": -114.0853,
+    "geonamesId": 5913490,
+    "kind": "city"
+  },
+  {
+    "city": "San Antonio, Texas",
+    "country": "United States",
+    "latitude": 29.4241,
+    "longitude": -98.4936,
+    "geonamesId": 4726206,
+    "kind": "city"
+  },
+  {
+    "city": "Rouyn-Noranda, Quebec",
+    "country": "Canada",
+    "latitude": 48.2366,
+    "longitude": -79.0231,
+    "geonamesId": 6128577,
+    "kind": "city"
+  },
+  {
+    "city": "La Grande, Oregon",
+    "country": "United States",
+    "latitude": 45.3246,
+    "longitude": -118.0877,
+    "geonamesId": 5735537,
+    "kind": "city"
+  },
+  {
+    "city": "St. Leonard, New Brunswick",
+    "country": "Canada",
+    "latitude": 47.1632,
+    "longitude": -67.9246,
+    "geonamesId": 7731836,
+    "kind": "city"
+  },
+  {
+    "city": "Montreal, Quebec",
+    "country": "Canada",
+    "latitude": 45.5088,
+    "longitude": -73.5878,
+    "geonamesId": 6077243,
+    "kind": "city"
+  },
+  {
+    "city": "British Columbia",
+    "country": "Canada",
+    "latitude": 53.9998,
+    "longitude": -125.0032,
+    "geonamesId": 5909050,
+    "kind": "region"
+  },
+  {
+    "city": "Quebec City, Quebec",
+    "country": "Canada",
+    "latitude": 46.8123,
+    "longitude": -71.2145,
+    "geonamesId": 6325494,
+    "kind": "city"
+  },
+  {
+    "city": "Galveston, Texas",
+    "country": "United States",
+    "latitude": 29.3013,
+    "longitude": -94.7977,
+    "geonamesId": 4692883,
+    "kind": "city"
+  },
+  {
+    "city": "Pemberton, British Columbia",
+    "country": "Canada",
+    "latitude": 50.3164,
+    "longitude": -122.8027,
+    "geonamesId": 6100799,
+    "kind": "city"
+  },
+  {
+    "city": "Brantford, Ontario",
+    "country": "Canada",
+    "latitude": 43.1334,
+    "longitude": -80.2664,
+    "geonamesId": 5907990,
+    "kind": "city"
+  },
+  {
+    "city": "Sulęcin",
+    "country": "Poland",
+    "latitude": 52.4443,
+    "longitude": 15.1168,
+    "geonamesId": 3084237,
+    "kind": "city"
+  },
+  {
+    "city": "Pátzcuaro",
+    "country": "Mexico",
+    "latitude": 19.5132,
+    "longitude": -101.6099,
+    "geonamesId": 3993179,
+    "kind": "city"
+  },
+  {
+    "city": "Oaxaca",
+    "country": "Mexico",
+    "latitude": 17.0602,
+    "longitude": -96.7254,
+    "geonamesId": 3522507,
+    "kind": "city"
+  },
+  {
+    "city": "Santa Cruz Xoxocotlán",
+    "country": "Mexico",
+    "latitude": 17.0296,
+    "longitude": -96.7352,
+    "geonamesId": 3517517,
+    "kind": "city"
+  },
+  {
+    "city": "Eastern Ontario",
+    "country": "Canada",
+    "latitude": 44.2298,
+    "longitude": -76.481,
+    "geonamesId": 5992500,
+    "kind": "region",
+    "referenceCity": "Kingston"
+  },
+  {
+    "city": "Merced and Madera Counties",
+    "country": "United States",
+    "latitude": 37.3022,
+    "longitude": -120.483,
+    "geonamesId": 5372253,
+    "kind": "region",
+    "referenceCity": "Merced"
+  },
+  {
+    "city": "Larkspur, California",
+    "country": "United States",
+    "latitude": 37.940544,
+    "longitude": -122.530229,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0640438"
+  },
+  {
+    "city": "Los Angeles, California",
+    "country": "United States",
+    "latitude": 34.019394,
+    "longitude": -118.410825,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0644000"
+  },
+  {
+    "city": "West Sacramento, California",
+    "country": "United States",
+    "latitude": 38.554368,
+    "longitude": -121.548663,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0684816"
+  },
+  {
+    "city": "Pomona, California",
+    "country": "United States",
+    "latitude": 34.058494,
+    "longitude": -117.761091,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0658072"
+  },
+  {
+    "city": "Pasadena, California",
+    "country": "United States",
+    "latitude": 34.160602,
+    "longitude": -118.137954,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0656000"
+  },
+  {
+    "city": "Rancho Cordova, California",
+    "country": "United States",
+    "latitude": 38.577079,
+    "longitude": -121.236187,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0659444"
+  },
+  {
+    "city": "Stockton, California",
+    "country": "United States",
+    "latitude": 37.976553,
+    "longitude": -121.308598,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0675000"
+  },
+  {
+    "city": "Greenville, California",
+    "country": "United States",
+    "latitude": 40.133603,
+    "longitude": -120.945333,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0631162"
+  },
+  {
+    "city": "Arcadia, California",
+    "country": "United States",
+    "latitude": 34.132689,
+    "longitude": -118.036347,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0602462"
+  },
+  {
+    "city": "Dinuba, California",
+    "country": "United States",
+    "latitude": 36.545096,
+    "longitude": -119.398882,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0619318"
+  },
+  {
+    "city": "Merced, California",
+    "country": "United States",
+    "latitude": 37.31138,
+    "longitude": -120.470408,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0646898"
+  },
+  {
+    "city": "Los Alamitos, California",
+    "country": "United States",
+    "latitude": 33.796913,
+    "longitude": -118.061234,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0643224"
+  },
+  {
+    "city": "Hollister, California",
+    "country": "United States",
+    "latitude": 36.855618,
+    "longitude": -121.399544,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0634120"
+  },
+  {
+    "city": "Sunnyvale, California",
+    "country": "United States",
+    "latitude": 37.385797,
+    "longitude": -122.026316,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0677000"
+  },
+  {
+    "city": "San Francisco, California",
+    "country": "United States",
+    "latitude": 37.7749,
+    "longitude": -122.4194,
+    "kind": "city",
+    "sourceUrl": "https://www.geonames.org/5391959/san-francisco.html",
+    "censusGeoid": "0667000"
+  },
+  {
+    "city": "Redwood City, California",
+    "country": "United States",
+    "latitude": 37.515274,
+    "longitude": -122.213672,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0660102"
+  },
+  {
+    "city": "Riverside, California",
+    "country": "United States",
+    "latitude": 33.938143,
+    "longitude": -117.393168,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0662000"
+  },
+  {
+    "city": "Porterville, California",
+    "country": "United States",
+    "latitude": 36.063542,
+    "longitude": -119.0336,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0658240"
+  },
+  {
+    "city": "Long Beach, California",
+    "country": "United States",
+    "latitude": 33.780791,
+    "longitude": -118.16818,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0643000"
+  },
+  {
+    "city": "Glendora, California",
+    "country": "United States",
+    "latitude": 34.144964,
+    "longitude": -117.847804,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0630014"
+  },
+  {
+    "city": "San Diego, California",
+    "country": "United States",
+    "latitude": 32.830391,
+    "longitude": -117.120923,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0666000"
+  },
+  {
+    "city": "Sacramento, California",
+    "country": "United States",
+    "latitude": 38.567694,
+    "longitude": -121.468161,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0664000"
+  },
+  {
+    "city": "Corona, California",
+    "country": "United States",
+    "latitude": 33.861969,
+    "longitude": -117.565495,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0616350"
+  },
+  {
+    "city": "Fresno",
+    "country": "United States",
+    "latitude": 36.782684,
+    "longitude": -119.793359,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0627000",
+    "titleHint": "Fresno"
+  },
+  {
+    "city": "Marina, California",
+    "country": "United States",
+    "latitude": 36.680256,
+    "longitude": -121.789368,
+    "kind": "city",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt",
+    "censusGeoid": "0645778"
+  },
+  {
+    "city": "Orange County, California",
+    "country": "United States",
+    "latitude": 33.675687,
+    "longitude": -117.777207,
+    "kind": "region",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_counties_06.txt",
+    "censusGeoid": "06059"
+  },
+  {
+    "city": "Moffett Field, California",
+    "country": "United States",
+    "latitude": 37.40899,
+    "longitude": -122.06417,
+    "kind": "city",
+    "sourceUrl": "https://espo.nasa.gov/oracles/content/ORACLES_ARC_2018_Science_Meeting"
+  },
+  {
+    "city": "Porterville / Tule River Reservation, California",
+    "country": "United States",
+    "latitude": 36.063542,
+    "longitude": -119.0336,
+    "kind": "region",
+    "referenceCity": "Porterville",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt"
+  },
+  {
+    "city": "Sacramento / South Pacific Division, California",
+    "country": "United States",
+    "latitude": 38.567694,
+    "longitude": -121.468161,
+    "kind": "region",
+    "referenceCity": "Sacramento",
+    "sourceUrl": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_06.txt"
+  }
+]
