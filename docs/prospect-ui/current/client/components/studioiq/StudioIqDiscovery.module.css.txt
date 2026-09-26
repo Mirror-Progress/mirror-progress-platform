@@ -1563,6 +1563,7 @@
   .mobileToolsOpen .marketPicker{grid-column:1 / -1;grid-row:2}
   .mobileToolsOpen .filters button{min-height:36px}
   .viewStage,.globePanel{min-height:calc(100dvh - 194px)}
+  .viewStage[data-view='globe'],.viewStage[data-view='globe'] .globePanel{height:auto}
   .globeMeta{top:10px;left:10px;right:auto;max-width:calc(100% - 130px);font-size:11px}
   .globeMeta .countryMarkerNote,.globeMeta .globeLegend{display:none}
 }
