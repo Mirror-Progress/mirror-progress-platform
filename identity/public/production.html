@@ -30,7 +30,14 @@
 <label>Password<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label>
 <button type="submit">Sign in with password <span aria-hidden="true">↗</span></button></form>
 <button id="direct-passkey-signin" type="button" class="secondary wide">Sign in with a passkey</button>
-<p class="account-help">Forgot your password? <a href="mailto:hello@mirrorprogress.com?subject=Prospect%20account%20recovery">Contact account support</a></p></section>
+<p class="account-help"><button id="show-reset-request" type="button" class="text-action">Forgot your password?</button></p></section>
+<section class="card" id="reset-request-step" hidden><p class="step">ACCOUNT RECOVERY</p><h2>Reset your password.</h2><p>Enter your account email. We’ll send a one-time link if an account exists.</p>
+<form id="reset-request"><label>Email<input name="email" type="email" autocomplete="username" required></label><button type="submit">Send reset link</button></form>
+<button id="reset-request-signin" type="button" class="text-action">Back to sign in</button></section>
+<section class="card" id="reset-complete-step" hidden><p class="step">ACCOUNT RECOVERY</p><h2>Choose a new password.</h2><p>This link can be used once and expires after one hour.</p>
+<form id="reset-complete"><label>New password<input name="newPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+<label>Confirm new password<input name="confirmPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label><p class="form-hint">Use at least 14 characters. Your passkey is still required when you sign in.</p><button type="submit">Save new password</button></form>
+<button id="reset-complete-request" type="button" class="text-action">Need a new link?</button></section>
 <section class="card" id="passkey-step" hidden><p class="step">FINAL STEP</p><h2>Approve on your device</h2>
 <p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation. If your passkey is only on your Mac, <a href="/#devices">add one for your phone</a> from the Mac after signing in.</p>
 <button id="passkey-register" type="button" class="secondary wide">Finish with passkey</button>

@@ -12,8 +12,12 @@ const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const remoteEnrollRequested = Boolean(remoteToken && tokenPattern.test(remoteToken));
 if (remoteEnrollRequested) platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
 let setupActive = false;
+const resetPattern = /^[A-Za-z0-9_-]{24,128}$/;
+let resetToken = hash.get("reset");
+if (!resetToken || !resetPattern.test(resetToken)) resetToken = null;
+let resetActive = Boolean(resetToken);
 const openPlatform = () => {
-  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested && !setupActive)
+  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested && !setupActive && !resetActive)
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
 };
 const storageKey = "mirror-identity-setup-invitation";
@@ -38,6 +42,9 @@ const userError = (error: unknown): string => {
   if (code === "mfa_expired" || code === "mfa_required") return "Sign in again on your Mac, then add the new device passkey.";
   if (code === "session_required") return "Sign in with your password to continue.";
   if (code === "invalid_authentication") return "That email or password did not match. Please try again.";
+  if (code === "passwords_do_not_match") return "Those passwords do not match. Try again.";
+  if (code === "invalid_or_expired_reset") return "This reset link has expired or was already used. Request a new link.";
+  if (code === "rate_limited") return "Too many attempts. Wait a little while, then try again.";
   if (code === "company_unavailable") return "Choose an existing company with active Prospect access and an available seat.";
   if (code === "external_email_delivery_unavailable") return "Invites to this email domain are temporarily unavailable. Contact your admin to use a verified Mirror Progress address.";
   if (code === "invitation_conflict") return "That email already has an invitation. Check the list below.";
@@ -112,9 +119,9 @@ async function refresh(): Promise<Record<string, unknown> | null> {
       remoteEnrollRequested ? "Your one-time setup link is ready. Sign in with your password to add this phone." :
       passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
     if (state.mfaCompleted === true) {
-      node<HTMLElement>("auth-steps").hidden = !setupActive;
+      node<HTMLElement>("auth-steps").hidden = !setupActive && !resetActive;
       node<HTMLElement>("setup-details").hidden = !setupActive;
-      node<HTMLElement>("passkey-step").hidden = setupActive;
+      node<HTMLElement>("passkey-step").hidden = setupActive || resetActive;
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
       void loadInvitations();
@@ -154,7 +161,7 @@ async function authenticatePasskey(): Promise<void> {
   }
   const state = await api("/api/identity/session");
   if (state.mfaCompleted !== true) throw new Error("privileged_passkey_required");
-  node<HTMLElement>("auth-steps").hidden = true;
+  node<HTMLElement>("auth-steps").hidden = resetActive ? false : true;
   node<HTMLElement>("setup-details").hidden = true;
   node<HTMLElement>("device-access").hidden = !devicesRequested;
   if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
@@ -195,6 +202,40 @@ function submit(id: string, action: (values: Record<string, string>) => Promise<
 submit("login", async values => {
   await signInAndFinish(values.email ?? "", values.password ?? "");
 });
+function showReset(step: "request" | "complete" | "signin"): void {
+  resetActive = step !== "signin";
+  document.documentElement.dataset.reset = resetActive ? "true" : "false";
+  node<HTMLElement>("auth-steps").hidden = false;
+  node<HTMLElement>("signin-step").hidden = step !== "signin";
+  node<HTMLElement>("reset-request-step").hidden = step !== "request";
+  node<HTMLElement>("reset-complete-step").hidden = step !== "complete";
+  node<HTMLElement>("setup-details").hidden = resetActive;
+  node<HTMLElement>("passkey-step").hidden = resetActive;
+  document.title = `Mirror Progress · ${resetActive ? "Reset password" : "Sign in"}`;
+  show("");
+  node<HTMLElement>(step === "request" ? "reset-request-step" : step === "complete" ? "reset-complete-step" : "signin-step")
+    .scrollIntoView({ behavior: "smooth", block: "center" });
+}
+node<HTMLButtonElement>("show-reset-request").addEventListener("click", () => {
+  const email = (node<HTMLFormElement>("login").elements.namedItem("email") as HTMLInputElement).value;
+  (node<HTMLFormElement>("reset-request").elements.namedItem("email") as HTMLInputElement).value = email;
+  showReset("request");
+});
+node<HTMLButtonElement>("reset-request-signin").addEventListener("click", () => showReset("signin"));
+node<HTMLButtonElement>("reset-complete-request").addEventListener("click", () => { resetToken = null; showReset("request"); });
+submit("reset-request", async values => {
+  await api("/api/identity/password-reset/request", { email: values.email });
+  show("If this email has a Prospect account, a reset link is on its way. Check your inbox and junk folder.");
+});
+submit("reset-complete", async values => {
+  if (values.newPassword !== values.confirmPassword) throw new Error("passwords_do_not_match");
+  if (!resetToken) throw new Error("invalid_or_expired_reset");
+  await api("/api/identity/password-reset/complete", { token: resetToken, newPassword: values.newPassword });
+  resetToken = null;
+  showReset("signin");
+  show("Password changed. Sign in with your new password, then approve your passkey.");
+});
+if (resetToken) showReset("complete");
 node<HTMLButtonElement>("passkey-register").addEventListener("click", () => {
   const button = node<HTMLButtonElement>("passkey-register"); button.disabled = true;
   void (remoteEnrollRequested ? finishRemoteEnrollment() : finishPasskey())

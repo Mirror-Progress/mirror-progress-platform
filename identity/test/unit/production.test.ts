@@ -28,6 +28,17 @@ test('production selects verified host, distinct DB/role, mandatory online statu
   assert.equal(page.status, 200); assert.match(await page.text(), /data-identity-mode="production"/);
   await pool.end();
 });
+test('fresh production accounts enable one-hour reset links and revoke sessions after a reset', async () => {
+  const config = loadConfig({ ...env, IDENTITY_ACCOUNT_MODE: 'fresh' });
+  const pool = createPool(config);
+  const auth = createAuth(config, new StagingStore(pool, config));
+  assert.equal(config.freshInstall, true);
+  assert.equal(auth.options.emailAndPassword?.resetPasswordTokenExpiresIn, 3600);
+  assert.equal(auth.options.emailAndPassword?.revokeSessionsOnPasswordReset, true);
+  assert.equal(typeof auth.options.emailAndPassword?.sendResetPassword, 'function');
+  assert.equal(auth.options.disabledPaths?.includes('/request-password-reset'), false);
+  await pool.end();
+});
 for (const [name, value] of Object.entries({ IDENTITY_ORIGIN: STAGING.origin, IDENTITY_RP_ID: STAGING.rpId,
   IDENTITY_OIDC_CLIENT_ID: STAGING.clientId, IDENTITY_REDIRECT_URIS: JSON.stringify([STAGING.redirect]),
   DATABASE_URL: env.DATABASE_URL.replaceAll('production', 'staging'), IDENTITY_SESSION_STATUS_SECRET: undefined,

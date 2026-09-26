@@ -7,12 +7,14 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import type { Config } from "./core/config.js";
 import { Store } from "./db.js";
 import { verifiedFactor } from "./core/policy.js";
+import { invitationRecipientDeliverable, sendPasswordResetEmail } from "./core/ses-delivery.js";
 
 export function emailIdentityClaims(user: { email: string; emailVerified: boolean }, scopes: readonly string[]) {
   return scopes.includes("email") ? { email: user.email, email_verified: user.emailVerified === true } : {};
 }
 export const ceremony = new AsyncLocalStorage<{ passkeyVerifiedAt?: number }>();
 export function createAuth(config: Config, store: Store) {
+  const passwordRecovery = config.mode === "production" && config.freshInstall === true;
   const sessionClaims = async (sessionId: string | undefined, userId?: string) => {
     if (!sessionId || !userId) throw new APIError("UNAUTHORIZED", { message: "MFA session required" });
     const { principal, evidence } = await store.authorize(sessionId, userId);
@@ -41,6 +43,20 @@ export function createAuth(config: Config, store: Store) {
       enabled: true, disableSignUp: true, minPasswordLength: 14, maxPasswordLength: 128,
       // Synthetic enrollment never claims mailbox ownership; both hosted profiles require verification.
       requireEmailVerification: (config.mode === "staging" || config.mode === "production"),
+      ...(passwordRecovery ? {
+        resetPasswordTokenExpiresIn: 3600,
+        revokeSessionsOnPasswordReset: true,
+        sendResetPassword: async ({ user, token }: { user: { id: string; email: string; name: string }; token: string }) => {
+          const { rows } = await store.pool.query<{ eligible: boolean }>(`SELECT EXISTS(
+            SELECT 1 FROM "user" u JOIN mirror_binding b ON b.user_id=u.id
+            JOIN mirror_principal p ON p.id=b.principal_id
+            WHERE u.id=$1 AND lower(u.email)=lower($2) AND u."emailVerified" AND NOT p.disabled
+          ) AS eligible`, [user.id, user.email]);
+          if (rows[0]?.eligible !== true || !await invitationRecipientDeliverable(user.email)) return;
+          await sendPasswordResetEmail({ to: user.email, name: user.name,
+            url: `${config.origin}/#reset=${encodeURIComponent(token)}` });
+        },
+      } : {}),
     },
     account: { accountLinking: { enabled: false } },
     session: { expiresIn: 8 * 60 * 60, updateAge: 60 * 60, cookieCache: { enabled: false } },
@@ -52,7 +68,7 @@ export function createAuth(config: Config, store: Store) {
       crossSubDomainCookies: { enabled: false },
     },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 30 },
-    disabledPaths: ["/sign-up/email", "/request-password-reset", "/reset-password", "/send-verification-email",
+    disabledPaths: ["/sign-up/email", ...(passwordRecovery ? [] : ["/request-password-reset", "/reset-password"]), "/send-verification-email",
       "/verify-email", "/change-email", "/update-user", "/delete-user", "/token"],
     plugins: [
       twoFactor({

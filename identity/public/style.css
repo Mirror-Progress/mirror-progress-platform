@@ -67,6 +67,9 @@ html[data-identity-mode="production"] footer{border-top:1px solid rgba(232,248,2
 
 /* Invitation links open account creation in the same primary card position as sign-in. */
 html[data-identity-mode="production"] #signin-step{order:1}
+html[data-identity-mode="production"] #reset-request-step,html[data-identity-mode="production"] #reset-complete-step{order:1}
+html[data-identity-mode="production"] #reset-request-step .form-hint,html[data-identity-mode="production"] #reset-complete-step .form-hint{font-size:12px;line-height:1.5;margin:10px 0 0;color:#5d6f6e}
+html[data-identity-mode="production"][data-reset="true"] main>p:has(#open-platform),html[data-identity-mode="production"][data-reset="true"] main>p:has(a[href="/#devices"]),html[data-identity-mode="production"][data-reset="true"] main>p:has(#manage-invitations),html[data-identity-mode="production"][data-reset="true"] #account-controls{display:none}
 html[data-identity-mode="production"] #passkey-step{order:2}
 html[data-identity-mode="production"] #setup-details{order:3;grid-row:auto;min-width:0}
 html[data-identity-mode="production"] #setup-details .setup-content h2{font-family:Satoshi,Inter,sans-serif;font-size:clamp(28px,2.7vw,38px);line-height:1.15;letter-spacing:-.04em;margin:18px 0 8px}

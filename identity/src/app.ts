@@ -175,6 +175,31 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     if (request.headers.get("sec-fetch-site") === "cross-site" && !tokenExchange && request.method !== "GET") {
       throw new PolicyError("cross_site_request_denied");
     }
+    if (request.method === "POST" && url.pathname === "/api/identity/password-reset/request") {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 1) throw new PolicyError("invalid_password_reset_request", 400);
+      const email = stringField(body, "email", 3, 254).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new PolicyError("invalid_email", 400);
+      await store.rateLimit(`password-reset-ip:${ip}`, 5, 900_000);
+      await store.rateLimit(`password-reset-email:${email}`, 3, 3_600_000);
+      const response = await invoke(request, "/api/auth/request-password-reset", { email });
+      if (!response.ok) console.error("password_reset_request_failed", response.status);
+      return json({ status: "if-account-exists" }, 202);
+    }
+    if (request.method === "POST" && url.pathname === "/api/identity/password-reset/complete") {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 2) throw new PolicyError("invalid_password_reset_request", 400);
+      const token = stringField(body, "token", 24, 128);
+      const newPassword = stringField(body, "newPassword", 14, 128);
+      if (!/^[A-Za-z0-9_-]{24,128}$/.test(token)) throw new PolicyError("invalid_reset_token", 400);
+      await store.rateLimit(`password-reset-complete-ip:${ip}`, 10, 900_000);
+      await store.rateLimit(`password-reset-token:${tokenDigest(token)}`, 5, 3_600_000);
+      const response = await invoke(request, "/api/auth/reset-password", { token, newPassword });
+      if (!response.ok) return json({ error: "invalid_or_expired_reset" }, 400);
+      return json({ reset: true });
+    }
     if (request.method === "POST" && url.pathname === "/api/identity/invitation-info") {
       if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
       const body = await readObject(request);
