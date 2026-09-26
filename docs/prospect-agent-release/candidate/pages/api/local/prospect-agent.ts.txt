@@ -1,0 +1,11 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { loadLocalProspectCatalog } from '../../../lib/prospect-agent/catalog';
+import { streamProspectAgent } from '../../../lib/prospect-agent/http';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
+  if (process.env.NODE_ENV === 'production' || !loopback) return res.status(404).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const catalog = await loadLocalProspectCatalog();
+  return streamProspectAgent(req, res, catalog);
+}
