@@ -1,0 +1,233 @@
+import 'server-only';
+import ExcelJS from 'exceljs';
+import { getDb } from '../mongodb';
+import type { MarketCountry, MarketSnapshot, MarketSnapshotItem } from './market-snapshot';
+
+const pinkSheetUrl = 'https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/related/CMO-Historical-Data-Monthly.xlsx';
+const wbBase = 'https://api.worldbank.org/v2';
+const irenaFolder = 'https://pxweb.irena.org/api/v1/en/IRENASTAT/Power%20Capacity%20and%20Generation/';
+const irenaPage = 'https://pxweb.irena.org/pxweb/en/IRENASTAT/IRENASTAT__Power%20Capacity%20and%20Generation/';
+const refreshMs = 24 * 60 * 60 * 1000;
+const priorityCountries = ['WLD', 'USA', 'GBR', 'CAN', 'AUS', 'BRA', 'MEX'];
+const countryAliases: Record<string, string> = {
+  HKG: 'Hong Kong', KOR: 'South Korea', MAC: 'Macau', SVK: 'Slovakia', TWN: 'Taiwan', VNM: 'Vietnam',
+};
+function sortCountries(a: MarketCountry, b: MarketCountry): number {
+  const aPriority = priorityCountries.indexOf(a.code);
+  const bPriority = priorityCountries.indexOf(b.code);
+  if (aPriority !== -1 || bPriority !== -1) return (aPriority === -1 ? 999 : aPriority) - (bPriority === -1 ? 999 : bPriority);
+  return a.name.localeCompare(b.name);
+}
+const indicatorSpecs = [
+  { id: 'NE.GDI.FTOT.KD.ZG', label: 'Investment growth', interpretation: 'Gross fixed capital formation is broad investment activity, not a construction-project pipeline.' },
+  { id: 'NV.IND.TOTL.KD.ZG', label: 'Industry growth', interpretation: 'Industry value added includes construction but also mining, manufacturing and utilities.' },
+  { id: 'NY.GDP.MKTP.KD.ZG', label: 'GDP growth', interpretation: 'Broad economic output growth, not an architectural-services forecast.' },
+  { id: 'NE.TRD.GNFS.ZS', label: 'Trade / GDP', interpretation: 'Exports plus imports of goods and services as a share of GDP; not a growth rate.' },
+] as const;
+
+type WorldBankValue = { countryiso3code: string; country: { value: string }; date: string; value: number | null };
+type WorldBankResponse = [{ lastupdated?: string; pages?: number }, WorldBankValue[]];
+type StoredData = { schemaVersion: 3; complete: boolean; refreshedAt: string; countries: MarketCountry[]; items: MarketSnapshotItem[] };
+let cached: StoredData | null = null;
+let pending: Promise<StoredData | null> | null = null;
+let nextRefreshAt = 0;
+let degraded = false;
+
+function monthPeriod(code: string): string {
+  const match = /^(\d{4})M(\d{2})$/.exec(code);
+  if (!match) throw new Error('Pink Sheet period is invalid.');
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+function signedPercent(value: number): string { return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`; }
+function direction(value: number): MarketSnapshotItem['direction'] { return value > 0 ? 'up' : value < 0 ? 'down' : 'flat'; }
+
+async function fetchJson(url: string): Promise<unknown> {
+  const response = await fetch(url, { signal: AbortSignal.timeout(12_000), headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Market source returned ${response.status}`);
+  return response.json();
+}
+
+async function fetchWorldBank(fetchedAt: string): Promise<{ countries: MarketCountry[]; items: MarketSnapshotItem[] }> {
+  const [countryResponse, ...responses] = await Promise.all([
+    fetchJson(`${wbBase}/country?format=json&per_page=400`),
+    ...indicatorSpecs.map((spec) => fetchJson(`${wbBase}/country/all/indicator/${spec.id}?format=json&mrnev=1&per_page=400`)),
+  ]);
+  const countryRows = (countryResponse as [unknown, Array<{ id: string; iso2Code: string; name: string; region: { id: string } }>])[1];
+  if (!Array.isArray(countryRows)) throw new Error('World Bank country metadata is invalid.');
+  const allowedNames = new Set(countryRows.filter((row) => row.region?.id !== 'NA').map((row) => row.name));
+  const countries = new Map<string, MarketCountry>([['WLD', { code: 'WLD', name: 'World' }]]);
+  const items: MarketSnapshotItem[] = [];
+  responses.forEach((response, index) => {
+    const [meta, rows] = response as WorldBankResponse;
+    if (!Array.isArray(rows) || (meta.pages ?? 1) !== 1) throw new Error('World Bank indicator response is incomplete.');
+    const spec = indicatorSpecs[index];
+    for (const row of rows) {
+      if (row.countryiso3code !== 'WLD' && !allowedNames.has(row.country.value)) continue;
+      if (typeof row.value !== 'number' || !Number.isFinite(row.value) || !/^\d{4}$/.test(row.date)) continue;
+      if (new Date().getUTCFullYear() - Number(row.date) > 3) continue;
+      const code = row.countryiso3code;
+      const name = code === 'WLD' ? 'World' : countryAliases[code] ?? row.country.value;
+      countries.set(code, { code, name });
+      items.push({
+        id: `wb-${code}-${spec.id}`, label: spec.label,
+        value: spec.id === 'NE.TRD.GNFS.ZS' ? `${row.value.toFixed(1)}%` : signedPercent(row.value),
+        direction: spec.id === 'NE.TRD.GNFS.ZS' ? 'flat' : direction(row.value),
+        geography: name, period: row.date, interpretation: spec.interpretation,
+        sourceLabel: 'World Bank · World Development Indicators',
+        sourceUrl: `${wbBase}/country/${code}/indicator/${spec.id}?format=json`,
+        observedAt: row.date, fetchedAt, frequency: 'annual',
+      });
+    }
+  });
+  if (!items.some((item) => item.geography === 'World')) throw new Error('World Bank global data is missing.');
+  return { countries: [...countries.values()].sort(sortCountries), items };
+}
+
+async function fetchPinkSheet(fetchedAt: string): Promise<MarketSnapshotItem[]> {
+  const response = await fetch(pinkSheetUrl, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(`Pink Sheet returned ${response.status}`);
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('spreadsheetml')) throw new Error('Pink Sheet response is not a workbook.');
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength > 5_000_000) throw new Error('Pink Sheet workbook exceeds size limit.');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  const sheet = workbook.getWorksheet('Monthly Indices');
+  if (!sheet || String(sheet.getCell('C6').value) !== 'Energy' || !String(sheet.getCell('O7').value).includes('Metals')) {
+    throw new Error('Pink Sheet workbook layout changed.');
+  }
+  const rows: Array<{ period: string; energy: number; metals: number }> = [];
+  sheet.eachRow((row) => {
+    const period = row.getCell(1).value;
+    const energy = row.getCell(3).value;
+    const metals = row.getCell(15).value;
+    if (typeof period === 'string' && /^\d{4}M\d{2}$/.test(period) &&
+        typeof energy === 'number' && typeof metals === 'number') rows.push({ period, energy, metals });
+  });
+  if (rows.length < 2) throw new Error('Pink Sheet has fewer than two valid months.');
+  const [previous, latest] = rows.slice(-2);
+  return ([
+    { key: 'energy', label: 'Energy prices', interpretation: 'Approximate monthly change calculated from the World Bank’s rounded global energy price index, in nominal U.S. dollar terms.' },
+    { key: 'metals', label: 'Metals & minerals', interpretation: 'Approximate monthly change calculated from the World Bank’s rounded global metals and minerals price index, in nominal U.S. dollar terms.' },
+  ] as const).map((spec) => {
+    const change = (latest[spec.key] / previous[spec.key] - 1) * 100;
+    return { id: `pink-${spec.key}`, label: spec.label, value: `≈${signedPercent(change)}`, direction: direction(change),
+      geography: 'Global', period: `${monthPeriod(latest.period)} vs ${monthPeriod(previous.period)}`,
+      interpretation: spec.interpretation, sourceLabel: 'World Bank · Pink Sheet monthly indices', sourceUrl: pinkSheetUrl,
+      observedAt: latest.period, fetchedAt, frequency: 'monthly' as const };
+  });
+}
+
+type IrenaVariable = { code: string; values: string[]; valueTexts: string[] };
+type IrenaDataset = { dataset: { dimension: Record<string, { category: { index: Record<string, number>; label: Record<string, string> } }> & { size: number[] }; value: Array<number | null> } };
+
+async function fetchIrena(fetchedAt: string): Promise<{ countries: MarketCountry[]; items: MarketSnapshotItem[] }> {
+  const directory = await fetchJson(irenaFolder) as Array<{ id: string }>;
+  const tableName = directory.filter((entry) => /^Country_ELECCAP_\d{4}_H\d.*\.px$/.test(entry.id))
+    .map((entry) => entry.id).sort().at(-1);
+  if (!tableName) throw new Error('IRENA capacity table is unavailable.');
+  const tableUrl = `${irenaFolder}${encodeURIComponent(tableName)}`;
+  const metadata = await fetchJson(tableUrl) as { variables: IrenaVariable[] };
+  const country = metadata.variables.find((item) => item.code === 'Country/area');
+  const year = metadata.variables.find((item) => item.code === 'Year');
+  if (!country || !year) throw new Error('IRENA table dimensions changed.');
+  const years = year.values.slice(-6);
+  const response = await fetch(tableUrl, { method: 'POST', signal: AbortSignal.timeout(20_000),
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: [
+      { code: 'Country/area', selection: { filter: 'item', values: country.values } },
+      { code: 'Technology', selection: { filter: 'item', values: ['0'] } },
+      { code: 'Grid connection', selection: { filter: 'item', values: ['0', '1'] } },
+      { code: 'Year', selection: { filter: 'item', values: years } },
+    ], response: { format: 'json-stat' } }) });
+  if (!response.ok) throw new Error(`IRENA returned ${response.status}`);
+  const result = await response.json() as IrenaDataset;
+  const dataset = result.dataset;
+  const sizes = dataset?.dimension.size;
+  if (!dataset || !sizes || sizes.length !== 4 || sizes[1] !== 1 || sizes[2] !== 2 || !Array.isArray(dataset.value)) {
+    throw new Error('IRENA data shape changed.');
+  }
+  const countryIndex = dataset.dimension['Country/area'].category.index;
+  const yearIndex = dataset.dimension.Year.category.index;
+  const yearLabel = dataset.dimension.Year.category.label;
+  const items: MarketSnapshotItem[] = [];
+  const countries: MarketCountry[] = [];
+  for (let i = 0; i < country.values.length; i += 1) {
+    const code = country.values[i];
+    const position = countryIndex[code];
+    if (position === undefined) continue;
+    const name = countryAliases[code] ?? country.valueTexts[i];
+    if (!name) continue;
+    const series = years.flatMap((yearCode) => {
+      const y = yearIndex[yearCode];
+      if (y === undefined) return [];
+      const on = dataset.value[(position * 2) * sizes[3] + y];
+      const off = dataset.value[(position * 2 + 1) * sizes[3] + y];
+      if (typeof on !== 'number' && typeof off !== 'number') return [];
+      return [{ year: yearLabel[yearCode], mw: (typeof on === 'number' ? on : 0) + (typeof off === 'number' ? off : 0) }];
+    });
+    const latest = series.at(-1);
+    const previous = series.at(-2);
+    if (!latest || !previous || previous.mw <= 0 || Number(latest.year) - Number(previous.year) !== 1 ||
+        new Date().getUTCFullYear() - Number(latest.year) > 3) continue;
+    const change = (latest.mw / previous.mw - 1) * 100;
+    countries.push({ code, name });
+    items.push({ id: `irena-${code}`, label: 'Renewable capacity', value: signedPercent(change), direction: direction(change),
+      geography: name, period: `${latest.year} vs ${previous.year}`,
+      interpretation: 'Year-on-year change in installed renewable electricity capacity, on-grid plus off-grid. It is not a project pipeline measure.',
+      sourceLabel: 'IRENA · Renewable Capacity Statistics', sourceUrl: `${irenaPage}${encodeURIComponent(tableName)}/`,
+      observedAt: latest.year, fetchedAt, frequency: 'annual' });
+  }
+  if (items.length < 50) throw new Error('IRENA returned too few country comparisons.');
+  return { countries, items };
+}
+
+async function readStored(): Promise<StoredData | null> {
+  try {
+    const doc = await getDb().then((db) => db.collection<StoredData & { _id: string }>('prospect_market_snapshot').findOne({ _id: 'global-v1' }));
+    return doc?.schemaVersion === 3 && Array.isArray(doc.items) && Array.isArray(doc.countries) ? doc : null;
+  } catch { return null; }
+}
+
+async function saveStored(data: StoredData): Promise<void> {
+  try { await getDb().then((db) => db.collection<StoredData & { _id: string }>('prospect_market_snapshot').updateOne({ _id: 'global-v1' }, { $set: data }, { upsert: true })); }
+  catch (error) { console.warn('[prospect-market] Could not persist last-good snapshot:', error instanceof Error ? error.message : 'unknown error'); }
+}
+
+async function refresh(): Promise<StoredData | null> {
+  if (!cached) cached = await readStored();
+  if (cached && (nextRefreshAt ? Date.now() < nextRefreshAt : cached.complete && Date.now() - Date.parse(cached.refreshedAt) < refreshMs)) return cached;
+  const fetchedAt = new Date().toISOString();
+  const [wb, pink, irena] = await Promise.allSettled([fetchWorldBank(fetchedAt), fetchPinkSheet(fetchedAt), fetchIrena(fetchedAt)]);
+  const wbCountries = wb.status === 'fulfilled' ? wb.value.countries : cached?.countries ?? [];
+  const irenaCountries = irena.status === 'fulfilled' ? irena.value.countries : cached?.countries ?? [];
+  const countries = [...new Map([...irenaCountries, ...wbCountries].map((item) => [item.code, item])).values()].sort(sortCountries);
+  const wbItems = wb.status === 'fulfilled' ? wb.value.items : cached?.items.filter((item) => item.id.startsWith('wb-')) ?? [];
+  const pinkItems = pink.status === 'fulfilled' ? pink.value : cached?.items.filter((item) => item.id.startsWith('pink-')) ?? [];
+  const irenaItems = irena.status === 'fulfilled' ? irena.value.items : cached?.items.filter((item) => item.id.startsWith('irena-')) ?? [];
+  if (wb.status === 'rejected') console.warn('[prospect-market] World Bank refresh failed:', wb.reason);
+  if (pink.status === 'rejected') console.warn('[prospect-market] Pink Sheet refresh failed:', pink.reason);
+  if (irena.status === 'rejected') console.warn('[prospect-market] IRENA refresh failed:', irena.reason);
+  const allSucceeded = wb.status === 'fulfilled' && pink.status === 'fulfilled' && irena.status === 'fulfilled';
+  degraded = !allSucceeded;
+  nextRefreshAt = Date.now() + (allSucceeded ? refreshMs : 15 * 60 * 1000);
+  if (!wbItems.length && !pinkItems.length && !irenaItems.length) return cached;
+  if (wb.status === 'fulfilled' || pink.status === 'fulfilled' || irena.status === 'fulfilled') {
+    cached = { schemaVersion: 3, complete: allSucceeded, refreshedAt: fetchedAt, countries, items: [...pinkItems, ...wbItems, ...irenaItems] };
+    void saveStored(cached);
+  }
+  return cached;
+}
+
+export async function getMarketSnapshot(countryCode = 'WLD'): Promise<MarketSnapshot> {
+  if (!pending) pending = refresh().finally(() => { pending = null; });
+  const data = await pending;
+  const requested = countryCode.trim().toUpperCase();
+  const geography = data?.countries.find((item) => item.code === requested) ?? { code: 'WLD', name: 'World' };
+  const items = data?.items.filter((item) => item.id.startsWith('pink-') || item.id.startsWith(`wb-${geography.code}-`) || item.id === `irena-${geography.code}`) ?? [];
+  return { mode: items.length ? 'sourced' : 'unavailable', title: 'Market pulse', geography,
+    countries: data?.countries ?? [], refreshedAt: data?.refreshedAt ?? null,
+    stale: degraded || items.some((item) => Date.now() - Date.parse(item.fetchedAt) > refreshMs * 2), items,
+    note: 'Official market context only. Figures describe a country or global commodity market, not an individual Prospect project. Each item shows its observation period and source.',
+  };
+}

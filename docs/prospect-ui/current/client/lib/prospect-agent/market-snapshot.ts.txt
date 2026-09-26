@@ -1,0 +1,27 @@
+export type MarketSnapshotItem = {
+  id: string;
+  label: string;
+  value: string;
+  direction: 'up' | 'down' | 'flat';
+  geography: string;
+  period: string;
+  interpretation: string;
+  sourceLabel: string;
+  sourceUrl: string;
+  observedAt: string;
+  fetchedAt: string;
+  frequency: 'monthly' | 'annual';
+};
+
+export type MarketCountry = { code: string; name: string };
+
+export type MarketSnapshot = {
+  mode: 'sourced' | 'unavailable';
+  title: 'Market pulse';
+  geography: MarketCountry;
+  countries: MarketCountry[];
+  refreshedAt: string | null;
+  stale: boolean;
+  items: MarketSnapshotItem[];
+  note: string;
+};

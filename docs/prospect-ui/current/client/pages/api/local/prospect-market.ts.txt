@@ -1,0 +1,9 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getMarketSnapshot } from '../../../lib/prospect-agent/market-data';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
+  if (process.env.NODE_ENV === 'production' || !loopback) return res.status(404).end();
+  if (req.method !== 'GET') return res.status(405).end();
+  return res.status(200).json(await getMarketSnapshot(typeof req.query.country === 'string' ? req.query.country : 'WLD'));
+}
