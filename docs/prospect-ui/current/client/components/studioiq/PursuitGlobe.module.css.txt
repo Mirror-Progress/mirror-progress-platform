@@ -1,0 +1,527 @@
+.globe {
+  --siq-globe-focus: var(--siq-accent-focus, #d7ff3f);
+  --siq-globe-muted: var(--siq-field-muted, #9eaea6);
+  --siq-globe-axis: var(--siq-accent-primary, #7c9c8c);
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.globe:active {
+  cursor: grabbing;
+}
+.globe:focus-visible {
+  outline: 2px solid var(--siq-globe-focus);
+  outline-offset: -4px;
+}
+.globe canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.zoomControls {
+  position: absolute;
+  z-index: 7;
+  top: 14px;
+  right: 14px;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 38px 54px 38px 44px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--siq-line-strong) 82%, transparent);
+  border-radius: var(--siq-radius-card, 6px);
+  background: color-mix(in srgb, var(--siq-surface-raised) 91%, transparent);
+  color: var(--siq-text-primary);
+  box-shadow: var(--siq-shadow-low);
+  backdrop-filter: blur(16px) saturate(1.08);
+}
+.zoomControls button,
+.zoomControls output {
+  min-width: 0;
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--siq-line-default);
+  background: transparent;
+  color: inherit;
+  font:
+    700 12px/1 var(--font-mp-mono, 'Diatype Mono'),
+    ui-monospace,
+    monospace;
+}
+.zoomControls button:first-child {
+  border-left: 0;
+}
+.zoomControls button {
+  font-size: 18px;
+  cursor: pointer;
+  transition:
+    background-color var(--siq-fast, 140ms) ease,
+    color var(--siq-fast, 140ms) ease;
+}
+.zoomControls button:hover,
+.zoomControls button:focus-visible {
+  background: var(--siq-surface-selected);
+  color: var(--siq-accent-primary);
+}
+.zoomControls button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--siq-globe-focus);
+  outline-offset: -3px;
+}
+.zoomControls .fitButton {
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.hoverPreview {
+  position: absolute;
+  z-index: 6;
+  width: 280px;
+  display: grid;
+  gap: 6px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--siq-line-strong) 90%, transparent);
+  border-radius: var(--siq-radius-card, 6px);
+  background: color-mix(in srgb, var(--siq-surface-raised) 91%, transparent);
+  color: var(--siq-text-primary);
+  box-shadow: var(--siq-shadow-high);
+  backdrop-filter: blur(18px) saturate(1.08);
+  pointer-events: none;
+  animation: previewReveal var(--siq-select, 220ms)
+    var(--siq-ease-select, ease-out) both;
+}
+.hoverPreview span {
+  overflow: hidden;
+  color: var(--siq-accent-primary);
+  font:
+    750 11px/1.2 var(--font-mp-mono, 'Diatype Mono'),
+    ui-monospace,
+    monospace;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hoverPreview strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.hoverPreview small {
+  overflow: hidden;
+  color: var(--siq-text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes previewReveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.accessibleContext {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.loading {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  color: var(--siq-globe-muted);
+  font:
+    600 11px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.axes {
+  position: absolute;
+  inset: 10%;
+  pointer-events: none;
+  opacity: 0.2;
+}
+.axes i {
+  position: absolute;
+  background: var(--siq-globe-axis);
+}
+.axes i:nth-child(1) {
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+}
+.axes i:nth-child(2) {
+  height: 1px;
+  width: 100%;
+  left: 0;
+  top: 50%;
+}
+.axes i:nth-child(3) {
+  inset: 12%;
+  border: 1px solid var(--siq-globe-axis);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fallbackMap {
+  position: absolute;
+  z-index: 3;
+  inset: 15% 8%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--siq-globe-axis) 48%, transparent);
+  border-radius: 50%;
+  background: color-mix(
+    in srgb,
+    var(--siq-field-ground, #07100b) 90%,
+    transparent
+  );
+}
+
+.fallbackMap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.fallbackMap svg path,
+.fallbackMap svg ellipse {
+  fill: none;
+  stroke: var(--siq-globe-axis);
+  stroke-width: 0.15;
+  opacity: 0.42;
+  vector-effect: non-scaling-stroke;
+}
+.fallbackMap button {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--siq-status-info, #77afff);
+  background-clip: padding-box;
+  cursor: pointer;
+}
+.fallbackMap .fallbackSelected {
+  width: 16px;
+  height: 16px;
+  background: var(--siq-globe-focus);
+  box-shadow: 0 0 12px var(--siq-globe-focus);
+}
+.fallbackMap > span {
+  position: absolute;
+  left: 50%;
+  bottom: 9%;
+  transform: translateX(-50%);
+  color: var(--siq-globe-muted);
+  font:
+    400 10px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .globe {
+    scroll-behavior: auto;
+  }
+  .hoverPreview {
+    animation: none;
+  }
+  .zoomControls button {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .axes {
+    opacity: 0.42;
+  }
+  .globe:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+@media (pointer: coarse) {
+  .fallbackMap button {
+    width: 44px;
+    height: 44px;
+    border-width: 18px;
+  }
+  .zoomControls {
+    grid-template-columns: 44px 54px 44px 48px;
+  }
+  .zoomControls button,
+  .zoomControls output {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .zoomControls {
+    top: 50px;
+    right: 12px;
+  }
+  .hoverPreview {
+    width: min(280px, calc(100% - 24px));
+  }
+}
+
+.scene,
+.labels {
+  position: absolute;
+  inset: 0;
+}
+.scene {
+  touch-action: none;
+}
+.labels {
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+}
+.labels[hidden] {
+  display: none;
+}
+.labels :global(.siq-globe-marker) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--siq-field-text, #f1f5f2);
+  pointer-events: auto;
+  cursor: pointer;
+  /* Positions are projected from the globe every frame; never tween them. */
+  transition:
+    background-color var(--siq-fast, 140ms) ease,
+    border-color var(--siq-fast, 140ms) ease,
+    color var(--siq-fast, 140ms) ease,
+    box-shadow var(--siq-fast, 140ms) ease,
+    opacity var(--siq-fast, 140ms) ease;
+  font:
+    600 11px/1.2 ui-monospace,
+    monospace;
+}
+.labels :global(.siq-globe-marker[hidden]) {
+  display: none;
+}
+.labels :global(.siq-globe-marker:focus-visible) {
+  outline: 2px solid var(--siq-globe-focus);
+  outline-offset: 3px;
+}
+.labels :global(.siq-globe-marker[data-cluster='true']) {
+  background: color-mix(
+    in srgb,
+    var(--siq-field-ground, #07150f) 85%,
+    transparent
+  );
+  border: 1px solid var(--siq-globe-axis);
+}
+.labels :global(.siq-globe-marker[data-precedent='true']) {
+  border: 1px dashed var(--siq-globe-axis);
+  width: 24px;
+  height: 24px;
+}
+.labels :global(.siq-globe-city) {
+  display: none;
+  position: absolute;
+  left: 30px;
+  padding: 4px 6px;
+  max-width: 180px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  background: color-mix(
+    in srgb,
+    var(--siq-field-ground, #07150f) 85%,
+    transparent
+  );
+  border-radius: 3px;
+  text-align: left;
+  pointer-events: none;
+  font-weight: 400;
+}
+.labels :global(.siq-globe-marker[data-label='true'] .siq-globe-city) {
+  display: block;
+}
+.labels :global(.siq-globe-marker[data-selected='true'] .siq-globe-city) {
+  color: var(--siq-globe-focus);
+}
+.scaleHint {
+  position: absolute;
+  bottom: 12px;
+  left: 18px;
+  right: 18px;
+  z-index: 3;
+  pointer-events: none;
+  font:
+    10px/1.3 ui-monospace,
+    monospace;
+  color: var(--siq-globe-muted);
+}
+.zoomControls button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.hoverPreview small {
+  white-space: normal;
+  line-height: 1.5;
+}
+.fallbackMap {
+  inset: 65px 16px 40px;
+  border-radius: 6px;
+  padding: 16px;
+  overflow: auto;
+  color: var(--siq-text-primary);
+}
+.fallbackMap p {
+  font-size: 12px;
+  margin: 8px 0;
+}
+.fallbackMap button {
+  position: static;
+  transform: none;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--siq-globe-axis);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 10px;
+  margin-top: 6px;
+}
+.fallbackMap button[aria-pressed='true'] {
+  border-color: var(--siq-globe-focus);
+}
+.fallbackMap button small {
+  display: block;
+  color: var(--siq-globe-muted);
+}
+@media (pointer: coarse) {
+  .labels :global(.siq-globe-marker) {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.scaleHint {
+  top: 58px;
+  bottom: auto;
+}
+@media (max-width: 640px) {
+  .scaleHint {
+    top: 100px;
+    font-size: 9px;
+  }
+}
+
+.globe[data-theme='light'] {
+  --siq-field-text: #18372b;
+  --siq-field-ground: #edf3ef;
+  --siq-globe-focus: #245fb7;
+  --siq-globe-muted: #40594c;
+}
+
+.globe :global(.siq-globe-countries) {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+.globe :global(.siq-globe-countries span) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: 190px;
+  padding: 4px 7px;
+  border-radius: 3px;
+  color: var(--siq-globe-muted);
+  background: color-mix(in srgb, var(--siq-field-ground) 70%, transparent);
+  font:
+    500 10px/1.3 ui-monospace,
+    monospace;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.globe :global(.siq-globe-countries span[data-selected='true']) {
+  color: var(--siq-field-text);
+}
+.globe :global(.siq-globe-countries[hidden]),
+.globe :global(.siq-globe-countries span[hidden]) {
+  display: none;
+}
+
+/* Marker text appears in the shared hover preview and dossier, never over the map. */
+.labels :global(.siq-globe-marker .siq-globe-city) { display: none !important; }
+.labels :global(.siq-globe-marker[data-country='true']) { border: 1px dashed var(--siq-globe-axis); border-radius: 50%; background: var(--siq-field-ground, #07150f); }
+.globe :global(.siq-globe-countries) { display: none; }
+
+.projectPicker {
+  position: absolute;
+  z-index: 9;
+  top: 62px;
+  right: 14px;
+  width: min(340px, calc(100% - 28px));
+  max-height: calc(100% - 120px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--siq-line-strong);
+  border-radius: 8px;
+  background: var(--siq-surface-raised);
+  color: var(--siq-text-primary);
+  box-shadow: var(--siq-shadow-low);
+  cursor: default;
+}
+.projectPicker header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 0; }
+.projectPicker header button { width: 36px; height: 36px; border: 0; background: transparent; color: inherit; font-size: 22px; cursor: pointer; }
+.projectPicker p { margin: 0; padding: 0 14px 12px; font-size: 12px; color: var(--siq-text-secondary); }
+.pickerList { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 0 6px 6px; }
+.pickerList > button { display: flex; gap: 10px; width: 100%; padding: 12px 8px; text-align: left; color: inherit; background: transparent; border: 0; border-top: 1px solid var(--siq-line-default); cursor: pointer; }
+.pickerList > button[aria-pressed='true'], .pickerList > button:hover { background: var(--siq-surface-selected); }
+.pickerList span { color: var(--siq-text-secondary); font: 12px var(--font-mp-mono); }
+.pickerList strong { display: block; font-size: 13px; line-height: 1.4; }
+.pickerList small { display: block; margin-top: 5px; color: var(--siq-text-secondary); font-size: 11px; }
+.projectPicker button:focus-visible { outline: 2px solid var(--siq-globe-focus); outline-offset: -2px; }

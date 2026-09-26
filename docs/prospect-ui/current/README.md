@@ -13,3 +13,5 @@ The city-anchor snapshot adds approximate California city and regional reference
 The light-mode mobile market control now uses legible light text and borders on its dark ticker surface, including its search menu. It was visually checked at 390px with the chat open.
 
 The Prospect assistant now streams answer text in bounded chunks and continues automatically when Bedrock reports `max_tokens`, preserving one continuous chat answer until `end_turn`. Recent conversation text can retain up to 12,000 characters per turn. A local long-answer test produced roughly 68,000 characters across five continuations and ended with a completion event.
+
+The globe marker style snapshot removes the global 250 ms `transform` transition from the numbered marker buttons. Their projected positions now update in the same animation frame as the globe; only color, border, shadow, and opacity retain short transitions. The local globe preview confirmed the computed marker style excludes `transform` before and after a drag.
