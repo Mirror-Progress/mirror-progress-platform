@@ -130,3 +130,13 @@
   .scope{margin:8px 17px 11px}
 }
 @media(prefers-reduced-motion:reduce){.composer{transition:none}}
+
+.headerActions button:disabled{opacity:.4;cursor:default}
+.history{position:absolute;z-index:5;top:69px;right:12px;left:12px;max-height:min(420px,60%);overflow:auto;padding:12px;border:1px solid rgba(215,237,209,.2);border-radius:12px;background:rgba(20,33,24,.97);box-shadow:0 18px 38px rgba(0,0,0,.42);backdrop-filter:blur(20px)}
+.historyHeading{padding:4px 8px 10px;color:#b8d69b;font:10px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
+.historyItem{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:11px 9px;border:0;border-top:1px solid rgba(215,237,209,.1);background:transparent;color:#e6efe5;text-align:left;cursor:pointer}
+.historyItem:hover,.historyItem[aria-current='true']{background:rgba(205,231,186,.08)}
+.historyItem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.historyItem small{flex:none;color:#98aa9a;font-size:10px}
+.history p{margin:9px;color:#98aa9a;font-size:12px}
+.saveError{margin:7px 19px 0;color:#f0bcad;font-size:10px}

@@ -1,0 +1,47 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getAuthenticatedAccountFromRequest } from '../../../../lib/auth-guards';
+import { getDb } from '../../../../lib/mongodb';
+import { findStudioIqProductAccessForAccount } from '../../../../lib/studioiq-product-auth';
+
+type ChatMessage = { role: 'user' | 'assistant'; text: string };
+type ChatSession = { _id: string; accountId: string; conversationId: string; title: string; messages: ChatMessage[]; createdAt: string; updatedAt: string };
+const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const config = { api: { bodyParser: { sizeLimit: '2mb' } } };
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!['GET', 'PUT'].includes(req.method ?? '')) return res.status(405).json({ error: 'Method Not Allowed' });
+  const account = await getAuthenticatedAccountFromRequest(req);
+  if (!account) return res.status(401).json({ error: 'Sign in to Prospect.' });
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access) return res.status(403).json({ error: 'Prospect access required.' });
+  const collection = (await getDb()).collection<ChatSession>('studioiq_chat_sessions');
+
+  if (req.method === 'GET') {
+    const id = typeof req.query.id === 'string' ? req.query.id : undefined;
+    if (id) {
+      if (!validId.test(id)) return res.status(400).json({ error: 'Invalid chat ID.' });
+      const chat = await collection.findOne({ _id: `${account.id}:${id}`, accountId: account.id });
+      if (!chat) return res.status(404).json({ error: 'Chat not found.' });
+      return res.status(200).json({ id: chat.conversationId, title: chat.title, messages: chat.messages, updatedAt: chat.updatedAt });
+    }
+    const chats = await collection.find({ accountId: account.id }, { projection: { conversationId: 1, title: 1, updatedAt: 1 } })
+      .sort({ updatedAt: -1 }).limit(30).toArray();
+    return res.status(200).json({ chats: chats.map((chat) => ({ id: chat.conversationId, title: chat.title, updatedAt: chat.updatedAt })) });
+  }
+
+  const { id, messages } = req.body ?? {};
+  if (typeof id !== 'string' || !validId.test(id) || !Array.isArray(messages) || messages.length < 1 || messages.length > 100 ||
+    messages.some((item: unknown) => !item || typeof item !== 'object' || !('role' in item) || !('text' in item) ||
+      !['user', 'assistant'].includes(String(item.role)) || typeof item.text !== 'string' || item.text.length > 100000) ||
+    JSON.stringify(messages).length > 1500000) return res.status(400).json({ error: 'Invalid chat.' });
+  const entries = messages as ChatMessage[];
+  const title = entries.find((entry) => entry.role === 'user')?.text.trim().slice(0, 80) || 'New chat';
+  const updatedAt = new Date().toISOString();
+  await collection.updateOne({ _id: `${account.id}:${id}`, accountId: account.id }, {
+    $set: { title, messages: entries, updatedAt },
+    $setOnInsert: { accountId: account.id, conversationId: id, createdAt: updatedAt },
+  }, { upsert: true });
+  return res.status(200).json({ id, title, updatedAt });
+}

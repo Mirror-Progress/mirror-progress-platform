@@ -58,6 +58,9 @@ export function StudioIqTerminal(props: {
   const [loading, setLoading] = useState(!props.initialDiscovery);
   const [agentOpen, setAgentOpen] = useState(true);
   const [agentExpanded, setAgentExpanded] = useState(false);
+  const [pendingScene, setPendingScene] = useState<ProspectTourScene | null>(null);
+  const [pendingSequence, setPendingSequence] = useState<ProspectTourScene[] | null>(null);
+  const [tourSequence, setTourSequence] = useState<ProspectTourScene[] | null>(null);
   const [chatShare, setChatShare] = useState(0.34);
   const [layoutWidth, setLayoutWidth] = useState(1440);
   const layoutRef = useRef<HTMLDivElement>(null);
@@ -74,7 +77,9 @@ export function StudioIqTerminal(props: {
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const tourChecked = useRef(false);
   const tourSteps = availableProspectTourSteps({ hasProjects: items.length > 0, canFavorite });
-  const tourScene = tourIndex === null ? null : tourSteps[tourIndex]?.id ?? null;
+  const activeTourSteps = tourSequence ? tourSequence.map((scene) => tourSteps.find((step) => step.id === scene)).filter((step): step is (typeof tourSteps)[number] => Boolean(step)) : tourSteps;
+  const tourScene = tourIndex === null ? null : activeTourSteps[tourIndex]?.id ?? null;
+  const expandedLayout = agentOpen && agentExpanded && tourScene === null;
   useEffect(() => {
     if (loading || props.trialLocked || tourChecked.current || activeProspectWorkflow.status !== 'active') return;
     tourChecked.current = true;
@@ -96,21 +101,48 @@ export function StudioIqTerminal(props: {
   }, [tourScene]);
   const finishTour = useCallback((status: 'completed' | 'skipped') => {
     setTourIndex(null);
+    setTourSequence(null);
+    if (tourSequence) { setAgentOpen(true); return; }
     if (props.localPreview) window.localStorage.setItem(`prospect-tour-${activeProspectWorkflow.id}-v${activeProspectWorkflow.version}`, status);
     else void fetch('/api/products/studioiq/walkthrough', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-  }, [props.localPreview]);
+  }, [props.localPreview, tourSequence]);
   const nextTourStep = useCallback(() => {
     if (tourIndex === null) return;
-    if (tourIndex >= tourSteps.length - 1) finishTour('completed');
+    if (tourIndex >= activeTourSteps.length - 1) finishTour('completed');
     else setTourIndex(tourIndex + 1);
-  }, [finishTour, tourIndex, tourSteps.length]);
-  const showTourScene = useCallback((scene: ProspectTourScene) => {
+  }, [activeTourSteps.length, finishTour, tourIndex]);
+  const startTourScene = useCallback((scene: ProspectTourScene) => {
     if (activeProspectWorkflow.status !== 'active') return;
     const index = tourSteps.findIndex((step) => step.id === scene);
     if (index < 0) return;
     setAgentExpanded(false);
+    setTourSequence(null);
     setTourIndex(index);
   }, [tourSteps]);
+  const showTourScene = useCallback((scene: ProspectTourScene) => {
+    if (!agentOpen) { setPendingScene(scene); return; }
+    if (!tourSteps.some((step) => step.id === scene)) return;
+    setAgentExpanded(false);
+    setTourSequence([scene]);
+    setTourIndex(0);
+  }, [agentOpen, tourSteps]);
+  const showTourSequence = useCallback((scenes: ProspectTourScene[]) => {
+    if (activeProspectWorkflow.status !== 'active' || scenes.length < 2 || scenes.some((scene) => !tourSteps.some((step) => step.id === scene))) return;
+    if (!agentOpen) { setPendingSequence(scenes); return; }
+    setAgentExpanded(false);
+    setTourSequence(scenes);
+    setTourIndex(0);
+  }, [agentOpen, tourSteps]);
+  const closeAgent = useCallback(() => {
+    setAgentOpen(false);
+    setAgentExpanded(false);
+    if (tourScene === 'agent') finishTour('skipped');
+  }, [finishTour, tourScene]);
+  useEffect(() => {
+    if (!agentOpen) return;
+    if (pendingSequence) { setPendingSequence(null); showTourSequence(pendingSequence); return; }
+    if (pendingScene) { setPendingScene(null); showTourScene(pendingScene); }
+  }, [agentOpen, pendingScene, pendingSequence, showTourScene, showTourSequence]);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountInitial =
     props.accountName.trim().charAt(0).toUpperCase() || 'A';
@@ -264,7 +296,7 @@ export function StudioIqTerminal(props: {
           </div>
         </Link>
         <div className={styles.headerActions}>
-          <button className={styles.agentLauncher} type="button" data-active={agentOpen} onClick={() => { if (agentOpen) setAgentExpanded((current) => !current); else { setAgentOpen(true); setAgentExpanded(false); } }} aria-label="Open Prospect assistant chat"><span>Ask</span><span className={styles.agentMark} role="img" aria-label="MP" /></button>
+          <button className={styles.agentLauncher} type="button" data-active={agentOpen && tourScene === null} onClick={() => { if (tourScene) { finishTour('skipped'); setAgentOpen(true); setAgentExpanded(false); } else if (agentOpen) setAgentExpanded((current) => !current); else { setAgentOpen(true); setAgentExpanded(false); } }} aria-label="Open Prospect assistant chat"><span>Ask</span><span className={styles.agentMark} role="img" aria-label="MP" /></button>
           <div className={styles.accountMenu} ref={accountMenuRef}>
             <button
               className={styles.menuToggle}
@@ -295,7 +327,7 @@ export function StudioIqTerminal(props: {
                   <UserCircleIcon />
                   Account information
                 </Link>
-                <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); showTourScene('intro'); }}>
+                <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); startTourScene('intro'); }}>
                   <QuestionMarkCircleIcon />
                   Replay walkthrough
                 </button>
@@ -382,7 +414,7 @@ export function StudioIqTerminal(props: {
         </div>
       ) : null}
 
-      <div ref={layoutRef} className={`${styles.workspaceLayout} ${agentExpanded ? styles.workspaceLayoutExpanded : ''}`} style={{ '--prospect-chat-width': `${chatWidth}px` } as CSSProperties}>
+      <div ref={layoutRef} className={`${styles.workspaceLayout} ${expandedLayout ? styles.workspaceLayoutExpanded : ''}`} style={{ '--prospect-chat-width': `${chatWidth}px` } as CSSProperties}>
         <div className={styles.workspaceMain}><StudioIqDiscovery
           items={items}
           summary={summary}
@@ -393,10 +425,10 @@ export function StudioIqTerminal(props: {
           onReload={loadDiscovery}
           tourScene={tourScene}
         /></div>
-        {agentOpen && agentExpanded ? <div className={styles.workspaceResize} role="separator" aria-label="Resize Prospect and chat" aria-orientation="vertical" aria-valuenow={Math.round(chatShare * 100)} aria-valuemin={20} aria-valuemax={65} tabIndex={0} onPointerDown={resizeChat} onKeyDown={onChatResizeKey} onDoubleClick={() => setChatShareSaved(0.34)} /> : null}
-        {agentOpen ? <aside className={`${styles.agentDock} ${agentExpanded ? styles.agentDockExpanded : ''} ${tourScene && tourScene !== 'agent' ? styles.agentDockTourHidden : ''}`} data-tour-anchor="agent" aria-label="Prospect assistant chat"><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={agentExpanded} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={() => setAgentOpen(false)} availableScenes={tourSteps.map((step) => step.id)} onShowScene={showTourScene} /></aside> : null}
+        {expandedLayout ? <div className={styles.workspaceResize} role="separator" aria-label="Resize Prospect and chat" aria-orientation="vertical" aria-valuenow={Math.round(chatShare * 100)} aria-valuemin={20} aria-valuemax={65} tabIndex={0} onPointerDown={resizeChat} onKeyDown={onChatResizeKey} onDoubleClick={() => setChatShareSaved(0.34)} /> : null}
+        <aside className={`${styles.agentDock} ${expandedLayout ? styles.agentDockExpanded : ''} ${!agentOpen || (tourScene && tourScene !== 'agent') ? styles.agentDockTourHidden : ''}`} data-tour-anchor={agentOpen ? 'agent' : undefined} aria-label="Prospect assistant chat" aria-hidden={!agentOpen || Boolean(tourScene && tourScene !== 'agent')}><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={expandedLayout} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={closeAgent} availableScenes={tourSteps.map((step) => step.id)} onShowScene={showTourScene} onShowSequence={showTourSequence} /></aside>
       </div>
-      {tourIndex !== null && tourSteps[tourIndex] ? <ProspectWalkthrough key={tourSteps[tourIndex].id} step={tourSteps[tourIndex]} index={tourIndex} total={tourSteps.length} onNext={nextTourStep} onBack={() => setTourIndex((current) => current === null ? null : Math.max(0, current - 1))} onSkip={() => finishTour('skipped')} onUnavailable={nextTourStep} /> : null}
+      {tourIndex !== null && activeTourSteps[tourIndex] ? <ProspectWalkthrough key={activeTourSteps[tourIndex].id} step={activeTourSteps[tourIndex]} index={tourIndex} total={activeTourSteps.length} onNext={nextTourStep} onBack={() => setTourIndex((current) => current === null ? null : Math.max(0, current - 1))} onSkip={() => finishTour('skipped')} onUnavailable={nextTourStep} /> : null}
     </div>
   );
 }

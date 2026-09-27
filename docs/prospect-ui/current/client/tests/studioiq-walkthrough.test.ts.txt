@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activeProspectWorkflow, availableProspectTourSteps, resolveActiveProspectScene } from '../lib/studioiq-walkthrough';
+import { activeProspectWorkflow, availableProspectTourSteps, resolveActiveProspectScene, resolveActiveProspectSequence } from '../lib/studioiq-walkthrough';
 
 test('active Prospect walkthrough has stable, unique scenes and anchors', () => {
   assert.equal(activeProspectWorkflow.status, 'active');
@@ -14,6 +14,15 @@ test('assistant screen actions accept only active, available scenes', () => {
   assert.equal(resolveActiveProspectScene('favorites', ['globe', 'sources']), null);
   assert.equal(resolveActiveProspectScene('billing', ['globe', 'sources']), null);
   assert.equal(resolveActiveProspectScene({ scene: 'sources' }, ['sources']), null);
+});
+
+test('agent guided paths require distinct active scenes that exist on this screen', () => {
+  const available = ['globe', 'filters', 'sources'] as const;
+  assert.deepEqual(resolveActiveProspectSequence(['globe', 'filters', 'sources'], available), ['globe', 'filters', 'sources']);
+  assert.equal(resolveActiveProspectSequence(['globe', 'favorites'], available), null);
+  assert.equal(resolveActiveProspectSequence(['globe', 'billing'], available), null);
+  assert.equal(resolveActiveProspectSequence(['globe', 'globe'], available), null);
+  assert.equal(resolveActiveProspectSequence(['globe'], available), null);
 });
 
 test('project detail scenes are omitted when no projects are available', () => {

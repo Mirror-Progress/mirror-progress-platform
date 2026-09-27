@@ -58,3 +58,17 @@ export function resolveActiveProspectScene(requested: unknown, availableScenes: 
   if (!activeProspectWorkflow.steps.some((step) => step.id === requested)) return null;
   return availableScenes.includes(requested as ProspectTourScene) ? requested as ProspectTourScene : null;
 }
+
+// Screen actions are driven by the active workflow, never by arbitrary DOM selectors
+// supplied by the model. Retired or unavailable scenes cannot enter a guided path.
+export function resolveActiveProspectSequence(requested: unknown, availableScenes: readonly ProspectTourScene[]): ProspectTourScene[] | null {
+  if (activeProspectWorkflow.status !== 'active' || !Array.isArray(requested) || requested.length < 2 || requested.length > 8) return null;
+  const scenes = requested.map((scene) => resolveActiveProspectScene(scene, availableScenes));
+  if (scenes.some((scene) => scene === null) || new Set(scenes).size !== scenes.length) return null;
+  return scenes as ProspectTourScene[];
+}
+
+export const prospectAgentGuideExamples = [
+  'Show me how to explore projects on the globe',
+  'Walk me through filters, project details, and sources',
+] as const;
