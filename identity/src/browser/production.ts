@@ -3,16 +3,17 @@ import { passkeyClient } from "@better-auth/passkey/client";
 import { safeResumePath } from "../core/policy.js";
 
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
-let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
+let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/prospect";
 const logoutRequested = new URLSearchParams(location.search).get("logout") === "1";
 const signedOutView = new URLSearchParams(location.search).get("signedOut") === "1";
 const manageRequested = location.hash === "#manage" || new URLSearchParams(location.search).get("manage") === "1";
+document.documentElement.dataset.manage = String(manageRequested);
 const devicesRequested = location.hash === "#devices";
 const hash = new URLSearchParams(location.hash.slice(1));
 const remoteToken = hash.get("remoteEnroll");
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const remoteEnrollRequested = Boolean(remoteToken && tokenPattern.test(remoteToken));
-if (remoteEnrollRequested) platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
+if (remoteEnrollRequested) platform = "https://platform.mirrorprogress.com/api/auth/start?next=/prospect";
 let setupActive = false;
 const resetPattern = /^[A-Za-z0-9_-]{24,128}$/;
 let resetToken = hash.get("reset");
@@ -85,20 +86,29 @@ async function loadInvitations(): Promise<void> {
     panel.hidden = !manageRequested;
     if (!manageRequested) return;
     node<HTMLElement>("general-invite-controls").hidden = trialOnly;
+    node<HTMLElement>("choose-team").hidden = trialOnly;
+    if (trialOnly) chooseInviteType("trial");
     node<HTMLElement>("external-delivery-status").textContent = result.externalDeliveryReady === true
       ? "Invitations can be delivered to external email domains."
       : "External email delivery is pending. Mirror Progress addresses can be invited now.";
     const list = node<HTMLElement>("invitation-list");
-    list.replaceChildren();
+    const people = node<HTMLElement>("people-list");
+    list.replaceChildren(); people.replaceChildren();
     const invitations = Array.isArray(result.invitations) ? result.invitations as Array<Record<string, unknown>> : [];
     for (const item of invitations) {
       const row = document.createElement("div");
+      row.className = "access-row";
       const status = item.accepted === true ? "Accepted" : item.revokedAt ? "Revoked" :
         new Date(String(item.expiresAt)).getTime() <= Date.now() ? "Expired" :
         item.deliveryStatus === "sent" ? "Sent" : item.deliveryStatus === "failed" ? "Delivery failed" : "Sending";
-      const label = document.createElement("p");
-      label.textContent = `${String(item.name)} · ${String(item.email)} · ${String(item.company)} · ${status}`;
-      row.append(label);
+      const identity = document.createElement("div"); identity.className = "access-person";
+      const name = document.createElement("strong"); name.textContent = String(item.name ?? item.email ?? "Person");
+      const email = document.createElement("small"); email.textContent = String(item.email ?? "");
+      identity.append(name,email);
+      const company = document.createElement("span"); company.textContent = String(item.company ?? "—");
+      const badge = document.createElement("span"); badge.className = `access-status ${status.toLowerCase().replaceAll(" ", "-")}`; badge.textContent = status;
+      const actions = document.createElement("div"); actions.className = "access-row-actions";
+      row.append(identity,company,badge,actions);
       const id = String(item.principalId);
       if (!trialOnly && /^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
         if (item.accepted !== true) {
@@ -108,20 +118,41 @@ async function loadInvitations(): Promise<void> {
             void api(`/api/identity/admin/invitations/${id}/resend`, {}).then(async () => {
               show("A new invitation link is queued."); await loadInvitations();
             }).catch(error => show(userError(error), true)).finally(() => { resend.disabled = false; }); });
-          row.append(resend);
+          actions.append(resend);
         }
         const revoke = document.createElement("button");
         revoke.type = "button"; revoke.className = "secondary"; revoke.textContent = "Revoke";
-        revoke.addEventListener("click", () => { revoke.disabled = true;
+        revoke.addEventListener("click", () => { if (!window.confirm(`Revoke access for ${String(item.email)}? This will sign the person out.`)) return; revoke.disabled = true;
           void api(`/api/identity/admin/invitations/${id}/revoke`, {}).then(async () => {
             show("Invitation and account access revoked."); await loadInvitations();
           }).catch(error => show(userError(error), true)).finally(() => { revoke.disabled = false; }); });
-        row.append(revoke);
+        actions.append(revoke);
       }
-      list.append(row);
+      (item.accepted === true && !item.revokedAt ? people : list).append(row);
     }
-    if (!invitations.length) list.textContent = "No invitations yet.";
+    if (!people.children.length) people.textContent = "No accepted accounts to show yet.";
+    if (!list.children.length) list.textContent = "No pending invitations.";
+    filterAccessRows();
   } catch { node<HTMLElement>("invitation-admin").hidden = true; }
+}
+function showAccessTab(tab: "people" | "invitations") {
+  node<HTMLElement>("people-view").hidden = tab !== "people";
+  node<HTMLElement>("invitations-view").hidden = tab !== "invitations";
+  node<HTMLElement>("people-tab").setAttribute("aria-selected", String(tab === "people"));
+  node<HTMLElement>("invitations-tab").setAttribute("aria-selected", String(tab === "invitations"));
+}
+function filterAccessRows() {
+  for (const [viewId, searchId] of [["people-list", "people-search"], ["invitation-list", "invitations-search"]] as const) {
+    const query = node<HTMLInputElement>(searchId).value.trim().toLowerCase();
+    for (const row of node<HTMLElement>(viewId).querySelectorAll<HTMLElement>(".access-row"))
+      row.hidden = !row.textContent?.toLowerCase().includes(query);
+  }
+}
+function chooseInviteType(type: "team" | "trial") {
+  node<HTMLElement>("invite-trial").hidden = type !== "trial";
+  node<HTMLElement>("general-invite-controls").hidden = type !== "team";
+  node<HTMLElement>("choose-team").classList.toggle("selected", type === "team");
+  node<HTMLElement>("choose-trial").classList.toggle("selected", type === "trial");
 }
 let passkeyRegistered = false;
 async function refresh(): Promise<Record<string, unknown> | null> {
@@ -344,6 +375,18 @@ submit("enroll", async values => { const enrolled = await api("/api/identity/enr
 });
 const inviteForm = node<HTMLFormElement>("invite-person");
 const trialForm = node<HTMLFormElement>("invite-trial");
+node<HTMLButtonElement>("people-tab").addEventListener("click", () => showAccessTab("people"));
+node<HTMLButtonElement>("invitations-tab").addEventListener("click", () => showAccessTab("invitations"));
+node<HTMLInputElement>("people-search").addEventListener("input", filterAccessRows);
+node<HTMLInputElement>("invitations-search").addEventListener("input", filterAccessRows);
+node<HTMLButtonElement>("open-invite-form").addEventListener("click", () => {
+  node<HTMLElement>("access-invite-panel").hidden = false;
+  node<HTMLElement>("access-invite-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+node<HTMLButtonElement>("close-invite-form").addEventListener("click", () => { node<HTMLElement>("access-invite-panel").hidden = true; });
+node<HTMLButtonElement>("choose-team").addEventListener("click", () => chooseInviteType("team"));
+node<HTMLButtonElement>("choose-trial").addEventListener("click", () => chooseInviteType("trial"));
+chooseInviteType("team");
 submit("invite-trial", async values => {
   await api("/api/identity/admin/trial-invitations", {
     ...values, trialDays: Number(values.trialDays), seatAllowance: Number(values.seatAllowance),
@@ -351,6 +394,8 @@ submit("invite-trial", async values => {
   show("Trial invitation queued. The trial starts when the recipient first signs in.");
   trialForm.reset();
   await loadInvitations();
+  node<HTMLElement>("access-invite-panel").hidden = true;
+  showAccessTab("invitations");
 });
 const accountType = inviteForm.elements.namedItem("accountType") as HTMLSelectElement;
 const role = inviteForm.elements.namedItem("role") as HTMLSelectElement;
@@ -367,6 +412,8 @@ submit("invite-person", async values => {
   show("Invitation queued. Its delivery status appears below.");
   inviteForm.reset(); accountType.dispatchEvent(new Event("change"));
   await loadInvitations();
+  node<HTMLElement>("access-invite-panel").hidden = true;
+  showAccessTab("invitations");
 });
 node<HTMLButtonElement>("signout").addEventListener("click", () => { void signOutToLogin().catch(() => show("We couldn't finish signing out. Please try again.", true)); });
 node<HTMLButtonElement>("global-logout").addEventListener("click", () => { void api("/api/identity/global-logout", {}).then(signOutToLogin).catch(error => show(userError(error), true)); });

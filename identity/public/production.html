@@ -45,27 +45,21 @@
 </div>
 <p id="session-status" class="small" hidden>Checking your account…</p>
 <a id="resume" class="button" hidden>Continue to application</a>
-<p><a id="open-platform" href="https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq">Open Prospect</a></p>
+<p><a id="open-platform" href="https://platform.mirrorprogress.com/api/auth/start?next=/prospect">Open Prospect</a></p>
 <p><a href="/#devices">Set up another device</a></p>
 <p><a id="manage-invitations" href="/#manage" hidden>Manage Prospect invitations</a></p>
 <section class="card" id="device-access" hidden><p class="step">DEVICE ACCESS</p><h2>Use Prospect on your phone or iPad.</h2>
 <p>While signed in on your Mac, add a passkey to your iPhone. In the browser prompt, choose “Use another device” or “Phone or tablet,” then scan the QR code with your iPhone. If iCloud Keychain is on for the same Apple Account, the passkey will also be available on your iPad.</p>
 <button id="add-device-passkey" type="button" class="secondary wide">Add phone or iPad passkey</button></section>
-<section class="card" id="invitation-admin" hidden><p class="step">TEAM ACCESS</p><h2>Invite someone to Prospect</h2>
-<p>Start a Prospect trial in one step. The trial clock begins when the recipient first signs in, not when the email is sent.</p>
-<form id="invite-trial"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
-<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
-<label>Company<input name="company" maxlength="120" required></label>
-<label>Trial length (days)<input name="trialDays" type="number" min="1" max="365" value="14" required></label>
-<label>Seats<input name="seatAllowance" type="number" min="1" max="10000" value="25" required></label>
-<button type="submit">Send trial invitation</button></form>
-<div id="general-invite-controls"><h3>Invite to an existing workspace</h3><p>Use this for team members or Mirror Progress admins.</p>
-<form id="invite-person"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
-<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
-<label>Account type<select name="accountType" required><option value="external">External Prospect account</option><option value="admin">Mirror Progress admin</option></select></label>
-<label>Company<input name="company" maxlength="120" required></label>
-<label>Role<select name="role" required><option value="client">Company member</option><option value="admin">Admin</option><option value="project_lead">Project lead</option></select></label>
-<button type="submit">Send invitation</button></form></div><p id="external-delivery-status" class="small"></p><h3>Invitations</h3><div id="invitation-list" aria-live="polite"></div></section>
+<section class="card" id="invitation-admin" hidden><div class="access-heading"><div><p class="step">ADMIN / ACCESS</p><h2>People &amp; invitations</h2><p>Manage who can access Prospect and welcome new people.</p></div><button id="open-invite-form" type="button">＋ Invite person</button></div>
+<div class="access-tabs" role="tablist" aria-label="Account management"><button id="people-tab" type="button" role="tab" aria-selected="true">People</button><button id="invitations-tab" type="button" role="tab" aria-selected="false">Invitations</button></div>
+<section id="people-view" class="access-view" role="tabpanel" aria-labelledby="people-tab"><div class="access-section-heading"><div><h3>People who joined</h3><p>Accounts created through your invitations.</p></div><input id="people-search" type="search" aria-label="Search people" placeholder="Search people or company"></div><div id="people-list" class="access-list" aria-live="polite"></div></section>
+<section id="invitations-view" class="access-view" role="tabpanel" aria-labelledby="invitations-tab" hidden><div class="access-section-heading"><div><h3>Invitations</h3><p>Track delivery and help people who have not joined.</p></div><input id="invitations-search" type="search" aria-label="Search invitations" placeholder="Search invitations"></div><div id="invitation-list" class="access-list" aria-live="polite"></div></section>
+<p class="access-footnote">Trials begin at the first successful sign-in. The invitation date never consumes trial time.</p>
+<div id="access-invite-panel" class="access-invite-panel" hidden><div class="access-section-heading"><div><h3>Invite a person</h3><p>One invitation, with the right access from the start.</p></div><button id="close-invite-form" type="button" class="secondary" aria-label="Close invitation form">Close</button></div>
+<div class="access-choice"><button id="choose-team" type="button" class="selected"><strong>Team member</strong><span>Existing workspace</span></button><button id="choose-trial" type="button"><strong>Company trial</strong><span>New Prospect access</span></button></div>
+<form id="invite-trial" hidden><div class="access-fields"><label>Full name<input name="name" maxlength="120" autocomplete="off" required></label><label>Email address<input name="email" type="email" maxlength="254" autocomplete="off" required></label><label>Company<input name="company" maxlength="120" required></label><label>Trial length (days)<input name="trialDays" type="number" min="1" max="365" value="14" required></label><label>Seats<input name="seatAllowance" type="number" min="1" max="10000" value="25" required></label></div><p class="access-timing">ⓘ The trial begins when this person first signs in, not when you send the invitation.</p><button type="submit">Send trial invitation ↗</button></form>
+<div id="general-invite-controls"><form id="invite-person"><div class="access-fields"><label>Full name<input name="name" maxlength="120" autocomplete="off" required></label><label>Email address<input name="email" type="email" maxlength="254" autocomplete="off" required></label><label>Account type<select name="accountType" required><option value="external">External Prospect account</option><option value="admin">Mirror Progress admin</option></select></label><label>Company<input name="company" maxlength="120" required></label><label>Role<select name="role" required><option value="client">Company member</option><option value="admin">Admin</option><option value="project_lead">Project lead</option></select></label></div><p class="access-timing">ⓘ They will receive an invitation to their existing workspace.</p><button type="submit">Send invitation ↗</button></form></div></div><p id="external-delivery-status" class="access-delivery"></p></section>
 <details id="account-controls"><summary>Account controls</summary>
 <button id="signout" type="button" class="secondary">Sign out</button>
 <button id="global-logout" type="button" class="secondary">Revoke all sessions</button></details>

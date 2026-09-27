@@ -87,3 +87,55 @@ html[data-identity-mode="production"][data-invitation="true"] #setup-details lab
 html[data-identity-mode="production"][data-invitation="true"] #setup-details #invited-email{background:#eef4ef;color:#36544c}
 html[data-identity-mode="production"][data-invitation="true"] main>p:has(#open-platform),html[data-identity-mode="production"][data-invitation="true"] main>p:has(a[href="/#devices"]),html[data-identity-mode="production"][data-invitation="true"] main>p:has(#manage-invitations),html[data-identity-mode="production"][data-invitation="true"] #account-controls{display:none}
 @media(max-width:600px){html[data-identity-mode="production"][data-invitation="true"] main{padding-top:18px}html[data-identity-mode="production"][data-invitation="true"] .intro{padding:0 0 20px}html[data-identity-mode="production"][data-invitation="true"] .intro h1{font-size:42px;margin:18px 0 12px}html[data-identity-mode="production"][data-invitation="true"] .intro>p:last-of-type{font-size:14px;line-height:1.4}html[data-identity-mode="production"][data-invitation="true"] .brand-motion{display:none}html[data-identity-mode="production"][data-invitation="true"] #setup-details{padding:26px 22px}}
+
+/* The sign-in card and admin access surface share one identity design language. */
+html[data-identity-mode="production"] main{grid-template-columns:minmax(0,1.05fr) minmax(450px,.95fr);column-gap:clamp(40px,6vw,110px)}
+html[data-identity-mode="production"] #signin-step{width:100%}
+html[data-identity-mode="production"] #signin-step form{display:block}
+html[data-identity-mode="production"] #signin-step .secondary.wide{max-width:100%}
+html[data-identity-mode="production"][data-manage="true"] main{grid-template-columns:minmax(280px,.73fr) minmax(620px,1.45fr);column-gap:clamp(34px,5vw,88px)}
+html[data-identity-mode="production"][data-manage="true"] .intro h1{font-size:clamp(58px,5.7vw,88px)}
+html[data-identity-mode="production"][data-manage="true"] #invitation-admin{margin-top:0;grid-row:2}
+html[data-identity-mode="production"][data-manage="true"] main>p:has(#open-platform),html[data-identity-mode="production"][data-manage="true"] main>p:has(a[href="/#devices"]),html[data-identity-mode="production"][data-manage="true"] main>p:has(#manage-invitations),html[data-identity-mode="production"][data-manage="true"] #account-controls{display:none}
+html[data-identity-mode="production"] .access-heading{display:flex;align-items:start;justify-content:space-between;gap:20px}
+html[data-identity-mode="production"] .access-heading .step{margin:0}
+html[data-identity-mode="production"] .access-heading h2{margin:14px 0 7px}
+html[data-identity-mode="production"] .access-heading p:not(.step){font-size:14px;color:#5d6f6e;margin:0 0 20px}
+html[data-identity-mode="production"] .access-heading>button{flex:none;min-height:43px;margin:0;padding:8px 16px}
+html[data-identity-mode="production"] .access-tabs{display:flex;gap:27px;border-bottom:1px solid #dbe4de;margin:8px 0 22px}
+html[data-identity-mode="production"] .access-tabs button{background:transparent;border:0;border-radius:0;box-shadow:none;color:#647771;min-height:43px;padding:8px 2px 12px;font:700 13px Inter,sans-serif}
+html[data-identity-mode="production"] .access-tabs button:hover{background:transparent;box-shadow:none;transform:none}
+html[data-identity-mode="production"] .access-tabs button[aria-selected="true"]{color:#1d3530;box-shadow:inset 0 -3px #b8e66c}
+html[data-identity-mode="production"] .access-section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
+html[data-identity-mode="production"] .access-section-heading h3{font-size:16px;margin:0 0 5px}
+html[data-identity-mode="production"] .access-section-heading p{font-size:12px;color:#6c7b75;margin:0}
+html[data-identity-mode="production"] .access-section-heading input{width:220px;min-height:40px;margin:0;background:#f5f8f5;font-size:12px}
+html[data-identity-mode="production"] .access-list{margin-top:17px;border:1px solid #dce6e0;border-radius:11px;overflow:hidden;min-height:57px;color:#6b7e75;font-size:12px}
+html[data-identity-mode="production"] .access-row{display:grid;grid-template-columns:minmax(160px,1.5fr) minmax(100px,1fr) 95px minmax(90px,auto);gap:10px;align-items:center;min-height:61px;padding:11px 15px;border-top:1px solid #e5ece7;color:#3c554c}
+html[data-identity-mode="production"] .access-row:first-child{border-top:0}
+html[data-identity-mode="production"] .access-row[hidden]{display:none}
+html[data-identity-mode="production"] .access-person strong,html[data-identity-mode="production"] .access-person small{display:block;overflow-wrap:anywhere}
+html[data-identity-mode="production"] .access-person strong{font-size:12px;color:#17312d}
+html[data-identity-mode="production"] .access-person small{font-size:11px;color:#7b8a84;margin-top:3px}
+html[data-identity-mode="production"] .access-status{width:max-content;padding:5px 8px;border-radius:999px;background:#edf0ed;color:#66756c;font-size:11px;font-weight:700}
+html[data-identity-mode="production"] .access-status.accepted,html[data-identity-mode="production"] .access-status.sent{background:#e3f5e7;color:#28653e}
+html[data-identity-mode="production"] .access-status.expired,html[data-identity-mode="production"] .access-status.delivery-failed{background:#fff1d2;color:#996d1d}
+html[data-identity-mode="production"] .access-row-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+html[data-identity-mode="production"] .access-row-actions button,html[data-identity-mode="production"] .access-section-heading button.secondary{min-height:33px;padding:6px 10px;border-radius:7px;font:650 11px Inter,sans-serif;background:#fff;color:#285047;border-color:#ccd9d0}
+html[data-identity-mode="production"] .access-footnote{margin:17px 0 0;color:#61746d;font-size:12px;line-height:1.5}
+html[data-identity-mode="production"] .access-invite-panel{margin-top:23px;padding:22px;border:1px solid #dce6e0;border-radius:12px;background:linear-gradient(140deg,#fff,#f7faf6)}
+html[data-identity-mode="production"] .access-choice{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0 0}
+html[data-identity-mode="production"] .access-choice button{background:#f8faf7;border:1px solid #d6e0d9;text-align:left;padding:11px;min-height:58px;color:#203b34;box-shadow:none;border-radius:8px}
+html[data-identity-mode="production"] .access-choice button:hover{background:#f2f8ed;box-shadow:none;transform:none}
+html[data-identity-mode="production"] .access-choice button.selected{background:#eff9dc;border-color:#9fc655}
+html[data-identity-mode="production"] .access-choice strong,html[data-identity-mode="production"] .access-choice span{display:block}
+html[data-identity-mode="production"] .access-choice strong{font-size:12px}
+html[data-identity-mode="production"] .access-choice span{font:11px Inter,sans-serif;color:#65766d;margin-top:3px}
+html[data-identity-mode="production"] .access-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+html[data-identity-mode="production"] .access-fields label{margin-top:15px}
+html[data-identity-mode="production"] .access-fields input,html[data-identity-mode="production"] .access-fields select{min-height:43px;margin-top:6px;padding:9px 11px;background:#f7f9f7;font-size:13px}
+html[data-identity-mode="production"] .access-timing{padding:13px;margin:17px 0 0;background:#edf4ef;border:1px solid #d7e6db;border-radius:8px;color:#3c5d51;font-size:12px;line-height:1.45}
+html[data-identity-mode="production"] .access-invite-panel form button[type="submit"]{margin-top:18px}
+html[data-identity-mode="production"] .access-delivery{margin:15px 0 0;color:#61746d;font-size:11px}
+@media(max-width:1000px){html[data-identity-mode="production"] main,html[data-identity-mode="production"][data-manage="true"] main{grid-template-columns:1fr;max-width:700px}html[data-identity-mode="production"][data-manage="true"] #invitation-admin{grid-column:1;grid-row:auto}html[data-identity-mode="production"] #signin-step form{grid-template-columns:1fr}}
+@media(max-width:600px){html[data-identity-mode="production"] .access-heading,html[data-identity-mode="production"] .access-section-heading{align-items:stretch;flex-direction:column}html[data-identity-mode="production"] .access-heading>button,html[data-identity-mode="production"] .access-section-heading input{width:100%}html[data-identity-mode="production"] .access-row{grid-template-columns:1fr auto}html[data-identity-mode="production"] .access-row>span:nth-child(2){grid-column:1}html[data-identity-mode="production"] .access-row>.access-status{grid-column:2;grid-row:1}html[data-identity-mode="production"] .access-row-actions{grid-column:2;grid-row:2}html[data-identity-mode="production"] .access-fields,html[data-identity-mode="production"] .access-choice{grid-template-columns:1fr}}
