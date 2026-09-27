@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { missingProjectLinks, projectSummary, type ProspectCatalog, type ProspectProject } from '../lib/prospect-agent/catalog';
+
+const base: ProspectProject = {
+  id: 'opportunity_123', kind: 'opportunity', title: 'Sacramento Transit Center',
+  description: '', stage: null, buyer: null, location: null, deadline: null,
+  projectType: null, score: null, summary: null, risks: [], nextActions: [],
+  evidence: [], sourceUrl: null, updatedAt: null,
+};
+
+test('Prospect opportunity records provide a focused in-app link', () => {
+  assert.equal(projectSummary(base).prospectUrl, '/prospect?opportunity=opportunity_123');
+  assert.equal(projectSummary({ ...base, id: 'https://outside.example', kind: 'portfolio_project' }).prospectUrl, null);
+});
+
+test('answer fallback links only verified, named opportunities that are not already linked', () => {
+  const catalog: ProspectCatalog = { source: 'prospect_workspace', projects: [base, { ...base, id: 'precedent_123', kind: 'portfolio_project', title: 'Berkeley Civic Hall' }], loadedAt: '' };
+  assert.deepEqual(missingProjectLinks(catalog, 'Sacramento Transit Center and Berkeley Civic Hall'), [
+    { title: 'Sacramento Transit Center', url: '/prospect?opportunity=opportunity_123' },
+  ]);
+  assert.deepEqual(missingProjectLinks(catalog, '[Sacramento Transit Center](/prospect?opportunity=opportunity_123)'), []);
+});
