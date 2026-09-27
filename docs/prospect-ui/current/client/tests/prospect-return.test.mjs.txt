@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { consumeProspectReturn, prospectReturnTarget, rememberProspectReturn } from '../lib/state-kernel/authorization/prospect-return.ts';
+
+process.env.IDENTITY_FLOW_SEED = 'a'.repeat(64);
+const state = 'B'.repeat(43);
+const authorizationUrl = `https://accounts.mirrorprogress.com/api/auth/oauth2/authorize?state=${state}`;
+function response() {
+  const headers = new Map();
+  return { getHeader: (name) => headers.get(name), setHeader: (name, value) => headers.set(name, value), headers };
+}
+
+test('Prospect return path allows canonical deep links and preserves their query', () => {
+  assert.deepEqual(prospectReturnTarget('/prospect/sources?opportunity=one&evidence=two'), {
+    path: '/prospect/sources', full: '/prospect/sources?opportunity=one&evidence=two',
+  });
+  assert.deepEqual(prospectReturnTarget('/apps/studioiq?opportunity=one'), {
+    path: '/prospect', full: '/prospect?opportunity=one',
+  });
+  assert.deepEqual(prospectReturnTarget(undefined), { path: '/workspace', full: '/workspace' });
+  for (const unsafe of ['//attacker.test', '/prospectevil', '/prospect/../admin', '/prospect#foo', '/prospect?x=1\r\nLocation:evil', '/admin?x=1']) {
+    assert.throws(() => prospectReturnTarget(unsafe));
+  }
+});
+
+test('state-bound cookie restores one filtered Prospect link only after successful sign-in', () => {
+  const full = '/prospect/sources?opportunity=one&evidence=two';
+  const res = response();
+  res.setHeader('Set-Cookie', ['existing=flow; Path=/']);
+  rememberProspectReturn(res, authorizationUrl, full);
+  const cookies = res.getHeader('Set-Cookie');
+  assert.equal(cookies.length, 2);
+  const cookie = cookies[1].split(';')[0];
+  const req = { query: { state }, headers: { cookie } };
+  assert.equal(consumeProspectReturn(req, res), full);
+  assert.equal(res.getHeader('Set-Cookie').at(-1).includes('Max-Age=0'), true);
+  assert.equal(consumeProspectReturn({ query: { state: 'C'.repeat(43) }, headers: { cookie } }, response()), null);
+  const tampered = cookie.slice(0, -1) + (cookie.endsWith('A') ? 'B' : 'A');
+  assert.equal(consumeProspectReturn({ query: { state }, headers: { cookie: tampered } }, response()), null);
+});

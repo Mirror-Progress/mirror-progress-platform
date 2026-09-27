@@ -1,6 +1,6 @@
 {
   "name": "@mirror-progress/identity-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Server-only, provider-neutral OIDC identity bridge for the Pages Router",
   "type": "module",

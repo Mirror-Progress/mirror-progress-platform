@@ -58,7 +58,7 @@
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
     "@lottiefiles/dotlottie-react": "^0.12.1",
-    "@mirror-progress/identity-bridge": "file:vendor/mirror-progress-identity-bridge-0.1.0.tgz",
+    "@mirror-progress/identity-bridge": "file:vendor/mirror-progress-identity-bridge-0.1.1.tgz",
     "@smithy/hash-node": "^4.5.2",
     "@smithy/protocol-http": "^5.6.2",
     "@smithy/signature-v4": "^5.7.4",

@@ -62,7 +62,10 @@ function enabled() {
 export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
   if (!enabled()) return { notFound: true };
   const account = await getSessionAccountFromContext(context);
-  if (!account) return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent('/prospect/account')}` : `/?auth=login&next=${encodeURIComponent('/prospect/account')}`, permanent: false } };
+  if (!account) {
+    const destination = (context.resolvedUrl || '/prospect/account').replace(/^\/apps\/studioiq(?=\/|\?|$)/, '/prospect');
+    return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent(destination)}` : `/?auth=login&next=${encodeURIComponent(destination)}`, permanent: false } };
+  }
   const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
   if (!access?.mirrorClientId) return { notFound: true };
   const [client, member] = await Promise.all([

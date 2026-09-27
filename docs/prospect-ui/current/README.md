@@ -2,6 +2,8 @@
 
 The public Prospect address is `https://platform.mirrorprogress.com/prospect`. Its settings, billing, briefs, and evidence pages live beneath that path. Legacy `/apps/studioiq` URLs redirect to the matching `/prospect` URL with query parameters preserved. The runtime route files remain under `pages/apps/studioiq` and are exposed through Next.js rewrites, so existing product APIs and saved links continue to work.
 
+The sign-in bridge accepts `/prospect` as a strict return-path root. Filtered Prospect links keep their query in a short-lived, state-bound, signed cookie while the bridge receives only the allowed path. Failed browser sign-in callbacks return to the branded account entry rather than a raw API error. Prospect checks session state while open and restarts sign-in when the session expires. The vendored bridge archive, its source change, and the focused route tests accompany these snapshots.
+
 These `.txt` files are source snapshots from the current private Prospect release, saved here because the public repository's root `client` is an obsolete baseline. Remove the `.txt` suffix when copying them into the matching paths of `identity-release/client`; do not apply them to the root `client`.
 
 The update gives the Ask logo a mineral-green light-mode color, refines the menu/account/theme controls, and adds layered glass and depth to the assistant card and composer. On phones, it condenses the summary and view switch, collapses search and filters, opens with the globe unobstructed, and keeps a single Ask control in the header. It was checked at 320px and 390px, including chat close and reopen. TypeScript and the Next.js production build pass locally.

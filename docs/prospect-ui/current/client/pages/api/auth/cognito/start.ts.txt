@@ -1,0 +1,14 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { identityEnabled } from '../../../../lib/state-kernel/authorization/identity-provider';
+import { beginCognitoAuthorization } from '../../../../lib/state-kernel/authorization/cognito';
+
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'method_not_allowed' });
+  if (`${process.env.SITE_SURFACE ?? ''}` === 'campaign') return res.status(404).end('Not Found');
+  try {
+    if (identityEnabled()) return res.redirect(302, `/api/auth/start?next=${encodeURIComponent(typeof req.query.next === 'string' ? req.query.next : '/workspace')}`);
+    return res.redirect(302, beginCognitoAuthorization(req, res));
+  } catch {
+    return res.redirect(302, 'https://accounts.mirrorprogress.com/?logout=1');
+  }
+}

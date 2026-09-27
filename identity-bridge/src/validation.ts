@@ -38,7 +38,7 @@ export function safeReturnTo(value: unknown): string {
   if (value === undefined) return '/workspace';
   if (typeof value !== 'string' || value.length === 0 || value.length > 512 || !/^\/[A-Za-z0-9/_.~-]+$/u.test(value)) fail('return_to_invalid');
   if (value.includes('//') || value.split('/').some((part) => part === '.' || part === '..')) fail('return_to_invalid');
-  const roots = ['/workspace', '/admin', '/apps/studioiq'];
+  const roots = ['/workspace', '/admin', '/prospect', '/apps/studioiq'];
   if (!roots.some((root) => value === root || value.startsWith(`${root}/`))) fail('return_to_invalid');
   return value;
 }

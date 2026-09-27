@@ -36,11 +36,13 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
 
   const account = await getSessionAccountFromContext(context);
   if (!account) {
+    const destination = (context.resolvedUrl || `/prospect/briefs/${encodeURIComponent(briefId)}`)
+      .replace(/^\/apps\/studioiq(?=\/|\?|$)/, '/prospect');
     return {
       redirect: {
         destination: cognitoIsRequired()
-          ? `/api/auth/cognito/start?next=${encodeURIComponent(`/prospect/briefs/${briefId}`)}`
-          : `/?auth=login&next=${encodeURIComponent(`/prospect/briefs/${briefId}`)}`,
+          ? `/api/auth/cognito/start?next=${encodeURIComponent(destination)}`
+          : `/?auth=login&next=${encodeURIComponent(destination)}`,
         permanent: false,
       },
     };

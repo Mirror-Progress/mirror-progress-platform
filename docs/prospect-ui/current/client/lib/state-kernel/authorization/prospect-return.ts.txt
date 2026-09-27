@@ -1,0 +1,62 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { safeReturnTo } from '@mirror-progress/identity-bridge';
+
+const cookiePrefix = 'mp_prospect_return_';
+const statePattern = /^[A-Za-z0-9_-]{32,128}$/;
+const lifetimeMs = 10 * 60 * 1000;
+
+export function prospectReturnTarget(value: unknown) {
+  if (value === undefined) return { path: '/workspace', full: '/workspace' };
+  if (typeof value !== 'string' || value.length > 1500 || /[\u0000-\u001f\u007f\\#]/.test(value)) throw new Error('return_to_invalid');
+  const question = value.indexOf('?');
+  const path = question < 0 ? value : value.slice(0, question);
+  const canonical = path.replace(/^\/apps\/studioiq(?=\/|$)/, '/prospect');
+  if (canonical !== '/prospect' && !canonical.startsWith('/prospect/') && canonical !== '/workspace' && canonical !== '/admin') throw new Error('return_to_invalid');
+  safeReturnTo(canonical);
+  const query = question < 0 ? '' : value.slice(question);
+  if (query && canonical !== '/prospect' && !canonical.startsWith('/prospect/')) throw new Error('return_to_invalid');
+  if (query.includes('//') && query.startsWith('?//')) throw new Error('return_to_invalid');
+  return { path: canonical, full: canonical + query };
+}
+
+function signingKey() {
+  const value = process.env.IDENTITY_FLOW_SEED || process.env.IDENTITY_FLOW_SECRET;
+  if (!value) throw new Error('identity_configuration_invalid');
+  return value;
+}
+
+function appendCookie(res: NextApiResponse, cookie: string) {
+  const current = res.getHeader('Set-Cookie');
+  res.setHeader('Set-Cookie', [...(Array.isArray(current) ? current.map(String) : current ? [String(current)] : []), cookie]);
+}
+
+export function rememberProspectReturn(res: NextApiResponse, authorizationUrl: string, full: string) {
+  if (!full.includes('?')) return;
+  const state = new URL(authorizationUrl).searchParams.get('state') || '';
+  if (!statePattern.test(state)) throw new Error('oauth_state_invalid');
+  const payload = Buffer.from(JSON.stringify({ full, expiresAt: Date.now() + lifetimeMs })).toString('base64url');
+  const signature = createHmac('sha256', signingKey()).update(`${state}.${payload}`).digest('base64url');
+  appendCookie(res, `${cookiePrefix}${state}=${payload}.${signature}; Path=/api/auth/callback; Max-Age=600; HttpOnly; Secure; SameSite=Lax`);
+}
+
+export function consumeProspectReturn(req: NextApiRequest, res: NextApiResponse) {
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
+  if (!statePattern.test(state)) return null;
+  const name = cookiePrefix + state;
+  const matches = (req.headers.cookie || '').split(';').map((part) => part.trim()).filter((part) => part.startsWith(`${name}=`));
+  if (!matches.length) return null;
+  appendCookie(res, `${name}=; Path=/api/auth/callback; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+  if (matches.length !== 1) return null;
+  const value = matches[0].slice(name.length + 1);
+  const pieces = value.split('.');
+  if (pieces.length !== 2 || !pieces.every((part) => /^[A-Za-z0-9_-]+$/.test(part))) return null;
+  const expected = createHmac('sha256', signingKey()).update(`${state}.${pieces[0]}`).digest();
+  const actual = Buffer.from(pieces[1], 'base64url');
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(pieces[0], 'base64url').toString('utf8')) as { full: unknown; expiresAt: unknown };
+    if (typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= Date.now() || parsed.expiresAt > Date.now() + lifetimeMs) return null;
+    return prospectReturnTarget(parsed.full).full;
+  } catch { return null; }
+}

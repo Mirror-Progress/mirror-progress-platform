@@ -167,7 +167,7 @@ export function recoverCognitoAuthorization(req: NextApiRequest, res: NextApiRes
     return '';
   }
   appendSetCookie(res, `${RETRY_COOKIE}=1; Path=/; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
-  return '/api/auth/cognito/start?next=%2Fapps%2Fstudioiq';
+  return '/api/auth/cognito/start?next=%2Fprospect';
 }
 
 export function cognitoIsRequired() {

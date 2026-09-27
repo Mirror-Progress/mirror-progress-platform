@@ -20,7 +20,7 @@ const rejects = (code: string) => (error: unknown) => { assert.ok(error instance
 const NOW = 1_800_000_000;
 
 const unsafeReturns: unknown[] = [null, '', true, 1, [], ['/workspace'], {}, '/other', '//evil.example.test', 'https://evil.example.test/workspace',
-  'javascript:alert(1)', '/workspaceevil', '/administrator', '/apps/studioiqevil', '/apps/studio', '/Workspace', ' /workspace', '/workspace ',
+  'javascript:alert(1)', '/workspaceevil', '/administrator', '/prospectevil', '/apps/studioiqevil', '/apps/studio', '/Workspace', ' /workspace', '/workspace ',
   '/workspace/../admin', '/workspace/../../evil', '/workspace/./a', '/workspace//evil.example.test', '/workspace\\evil.example.test',
   '/\\evil.example.test', '\\workspace', '/workspace/%2e%2e/evil', '/workspace/%252e%252e/evil', '/workspace/%2f%2fevil',
   '/workspace/%5cevil', '/workspace/%00', '/workspace/%0d%0aLocation:evil', '/%77orkspace', '/workspace/%61', '/workspace/%',
@@ -31,7 +31,7 @@ for (let i = 0; i < unsafeReturns.length; i += 1) {
   test(`return path rejects adversarial input ${i + 1}`, () => assert.throws(() => safeReturnTo(unsafeReturns[i]), rejects('return_to_invalid')));
 }
 test('return paths accept only canonical roots and descendants; only undefined selects default', () => {
-  for (const path of ['/workspace', '/workspace/', '/workspace/project_1/a-b.c~d', '/admin', '/admin/users', '/apps/studioiq', '/apps/studioiq/project-1']) assert.equal(safeReturnTo(path), path);
+  for (const path of ['/workspace', '/workspace/', '/workspace/project_1/a-b.c~d', '/admin', '/admin/users', '/prospect', '/prospect/sources', '/prospect/briefs/one', '/apps/studioiq', '/apps/studioiq/project-1']) assert.equal(safeReturnTo(path), path);
   assert.equal(safeReturnTo(undefined), '/workspace');
 });
 
