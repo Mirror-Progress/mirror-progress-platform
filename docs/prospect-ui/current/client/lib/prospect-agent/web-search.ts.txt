@@ -1,0 +1,50 @@
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { Hash } from '@smithy/hash-node';
+import { HttpRequest } from '@smithy/protocol-http';
+import { SignatureV4 } from '@smithy/signature-v4';
+
+type SearchHit = { title: string; url: string; text: string; publishedDate?: string };
+
+export function webSearchConfigured() {
+  return Boolean(process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL && process.env.PROSPECT_WEB_SEARCH_TOOL_NAME);
+}
+
+export async function searchPublicWeb(query: string, maxResults = 5): Promise<{ results: SearchHit[]; error?: string }> {
+  if (!webSearchConfigured()) return { results: [], error: 'Web search is not configured.' };
+  if (/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(query) || /(?:opportunity|evidence)_[a-zA-Z0-9-]+/.test(query)) {
+    return { results: [], error: 'Remove private account or project details before searching the public web.' };
+  }
+  const url = new URL(process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL!);
+  if (url.protocol !== 'https:' || !url.hostname.endsWith('.amazonaws.com') || url.pathname !== '/mcp') {
+    return { results: [], error: 'Web search gateway configuration is invalid.' };
+  }
+  const toolName = process.env.PROSPECT_WEB_SEARCH_TOOL_NAME!;
+  if (!/^[a-zA-Z0-9_-]{1,100}(?:___[a-zA-Z0-9_-]{1,100})?$/.test(toolName)) return { results: [], error: 'Web search tool configuration is invalid.' };
+  const body = JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/call', params: {
+    name: toolName, arguments: { query: query.trim().slice(0, 200), maxResults: Math.max(1, Math.min(10, maxResults)) },
+  } });
+  const region = process.env.PROSPECT_WEB_SEARCH_REGION || process.env.AWS_REGION || 'us-east-1';
+  const request = new HttpRequest({ protocol: 'https:', hostname: url.hostname, method: 'POST', path: url.pathname,
+    headers: { host: url.hostname, accept: 'application/json, text/event-stream', 'content-type': 'application/json', 'mcp-protocol-version': '2025-11-25' }, body });
+  const signer = new SignatureV4({ credentials: defaultProvider(), region, service: 'bedrock-agentcore', sha256: Hash.bind(null, 'sha256') });
+  const signed = await signer.sign(request);
+  const response = await fetch(url, { method: 'POST', headers: signed.headers as HeadersInit, body, signal: AbortSignal.timeout(12000) });
+  if (!response.ok) return { results: [], error: `Web search is temporarily unavailable (${response.status}).` };
+  const raw = await response.text();
+  const payload = raw.startsWith('event:') || raw.startsWith('data:')
+    ? raw.split('\n').find((line) => line.startsWith('data:'))?.slice(5).trim() || '{}'
+    : raw;
+  const envelope = JSON.parse(payload) as { result?: { isError?: boolean; content?: Array<{ type?: string; text?: string }> }; error?: unknown };
+  if (envelope.error || envelope.result?.isError) return { results: [], error: 'Web search could not complete.' };
+  const content = envelope.result?.content?.find((part) => part.type === 'text')?.text;
+  const data = content ? JSON.parse(content) as { results?: SearchHit[] } : {};
+  const results = Array.isArray(data.results) ? data.results : [];
+  return { results: results.slice(0, 10).flatMap((item) => {
+    try {
+      const source = new URL(item.url);
+      if (!['http:', 'https:'].includes(source.protocol)) return [];
+      return [{ title: String(item.title || source.hostname).slice(0, 250), url: source.href,
+        text: String(item.text || '').slice(0, 1800), publishedDate: item.publishedDate ? String(item.publishedDate).slice(0, 32) : undefined }];
+    } catch { return []; }
+  }) };
+}

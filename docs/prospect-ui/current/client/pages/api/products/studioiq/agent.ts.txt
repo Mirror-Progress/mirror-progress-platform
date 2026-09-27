@@ -1,0 +1,38 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { loadWorkspaceProspectCatalog } from '../../../../lib/prospect-agent/catalog';
+import { streamProspectAgent } from '../../../../lib/prospect-agent/http';
+import { getDb } from '../../../../lib/mongodb';
+import { redactSearchText } from '../../../../lib/prospect-usage';
+
+let quotaIndexReady: Promise<string> | undefined;
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const access = await requireStudioIqProductAccess(req, res, { readOnlyAction: true });
+  if (!access?.mirrorClientId) return;
+  try {
+    return await streamProspectAgent(req, res, await loadWorkspaceProspectCatalog(access), async (name, input) => {
+      if (name !== 'search_public_web' || !access.mirrorAccountId) return false;
+      const query = typeof input.query === 'string' ? redactSearchText(input.query) : '';
+      if (!query) return false;
+      try {
+        const db = await getDb();
+        const quota = db.collection<{ _id: string; count: number; expiresAt: Date }>('studioiq_web_search_quotas');
+        quotaIndexReady ??= quota.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch((error) => { quotaIndexReady = undefined; throw error; });
+        await quotaIndexReady;
+        const now = new Date();
+        const day = now.toISOString().slice(0, 10);
+        await quota.updateOne({ _id: `${access.mirrorAccountId}:${day}`, count: { $lt: 50 } },
+          { $inc: { count: 1 }, $setOnInsert: { expiresAt: new Date(Date.now() + 2 * 86400_000) } }, { upsert: true });
+        if (req.headers.dnt !== '1') {
+          await db.collection('studioiq_usage_events').insertOne({ accountId: access.mirrorAccountId, organizationId: access.mirrorClientId, event: 'web_search',
+            detail: { query }, occurredAt: now, expiresAt: new Date(Date.now() + 90 * 86400_000) });
+        }
+        return true;
+      } catch { return false; }
+    });
+  } catch {
+    return res.status(503).json({ error: 'Prospect projects are temporarily unavailable.' });
+  }
+}

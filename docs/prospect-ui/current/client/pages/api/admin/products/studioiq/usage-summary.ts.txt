@@ -1,0 +1,31 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireAdminApiAccount } from '../../../../../lib/auth-guards';
+import { getDb } from '../../../../../lib/mongodb';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
+  const admin = await requireAdminApiAccount(req, res);
+  if (!admin) return;
+  const days = Math.max(1, Math.min(90, Number.parseInt(String(req.query.days ?? '30'), 10) || 30));
+  const organizationId = typeof req.query.organizationId === 'string' && /^[a-zA-Z0-9:_-]{1,100}$/.test(req.query.organizationId)
+    ? req.query.organizationId : undefined;
+  if (req.query.organizationId && !organizationId) return res.status(400).json({ error: 'Invalid organization.' });
+  const since = new Date(Date.now() - days * 86400_000);
+  const match = { occurredAt: { $gte: since }, ...(organizationId ? { organizationId } : {}) };
+  const collection = (await getDb()).collection('studioiq_usage_events');
+  const [screens, searches, projects, totals] = await Promise.all([
+    collection.aggregate([{ $match: { ...match, event: 'screen_attention' } },
+      { $group: { _id: { organizationId: '$organizationId', screen: '$detail.screen' }, seconds: { $sum: '$detail.durationSeconds' }, events: { $sum: 1 } } },
+      { $sort: { seconds: -1 } }, { $limit: 100 }]).toArray(),
+    collection.aggregate([{ $match: { ...match, event: { $in: ['discovery_search', 'web_search'] } } },
+      { $group: { _id: { organizationId: '$organizationId', kind: '$event', query: '$detail.query' }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } }, { $limit: 50 }]).toArray(),
+    collection.aggregate([{ $match: { ...match, event: { $in: ['project_open', 'project_feedback', 'source_open'] } } },
+      { $group: { _id: { organizationId: '$organizationId', projectId: '$detail.projectId' }, opens: { $sum: { $cond: [{ $eq: ['$event', 'project_open'] }, 1, 0] } },
+        favorites: { $sum: { $cond: [{ $eq: ['$detail.feedback', 'favorite_added'] }, 1, 0] } }, sourceOpens: { $sum: { $cond: [{ $eq: ['$event', 'source_open'] }, 1, 0] } } } },
+      { $sort: { opens: -1 } }, { $limit: 100 }]).toArray(),
+    collection.aggregate([{ $match: match }, { $group: { _id: { organizationId: '$organizationId', event: '$event' }, count: { $sum: 1 } } }, { $sort: { '_id.organizationId': 1 } }]).toArray(),
+  ]);
+  return res.status(200).json({ since: since.toISOString(), days, organizationId: organizationId ?? null, screens, searches, projects, totals });
+}

@@ -6,7 +6,7 @@ import { activeProspectWorkflow, type ProspectTourScene } from '../studioiq-walk
 type ChatTurn = { role: 'user' | 'assistant'; text: string };
 type SourceContext = { opportunityId: string; evidenceId: string };
 
-export async function streamProspectAgent(req: NextApiRequest, res: NextApiResponse, catalog: ProspectCatalog) {
+export async function streamProspectAgent(req: NextApiRequest, res: NextApiResponse, catalog: ProspectCatalog, onToolUse?: (name: string, input: Record<string, unknown>) => Promise<boolean>) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   if (!question || question.length > 2000) return res.status(400).json({ error: 'Enter a question under 2,000 characters.' });
@@ -34,7 +34,7 @@ export async function streamProspectAgent(req: NextApiRequest, res: NextApiRespo
     if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
   try {
-    await runProspectAgent({ question, history, catalog, emit, availableScenes, sourceContext });
+    await runProspectAgent({ question, history, catalog, emit, availableScenes, sourceContext, onToolUse });
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') console.error('[prospect-agent]', error);
     const name = error instanceof Error ? error.name : '';

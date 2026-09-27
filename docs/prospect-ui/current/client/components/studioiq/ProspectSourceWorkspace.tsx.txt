@@ -7,6 +7,7 @@ import { sourceReadingLayout } from '../../lib/studioiq-source-reading';
 import styles from './ProspectSourceWorkspace.module.css';
 import { ProspectMotionLink } from './ProspectMotionLink';
 import { useTheme } from '../../hooks/useTheme';
+import { recordProspectUsage } from '../../lib/prospect-usage';
 
 type Project = { id: string; title: string; description: string; buyer: string | null; city: string | null; country: string | null; deadline: string | null };
 type Evidence = { evidenceId: string; sourceUrl: string; document: StudioIqSourceDocument | null };
@@ -43,6 +44,12 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
   const [loadedWorkKey, setLoadedWorkKey] = useState('');
   const [status, setStatus] = useState('');
   const projectId = data?.project.id ?? '';
+  useEffect(() => {
+    if (previewData || !projectId) return;
+    recordProspectUsage('source_open', { screen: 'source', projectId });
+    const entered = Date.now();
+    return () => recordProspectUsage('screen_attention', { screen: 'source', durationSeconds: Math.round((Date.now() - entered) / 1000) });
+  }, [previewData, projectId]);
   const storageKey = projectId ? `studioiq:sources:v1:${workspaceKey}:${projectId}` : '';
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);

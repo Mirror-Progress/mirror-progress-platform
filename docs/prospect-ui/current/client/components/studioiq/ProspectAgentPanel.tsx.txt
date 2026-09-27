@@ -6,6 +6,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import styles from './ProspectAgentPanel.module.css';
 import { activeProspectWorkflow, prospectAgentGuideExamples, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
+import { recordProspectUsage } from '../../lib/prospect-usage';
 
 type Entry = { role: 'user' | 'assistant'; text: string };
 type SourceContext = { opportunityId: string; evidenceId: string };
@@ -136,6 +137,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
   async function ask(question: string) {
     const clean = question.trim();
     if (!clean || busy || !historyReady) return;
+    if (!localLab) recordProspectUsage('agent_question', { screen: sourceContext ? 'source' : 'agent' });
     const id = conversationId ?? crypto.randomUUID();
     const context = sourceContext ?? rememberedContext;
     if (context) setRememberedContext(context);

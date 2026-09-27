@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { redactSearchText } from '../lib/prospect-usage';
+import { searchPublicWeb, webSearchConfigured } from '../lib/prospect-agent/web-search';
+
+test('usage search terms remove email and phone details', () => {
+  assert.equal(redactSearchText('  tenders for lee@example.com or +1 (415) 555-1234  '), 'tenders for [email] or [phone]');
+});
+
+test('public web search stays disabled without gateway configuration', async () => {
+  const priorUrl = process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL;
+  const priorTool = process.env.PROSPECT_WEB_SEARCH_TOOL_NAME;
+  try {
+    delete process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL;
+    delete process.env.PROSPECT_WEB_SEARCH_TOOL_NAME;
+    assert.equal(webSearchConfigured(), false);
+    assert.deepEqual(await searchPublicWeb('architecture competitions'), { results: [], error: 'Web search is not configured.' });
+  } finally {
+    if (priorUrl === undefined) delete process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL;
+    else process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL = priorUrl;
+    if (priorTool === undefined) delete process.env.PROSPECT_WEB_SEARCH_TOOL_NAME;
+    else process.env.PROSPECT_WEB_SEARCH_TOOL_NAME = priorTool;
+  }
+});
+
+test('public web search rejects private identifiers and unsafe gateway URLs before network access', async () => {
+  const priorUrl = process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL;
+  const priorTool = process.env.PROSPECT_WEB_SEARCH_TOOL_NAME;
+  try {
+    process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL = 'https://example.com/mcp';
+    process.env.PROSPECT_WEB_SEARCH_TOOL_NAME = 'web-search-tool___WebSearch';
+    assert.match((await searchPublicWeb('contact jane@example.com')).error || '', /private/);
+    assert.match((await searchPublicWeb('new construction tenders')).error || '', /configuration/);
+  } finally {
+    if (priorUrl === undefined) delete process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL;
+    else process.env.PROSPECT_WEB_SEARCH_GATEWAY_URL = priorUrl;
+    if (priorTool === undefined) delete process.env.PROSPECT_WEB_SEARCH_TOOL_NAME;
+    else process.env.PROSPECT_WEB_SEARCH_TOOL_NAME = priorTool;
+  }
+});

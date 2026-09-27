@@ -23,6 +23,7 @@ import { globeProjectLocation } from '../../lib/studioiq-globe-location';
 import { resolvePortfolioGlobeLocation } from '../../lib/studioiq-location';
 import styles from './StudioIqDiscovery.module.css';
 import { ProspectMotionLink } from './ProspectMotionLink';
+import { recordProspectUsage, redactSearchText } from '../../lib/prospect-usage';
 
 const PursuitGlobe = dynamic(
   () => import('./PursuitGlobe').then((module) => module.PursuitGlobe),
@@ -244,11 +245,44 @@ export function StudioIqDiscovery(props: {
   const [viewMode, setViewMode] = useState<ViewMode>('globe');
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
+  const lastRecordedQuery = useRef('');
+  const recordSubmittedQuery = () => {
+    const value = redactSearchText(query);
+    if (value.length < 3 || value === lastRecordedQuery.current) return;
+    lastRecordedQuery.current = value;
+    recordProspectUsage('discovery_search', { screen: 'discovery', query: value });
+  };
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [market, setMarket] = useState('all');
   const [marketOpen, setMarketOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  useEffect(() => {
+    let entered = Date.now();
+    const flush = () => {
+      const seconds = Math.round((Date.now() - entered) / 1000);
+      if (seconds >= 2) recordProspectUsage('screen_attention', { screen: viewMode, durationSeconds: seconds });
+      entered = Date.now();
+    };
+    const visibility = () => { if (document.hidden) flush(); else entered = Date.now(); };
+    document.addEventListener('visibilitychange', visibility);
+    return () => { document.removeEventListener('visibilitychange', visibility); flush(); };
+  }, [viewMode]);
+  useEffect(() => {
+    if (selectedId) recordProspectUsage('project_open', { screen: 'overview', projectId: selectedId });
+  }, [selectedId]);
   const [dossierOpen, setDossierOpen] = useState(false);
+  useEffect(() => {
+    if (!dossierOpen || !selectedId) return;
+    const entered = Date.now();
+    return () => recordProspectUsage('screen_attention', { screen: dossierTab, durationSeconds: Math.round((Date.now() - entered) / 1000) });
+  }, [dossierOpen, selectedId, dossierTab]);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('opportunity');
+    if (id && props.items.some((item) => item.opportunity_id === id)) {
+      setSelectedId(id);
+      setDossierOpen(true);
+    }
+  }, [props.items]);
   useEffect(() => {
     const scene = props.tourScene;
     if (!scene || scene === 'intro') return;
@@ -481,6 +515,7 @@ export function StudioIqDiscovery(props: {
       const body = await response.json().catch(() => ({}));
       if (!response.ok)
         throw new Error(body.error || 'Unable to update this favorite.');
+      recordProspectUsage('project_feedback', { screen: 'discovery', projectId: item.opportunity_id, feedback: next ? 'favorite_added' : 'favorite_removed' });
       await props.onReload();
       setFavoriteOverrides((current) => {
         const copy = { ...current };
@@ -599,6 +634,8 @@ export function StudioIqDiscovery(props: {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                onBlur={recordSubmittedQuery}
+                onKeyDown={(event) => { if (event.key === 'Enter') { recordSubmittedQuery(); event.currentTarget.blur(); } }}
                 placeholder="Search projects, clients, places, or types"
               />
               {query ? (
