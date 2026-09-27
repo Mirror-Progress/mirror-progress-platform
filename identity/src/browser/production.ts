@@ -67,11 +67,15 @@ async function api(path: string, body?: unknown): Promise<Record<string, unknown
 }
 async function loadInvitations(): Promise<void> {
   try {
-    const result = await api("/api/identity/admin/invitations");
+    let result: Record<string, unknown>;
+    try { result = await api("/api/identity/admin/invitations"); }
+    catch { result = await api("/api/identity/admin/trial-invitations"); }
+    const trialOnly = result.trialOnly === true;
     node<HTMLElement>("manage-invitations").hidden = false;
     const panel = node<HTMLElement>("invitation-admin");
     panel.hidden = !manageRequested;
     if (!manageRequested) return;
+    node<HTMLElement>("general-invite-controls").hidden = trialOnly;
     node<HTMLElement>("external-delivery-status").textContent = result.externalDeliveryReady === true
       ? "Invitations can be delivered to external email domains."
       : "External email delivery is pending. Mirror Progress addresses can be invited now.";
@@ -87,7 +91,7 @@ async function loadInvitations(): Promise<void> {
       label.textContent = `${String(item.name)} · ${String(item.email)} · ${String(item.company)} · ${status}`;
       row.append(label);
       const id = String(item.principalId);
-      if (/^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
+      if (!trialOnly && /^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
         if (item.accepted !== true) {
           const resend = document.createElement("button");
           resend.type = "button"; resend.className = "secondary"; resend.textContent = "Resend";

@@ -26,6 +26,15 @@ export class StagingStore extends Store {
       WHERE b.user_id=$1 AND a.active) AS allowed`, [userId]);
     return rows[0]?.allowed === true;
   }
+  async canManageTrials(userId: string): Promise<boolean> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) return false;
+    const { rows } = await this.pool.query<{ allowed: boolean }>(`SELECT EXISTS(
+      SELECT 1 FROM mirror_binding b
+      LEFT JOIN mirror_managed_invitation_admin a ON a.principal_id=b.principal_id AND a.active
+      LEFT JOIN mirror_trial_invitation_manager t ON t.principal_id=b.principal_id AND t.active
+      WHERE b.user_id=$1 AND (a.principal_id IS NOT NULL OR t.principal_id IS NOT NULL)) AS allowed`, [userId]);
+    return rows[0]?.allowed === true;
+  }
   async issueManagedInvitation(sessionId: string, input: {
     name: string; email: string; company: string; accountType: "admin" | "external";
     role: "admin" | "project_lead" | "client";
@@ -73,7 +82,7 @@ export class StagingStore extends Store {
     await this.pool.query("SELECT mirror_managed_revoke($1,$2)", [sessionId, principalId]);
     return { status: "revoked" };
   }
-  async managedInvitations(): Promise<Array<Record<string, unknown>>> {
+  async managedInvitations(inviter?: string): Promise<Array<Record<string, unknown>>> {
     if (this.config.mode !== "production" || !this.config.freshInstall) throw new PolicyError("route_not_exposed", 404);
     const { rows } = await this.pool.query(`SELECT m.principal_id AS "principalId",m.email,m.display_name AS name,
       m.company_name AS company,m.account_type AS "accountType",m.requested_role AS role,
@@ -83,7 +92,8 @@ export class StagingStore extends Store {
       JOIN mirror_staging_mailbox b ON b.invitation_digest=i.digest
       JOIN mirror_staging_delivery d ON d.id=b.id
       LEFT JOIN mirror_staging_enrollment e ON e.principal_id=m.principal_id
-      ORDER BY m.created_at DESC LIMIT 200`);
+      WHERE ($1::text IS NULL OR (m.inviter=$1 AND m.account_type='external'))
+      ORDER BY m.created_at DESC LIMIT 200`, [inviter ?? null]);
     return rows;
   }
   async managedInvitationInfo(rawInvitation: unknown): Promise<{ name: string; company: string; email: string } | null> {

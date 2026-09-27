@@ -59,13 +59,13 @@
 <label>Trial length (days)<input name="trialDays" type="number" min="1" max="365" value="14" required></label>
 <label>Seats<input name="seatAllowance" type="number" min="1" max="10000" value="25" required></label>
 <button type="submit">Send trial invitation</button></form>
-<h3>Invite to an existing workspace</h3><p>Use this for team members or Mirror Progress admins.</p>
+<div id="general-invite-controls"><h3>Invite to an existing workspace</h3><p>Use this for team members or Mirror Progress admins.</p>
 <form id="invite-person"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
 <label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
 <label>Account type<select name="accountType" required><option value="external">External Prospect account</option><option value="admin">Mirror Progress admin</option></select></label>
 <label>Company<input name="company" maxlength="120" required></label>
 <label>Role<select name="role" required><option value="client">Company member</option><option value="admin">Admin</option><option value="project_lead">Project lead</option></select></label>
-<button type="submit">Send invitation</button></form><p id="external-delivery-status" class="small"></p><h3>Invitations</h3><div id="invitation-list" aria-live="polite"></div></section>
+<button type="submit">Send invitation</button></form></div><p id="external-delivery-status" class="small"></p><h3>Invitations</h3><div id="invitation-list" aria-live="polite"></div></section>
 <details id="account-controls"><summary>Account controls</summary>
 <button id="signout" type="button" class="secondary">Sign out</button>
 <button id="global-logout" type="button" class="secondary">Revoke all sessions</button></details>

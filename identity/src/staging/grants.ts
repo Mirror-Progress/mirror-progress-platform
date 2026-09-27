@@ -9,7 +9,7 @@ GRANT SELECT,INSERT,UPDATE,DELETE ON "user","session","account","verification","
   mirror_assurance,mirror_password_flow,mirror_totp_replay,mirror_rate_limit,
   mirror_staging_mailbox,mirror_staging_delivery TO mirror_identity_staging_runtime;
 GRANT SELECT ON mirror_principal,mirror_binding,mirror_staging_reconciliation,mirror_staging_invitation,
-  mirror_staging_enrollment,mirror_staging_approval,mirror_managed_invitation,mirror_managed_invitation_admin,
+  mirror_staging_enrollment,mirror_staging_approval,mirror_managed_invitation,mirror_managed_invitation_admin,mirror_trial_invitation_manager,
   "oauthClient","oauthResource","oauthClientResource"
   TO mirror_identity_staging_runtime;
 GRANT INSERT ON mirror_binding,mirror_staging_enrollment TO mirror_identity_staging_runtime;

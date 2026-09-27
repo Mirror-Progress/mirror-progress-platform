@@ -209,12 +209,15 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (!info) throw new PolicyError("invalid_invitation", 400);
       return json(info);
     }
-    if (request.method === "POST" && url.pathname === "/api/identity/admin/trial-invitations") {
+    if (["GET", "POST"].includes(request.method) && url.pathname === "/api/identity/admin/trial-invitations") {
       if (config.mode !== "production" || !config.freshInstall || !config.sessionStatusSecret) throw new PolicyError("route_not_exposed", 404);
       const identity = await requiredSession(request.headers);
       const managed = store as StagingStore;
       const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
-      if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
+      if (!principal.privileged || !await managed.canManageTrials(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
+      if (request.method === "GET") return json({ invitations: await managed.managedInvitations(principal.id),
+        trialOnly: !await managed.canManageInvitations(identity.user.id),
+        externalDeliveryReady: await invitationRecipientDeliverable("recipient@example.com").catch(() => false) });
       const body = await readObject(request);
       if (Object.keys(body).some(key => !["name", "email", "company", "trialDays", "seatAllowance"].includes(key))) throw new PolicyError("unexpected_invitation_field", 400);
       const name = stringField(body, "name", 1, 120).trim();
