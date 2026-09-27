@@ -191,7 +191,9 @@ export function StudioIqDiscovery(props: {
   canFavorite: boolean;
   loading: boolean;
   theme: 'dark' | 'light';
+  localPreview?: boolean;
   onReload: () => Promise<void>;
+  tourScene?: import('../../lib/studioiq-walkthrough').ProspectTourScene | null;
 }) {
   const [dossierTab, setDossierTab] = useState<DossierTab>('overview');
   const dossierId = useId();
@@ -246,6 +248,26 @@ export function StudioIqDiscovery(props: {
   const [marketOpen, setMarketOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dossierOpen, setDossierOpen] = useState(false);
+  useEffect(() => {
+    const scene = props.tourScene;
+    if (!scene || scene === 'intro') return;
+    if (scene === 'globe' || scene === 'filters' || scene === 'favorites') {
+      setViewMode('globe');
+      setDossierOpen(false);
+      setMobileToolsOpen(scene === 'filters');
+      setFilter('all');
+      setMarket('all');
+      setQuery('');
+    } else if (scene === 'overview' || scene === 'practice' || scene === 'sources') {
+      if (props.items[0]) setSelectedId(props.items[0].opportunity_id);
+      setDossierOpen(true);
+      setDossierTab(scene);
+      setMobileToolsOpen(false);
+    } else if (scene === 'agent') {
+      setDossierOpen(false);
+      setMobileToolsOpen(false);
+    }
+  }, [props.tourScene, props.items]);
   useEffect(() => {
     if (dossierScroll.current) dossierScroll.current.scrollTop = 0;
   }, [selectedId, dossierTab]);
@@ -483,9 +505,9 @@ export function StudioIqDiscovery(props: {
     <main className={styles.discovery}>
       <section className={styles.analyticsBar} aria-label="Discovery analytics">
         <div className={styles.analyticsIntro}>
-          <span>Live project intelligence</span>
-          <strong>New projects matched to your firm</strong>
-          <small>Verified opportunities ranked by score and recency.</small>
+          <span>{props.localPreview ? 'Local project preview' : 'Live project intelligence'}</span>
+          <strong>{props.localPreview ? 'Explore project signals' : 'New projects matched to your firm'}</strong>
+          <small>{props.localPreview ? 'Historical sample projects · market pulse uses sourced data.' : 'Verified opportunities ranked by score and recency.'}</small>
         </div>
         <button
           className={`${styles.metric} ${styles.metricNew}`}
@@ -498,6 +520,7 @@ export function StudioIqDiscovery(props: {
         </button>
         <button
           className={`${styles.metric} ${styles.metricFavorites}`}
+          data-tour-anchor="favorites"
           type="button"
           aria-pressed={filter === 'favorites'}
           onClick={() => selectMetric('favorites')}
@@ -557,6 +580,7 @@ export function StudioIqDiscovery(props: {
         >
           <button
             className={styles.mobileToolsToggle}
+            data-tour-anchor="filters"
             type="button"
             aria-expanded={mobileToolsOpen}
             aria-controls={mobileToolsId}
@@ -566,7 +590,7 @@ export function StudioIqDiscovery(props: {
             <span>{query || market !== 'all' || filter !== 'all' ? 'Refine projects · active' : 'Search & filters'}</span>
             <ChevronDownIcon aria-hidden="true" />
           </button>
-          <header id={mobileToolsId} className={styles.browserHeader}>
+          <header id={mobileToolsId} className={styles.browserHeader} data-tour-anchor="filters">
             <div className={styles.search}>
               <MagnifyingGlassIcon aria-hidden="true" />
               <input
@@ -754,6 +778,8 @@ export function StudioIqDiscovery(props: {
 
             <div
               className={styles.globePanel}
+              data-tour-anchor="globe"
+              data-tour-focus={props.tourScene === 'globe'}
               data-theme={props.theme}
               aria-hidden={viewMode !== 'globe'}
             >
@@ -821,6 +847,7 @@ export function StudioIqDiscovery(props: {
         <div className={styles.paneResize} role="separator" aria-label="Resize globe and project details" aria-orientation="vertical" aria-valuenow={Math.round(browserShare * 100)} aria-valuemin={30} aria-valuemax={70} tabIndex={0} onPointerDown={resizeBrowser} onKeyDown={onBrowserResizeKey} onDoubleClick={() => saveBrowserShare(0.52)} />
         <article
           className={`${styles.dossier} ${dossierOpen ? styles.dossierOpen : ''}`}
+          data-tour-anchor={props.tourScene === 'overview' || props.tourScene === 'practice' || props.tourScene === 'sources' ? props.tourScene : undefined}
           aria-label="Project details"
         >
           {!selected ? (

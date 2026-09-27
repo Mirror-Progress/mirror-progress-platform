@@ -5,11 +5,12 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import styles from './ProspectAgentPanel.module.css';
+import { activeProspectWorkflow, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
 
 type Entry = { role: 'user' | 'assistant'; text: string };
 type Activity = { label: string; detail?: string; state: 'running' | 'done' | 'error' };
 
-type AgentEvent = { type: 'activity' | 'token' | 'error' | 'done'; label?: string; detail?: string; text?: string; error?: string };
+type AgentEvent = { type: 'activity' | 'token' | 'error' | 'done' | 'ui_action'; label?: string; detail?: string; text?: string; error?: string; action?: { type: 'show_workflow_scene'; workflow: string; version: number; scene: ProspectTourScene } };
 
 function activityLabel(label: string): string {
   const legacy: Record<string, string> = {
@@ -23,7 +24,7 @@ function activityLabel(label: string): string {
   return legacy[label] ?? label;
 }
 
-export function ProspectAgentPanel({ endpoint, localLab = false, expanded, onToggleExpand, onClose }: { endpoint: string; localLab?: boolean; expanded: boolean; onToggleExpand: () => void; onClose: () => void }) {
+export function ProspectAgentPanel({ endpoint, localLab = false, expanded, onToggleExpand, onClose, availableScenes, onShowScene }: { endpoint: string; localLab?: boolean; expanded: boolean; onToggleExpand: () => void; onClose: () => void; availableScenes: ProspectTourScene[]; onShowScene: (scene: ProspectTourScene) => void }) {
   const [messages, setMessages] = useState<Entry[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [draft, setDraft] = useState('');
@@ -52,7 +53,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, onTog
     try {
       const response = await fetch(endpoint, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ question: clean, history }),
+        body: JSON.stringify({ question: clean, history, availableScenes }),
       });
       if (!response.ok || !response.body) {
         const body = await response.json().catch(() => ({}));
@@ -86,6 +87,8 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, onTog
               ? [...current.slice(0, -1), { role: 'assistant', text: next }]
               : [...current, { role: 'assistant', text: next }]);
             scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
+          } else if (event.type === 'ui_action' && event.action?.type === 'show_workflow_scene') {
+            if (event.action.workflow === activeProspectWorkflow.id && event.action.version === activeProspectWorkflow.version && availableScenes.includes(event.action.scene)) onShowScene(event.action.scene);
           } else if (event.type === 'error') {
             throw new Error(event.error ?? 'Agent request failed.');
           }
@@ -110,7 +113,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, onTog
       {activityOpen ? <div className={styles.activityList} aria-live="polite">{activities.length === 0 ? <span className={styles.idle}>Ask a question to explore your projects.</span> : activities.map((item, index) => <div className={styles.activityItem} key={index}><span className={item.state === 'error' ? styles.errorDot : styles.stepDot} /><div><strong>{activityLabel(item.label)}</strong>{item.detail && !item.detail.includes('Bedrock') && !item.detail.includes(' tool') ? <small>{item.detail}</small> : null}</div></div>)}</div> : null}
     </div>
     <div className={styles.messages} ref={scroller} aria-live="polite">
-      {messages.length === 0 ? <div className={styles.empty}><div className={styles.icon}><span className={styles.emptyMark} aria-hidden="true" /></div><h3>Ask about any project.</h3><p>Search Prospect, compare opportunities, and understand the evidence behind them.</p><div className={styles.prompts}>{['Show me all projects', 'Which projects need attention?', 'Compare opportunities by location'].map((prompt) => <button key={prompt} type="button" onClick={() => void ask(prompt)}>{prompt}</button>)}</div></div> : messages.map((entry, index) => <div className={`${styles.message} ${entry.role === 'user' ? styles.user : styles.assistant}`} key={index}><span>{entry.role === 'user' ? 'You' : <span className={styles.messageMark} role="img" aria-label="MP" />}</span><div className={styles.messageBody}>{entry.role === 'assistant' ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>, pre: ({ children }) => <pre className={styles.codeBlock}>{children}</pre> }}>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}</div></div>)}
+      {messages.length === 0 ? <div className={styles.empty}><div className={styles.icon}><span className={styles.emptyMark} aria-hidden="true" /></div><h3>Ask about any project.</h3><p>Search Prospect, compare opportunities, and understand the evidence behind them.</p><div className={styles.prompts}>{availableScenes.includes('intro') ? <button type="button" onClick={() => onShowScene('intro')}>Guide me through Prospect</button> : null}{availableScenes.includes('sources') ? <button type="button" onClick={() => onShowScene('sources')}>Show me project sources</button> : null}{['Show me all projects', 'Which projects need attention?', 'Compare opportunities by location'].map((prompt) => <button key={prompt} type="button" onClick={() => void ask(prompt)}>{prompt}</button>)}</div></div> : messages.map((entry, index) => <div className={`${styles.message} ${entry.role === 'user' ? styles.user : styles.assistant}`} key={index}><span>{entry.role === 'user' ? 'You' : <span className={styles.messageMark} role="img" aria-label="MP" />}</span><div className={styles.messageBody}>{entry.role === 'assistant' ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>, pre: ({ children }) => <pre className={styles.codeBlock}>{children}</pre> }}>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}</div></div>)}
     </div>
     <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void ask(draft); }}><textarea ref={composerField} aria-label="Ask the Prospect assistant about projects" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(draft); } }} placeholder="Ask about a project…" rows={1} maxLength={2000} /><button type="submit" disabled={busy || !draft.trim()} aria-label="Send message" title={busy ? 'Wait for the current answer' : 'Send message'}><ArrowUpIcon aria-hidden="true" /></button></form>
     {localLab ? <p className={styles.scope}>Local research sample · Read-only</p> : <p className={styles.scope}>Your Prospect workspace · Read-only</p>}

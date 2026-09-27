@@ -1,6 +1,6 @@
 .discovery {
-  height: calc(100vh - 64px);
-  height: calc(100dvh - 64px);
+  height: calc(100vh - var(--prospect-top-offset, 64px));
+  height: calc(100dvh - var(--prospect-top-offset, 64px));
   min-width: 0;
   min-height: 0;
   display: grid;
@@ -402,6 +402,8 @@
 }
 .listPanel,
 .globePanel {
+  transition: transform 800ms cubic-bezier(.18,.8,.2,1), box-shadow 800ms ease;
+  transform-origin: center center;
   min-width: 0;
   min-height: 0;
   grid-area: 1 / 1;
@@ -1077,7 +1079,7 @@
 @media (max-width: 767px) {
   .discovery {
     height: auto;
-    min-height: calc(100dvh - 64px);
+    min-height: calc(100dvh - var(--prospect-top-offset, 64px));
     display: block;
     padding: var(--siq-space-2);
     overflow: visible;
@@ -1574,3 +1576,5 @@
   .viewToggle button{font-size:9px}
 }
 @media(prefers-reduced-motion:reduce){.mobileToolsToggle svg:last-child{transition:none}}
+.globePanel[data-tour-focus='true']{transform:scale(1.025);box-shadow:0 0 48px rgba(128,224,176,.22)}
+@media(prefers-reduced-motion:reduce){.globePanel[data-tour-focus='true']{transform:none}}

@@ -1,0 +1,60 @@
+export const PROSPECT_WALKTHROUGH_VERSION = 1;
+export const PROSPECT_WALKTHROUGH_ID = 'project-discovery';
+
+export type ProspectTourScene = 'intro' | 'globe' | 'filters' | 'favorites' | 'overview' | 'practice' | 'sources' | 'agent';
+
+export type ProspectTourStep = {
+  id: ProspectTourScene;
+  anchor: string | null;
+  eyebrow: string;
+  title: string;
+  description: string;
+  requiresProject?: boolean;
+  requiresFavoriteAccess?: boolean;
+};
+
+// Stable IDs are shared by the screen guide and future approved agent actions.
+export const prospectTourSteps: readonly ProspectTourStep[] = [
+  { id: 'intro', anchor: null, eyebrow: 'WELCOME TO PROSPECT', title: 'Find the right work.',
+    description: 'Take a quick guided look at the signals, sources, and tools in your workspace.' },
+  { id: 'globe', anchor: 'globe', eyebrow: '01 / DISCOVER', title: 'Explore projects by place.',
+    description: 'Drag the globe and select a marker to see work in that area. Locations may be approximate when a source names only a region or country.' },
+  { id: 'filters', anchor: 'filters', eyebrow: '02 / REFINE', title: 'Narrow the field.',
+    description: 'Search by project, client, or place. Use markets and filters to focus on work that fits your practice.' },
+  { id: 'favorites', anchor: 'favorites', eyebrow: '03 / RETURN', title: 'Keep promising work close.',
+    description: 'Save a project with its heart. Your favorites are one tap away here when you come back.', requiresFavoriteAccess: true },
+  { id: 'overview', anchor: 'overview', eyebrow: '04 / UNDERSTAND', title: 'Get the project at a glance.',
+    description: 'Overview explains the opportunity, its location and timing, and why Prospect surfaced it. Scores are signals to investigate, not a guarantee.', requiresProject: true },
+  { id: 'practice', anchor: 'practice', eyebrow: '05 / CONNECT', title: 'See the practice fit.',
+    description: 'Practice fit connects a project to relevant firm work when verified precedents are available.', requiresProject: true },
+  { id: 'sources', anchor: 'sources', eyebrow: '06 / VERIFY', title: 'Trace every signal.',
+    description: 'Sources shows where the information came from and when it was checked, so you can inspect the evidence yourself.', requiresProject: true },
+  { id: 'agent', anchor: 'agent', eyebrow: '07 / ASK', title: 'Ask about the work.',
+    description: 'Ask the Mirror Progress agent for a quick answer or a detailed comparison across your Prospect projects.' },
+] as const;
+
+export type ProspectWorkflow = {
+  id: string;
+  version: number;
+  status: 'active' | 'retired';
+  steps: readonly ProspectTourStep[];
+};
+
+export const activeProspectWorkflow: ProspectWorkflow = {
+  id: PROSPECT_WALKTHROUGH_ID,
+  version: PROSPECT_WALKTHROUGH_VERSION,
+  status: 'active',
+  steps: prospectTourSteps,
+};
+
+export function availableProspectTourSteps(input: { hasProjects: boolean; canFavorite: boolean }) {
+  if (activeProspectWorkflow.status !== 'active') return [];
+  return activeProspectWorkflow.steps.filter((step) =>
+    (!step.requiresProject || input.hasProjects) && (!step.requiresFavoriteAccess || input.canFavorite));
+}
+
+export function resolveActiveProspectScene(requested: unknown, availableScenes: readonly ProspectTourScene[]): ProspectTourScene | null {
+  if (activeProspectWorkflow.status !== 'active' || typeof requested !== 'string') return null;
+  if (!activeProspectWorkflow.steps.some((step) => step.id === requested)) return null;
+  return availableScenes.includes(requested as ProspectTourScene) ? requested as ProspectTourScene : null;
+}

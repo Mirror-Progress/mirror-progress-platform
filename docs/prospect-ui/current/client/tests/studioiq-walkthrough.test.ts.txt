@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { activeProspectWorkflow, availableProspectTourSteps, resolveActiveProspectScene } from '../lib/studioiq-walkthrough';
+
+test('active Prospect walkthrough has stable, unique scenes and anchors', () => {
+  assert.equal(activeProspectWorkflow.status, 'active');
+  assert.ok(activeProspectWorkflow.version > 0);
+  assert.equal(new Set(activeProspectWorkflow.steps.map((step) => step.id)).size, activeProspectWorkflow.steps.length);
+  assert.ok(activeProspectWorkflow.steps.every((step) => step.id === 'intro' || step.anchor));
+});
+
+test('assistant screen actions accept only active, available scenes', () => {
+  assert.equal(resolveActiveProspectScene('sources', ['globe', 'sources']), 'sources');
+  assert.equal(resolveActiveProspectScene('favorites', ['globe', 'sources']), null);
+  assert.equal(resolveActiveProspectScene('billing', ['globe', 'sources']), null);
+  assert.equal(resolveActiveProspectScene({ scene: 'sources' }, ['sources']), null);
+});
+
+test('project detail scenes are omitted when no projects are available', () => {
+  const empty = availableProspectTourSteps({ hasProjects: false, canFavorite: false }).map((step) => step.id);
+  const populated = availableProspectTourSteps({ hasProjects: true, canFavorite: true }).map((step) => step.id);
+  assert.deepEqual(empty, ['intro', 'globe', 'filters', 'agent']);
+  assert.ok(populated.includes('favorites'));
+  assert.ok(populated.includes('overview'));
+  assert.ok(populated.includes('practice'));
+  assert.ok(populated.includes('sources'));
+});

@@ -1,0 +1,119 @@
+import { useEffect, useRef, useState } from 'react';
+import type { ProspectTourStep } from '../../lib/studioiq-walkthrough';
+import styles from './ProspectWalkthrough.module.css';
+
+type Box = { top: number; left: number; width: number; height: number };
+
+export function ProspectWalkthrough(props: {
+  step: ProspectTourStep;
+  index: number;
+  total: number;
+  onNext: () => void;
+  onBack: () => void;
+  onSkip: () => void;
+  onUnavailable: () => void;
+}) {
+  const [box, setBox] = useState<Box | null>(null);
+  const [ready, setReady] = useState(false);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const unavailableRef = useRef(props.onUnavailable);
+  unavailableRef.current = props.onUnavailable;
+
+  useEffect(() => {
+    setReady(false);
+    let frame = 0;
+    let retries = 0;
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled) return;
+      if (!props.step.anchor) {
+        setBox(null);
+        setReady(true);
+        return;
+      }
+      const candidates = document.querySelectorAll<HTMLElement>(`[data-tour-anchor="${props.step.anchor}"]`);
+      const targets = Array.from(candidates).filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const computed = window.getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && computed.visibility !== 'hidden' && computed.display !== 'none';
+      });
+      if (!targets.length) {
+        if (retries++ < 15) { frame = window.requestAnimationFrame(measure); return; }
+        unavailableRef.current();
+        return;
+      }
+      const rectangles = targets.map((target) => target.getBoundingClientRect());
+      const rect = props.step.id === 'filters' && rectangles.length > 1 ? {
+        top: Math.min(...rectangles.map((item) => item.top)),
+        left: Math.min(...rectangles.map((item) => item.left)),
+        right: Math.max(...rectangles.map((item) => item.right)),
+        bottom: Math.max(...rectangles.map((item) => item.bottom)),
+      } : rectangles[0];
+      const pad = props.step.id === 'globe' ? 6 : 9;
+      setBox({
+        top: Math.max(6, rect.top - pad),
+        left: Math.max(6, rect.left - pad),
+        width: Math.min(window.innerWidth - Math.max(6, rect.left - pad) - 6, rect.right - rect.left + pad * 2),
+        height: Math.min(window.innerHeight - Math.max(6, rect.top - pad) - 6, rect.bottom - rect.top + pad * 2),
+      });
+      setReady(true);
+    };
+    frame = window.requestAnimationFrame(() => { frame = window.requestAnimationFrame(measure); });
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => { cancelled = true; window.cancelAnimationFrame(frame); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
+  }, [props.step.anchor, props.step.id]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!previousFocus.current) previousFocus.current = document.activeElement as HTMLElement;
+    nextRef.current?.focus();
+  }, [ready, props.step.id]);
+
+  useEffect(() => () => previousFocus.current?.focus(), []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); props.onSkip(); }
+      if (event.key === 'Tab') {
+        const buttons = Array.from(cardRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+        if (!buttons.length) return;
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [props.onSkip]);
+
+  const intro = !props.step.anchor;
+  const spotlight = ready && box && !intro ? box : null;
+  const cardStyle = spotlight ? (() => {
+    const rightSpace = window.innerWidth - spotlight.left - spotlight.width;
+    const leftSpace = spotlight.left;
+    if (rightSpace >= 410) return { top: Math.min(window.innerHeight - 280, Math.max(18, spotlight.top + 18)), left: spotlight.left + spotlight.width + 18 };
+    if (leftSpace >= 410) return { top: Math.min(window.innerHeight - 280, Math.max(18, spotlight.top + 18)), left: spotlight.left - 398 };
+    const below = window.innerHeight - spotlight.top - spotlight.height;
+    return { top: below >= 290 ? spotlight.top + spotlight.height + 16 : Math.max(16, spotlight.top - 282), left: Math.min(window.innerWidth - 400, Math.max(16, spotlight.left)) };
+  })() : undefined;
+  return <div className={styles.tour} role="dialog" aria-modal="true" aria-label="Prospect walkthrough">
+    {spotlight ? <>
+      <div className={styles.mask} style={{ top: 0, left: 0, right: 0, height: spotlight.top }} />
+      <div className={styles.mask} style={{ top: spotlight.top, left: 0, width: spotlight.left, height: spotlight.height }} />
+      <div className={styles.mask} style={{ top: spotlight.top, left: spotlight.left + spotlight.width, right: 0, height: spotlight.height }} />
+      <div className={styles.mask} style={{ top: spotlight.top + spotlight.height, left: 0, right: 0, bottom: 0 }} />
+      <div className={styles.focusRing} style={spotlight} aria-hidden="true" />
+    </> : <div className={styles.fullMask} />}
+    {ready ? <div ref={cardRef} className={`${styles.card} ${intro ? styles.intro : ''} ${props.step.id === 'agent' ? styles.agentCard : ''}`} style={cardStyle}>
+      <div className={styles.topline}><span className={styles.brand}>PROSPECT <i /> FIELD GUIDE</span><button type="button" onClick={props.onSkip} className={styles.skip}>Skip tour</button></div>
+      <div className={styles.scene}>{props.step.eyebrow.replace(/^\d{2}(?= \/)/, String(props.index).padStart(2, '0'))}</div>
+      <h2>{props.step.title}</h2>
+      <p>{props.step.description}</p>
+      <div className={styles.controls}><div className={styles.progress} aria-label={`Step ${props.index + 1} of ${props.total}`}>{Array.from({ length: props.total }, (_, index) => <span key={index} data-current={index === props.index} />)}</div><div className={styles.buttons}>{props.index > 0 ? <button type="button" onClick={props.onBack} className={styles.back}>Back</button> : null}<button ref={nextRef} type="button" onClick={props.onNext} className={styles.next}>{props.index === props.total - 1 ? 'Finish' : intro ? 'Begin tour' : 'Continue'}<span aria-hidden="true">↗</span></button></div></div>
+    </div> : null}
+  </div>;
+}

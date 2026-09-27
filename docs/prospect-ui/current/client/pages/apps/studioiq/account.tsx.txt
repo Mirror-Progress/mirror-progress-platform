@@ -1,0 +1,77 @@
+import type { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import Link from 'next/link';
+import { StudioIqSettingsShell } from '../../../components/studioiq/StudioIqSettingsShell';
+import styles from '../../../components/studioiq/StudioIqSettings.module.css';
+import { getSessionAccountFromContext } from '../../../lib/auth-guards';
+import { getDb } from '../../../lib/mongodb';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { ensureStudioIqWorkspaceMembership } from '../../../lib/studioiq-collaboration';
+import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
+
+type PageProps = {
+  accountName: string;
+  email: string;
+  organizationName: string;
+  role: string;
+  canManageBilling: boolean;
+};
+
+export default function StudioIqAccountPage(props: PageProps) {
+  return <StudioIqSettingsShell accountName={props.accountName} active="account" canManageBilling={props.canManageBilling}>
+    <Head><title>Account | Prospect</title><meta name="robots" content="noindex, nofollow" /></Head>
+    <section className={styles.intro}>
+      <div><span>Prospect account</span><h1>Your workspace identity</h1><p>Mirror Progress manages your identity, organization membership, and product access across Prospect.</p></div>
+      <strong className={styles.role}>{props.role}</strong>
+    </section>
+    <section className={styles.grid}>
+      <article className={styles.panel}>
+        <span className={styles.sectionLabel}>Profile</span><h2>Account information</h2>
+        <dl className={styles.details}>
+          <div><dt>Name</dt><dd>{props.accountName}</dd></div>
+          <div><dt>Email</dt><dd>{props.email}</dd></div>
+          <div><dt>Organization</dt><dd>{props.organizationName}</dd></div>
+          <div><dt>Workspace role</dt><dd>{props.role}</dd></div>
+        </dl>
+      </article>
+      <article className={styles.panel}>
+        <span className={styles.sectionLabel}>Getting started</span><h2>Prospect walkthrough</h2>
+        <p className={styles.notice}>Revisit the globe, filters, project evidence, and assistant at any time.</p>
+        <Link href="/apps/studioiq?tour=1">Replay walkthrough →</Link>
+      </article>
+      <article className={styles.panel}>
+        <span className={styles.sectionLabel}>Security</span><h2>Mirror Progress identity</h2>
+        <dl className={styles.details}>
+          <div><dt>Authentication</dt><dd>Cognito</dd></div>
+          <div><dt>Product access</dt><dd>Prospect</dd></div>
+        </dl>
+        <p className={styles.notice}>Password recovery and multi-factor authentication remain managed by the secure Mirror Progress sign-in flow.</p>
+      </article>
+    </section>
+  </StudioIqSettingsShell>;
+}
+
+function enabled() {
+  const value = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
+  if (value) return ['1', 'true', 'yes', 'on'].includes(value);
+  return process.env.NODE_ENV !== 'production';
+}
+
+export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
+  if (!enabled()) return { notFound: true };
+  const account = await getSessionAccountFromContext(context);
+  if (!account) return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent('/apps/studioiq/account')}` : `/?auth=login&next=${encodeURIComponent('/apps/studioiq/account')}`, permanent: false } };
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return { notFound: true };
+  const [client, member] = await Promise.all([
+    getDb().then((db) => db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients').findOne({ id: access.mirrorClientId })),
+    ensureStudioIqWorkspaceMembership(access),
+  ]);
+  return { props: {
+    accountName: account.name || account.email,
+    email: account.email,
+    organizationName: client?.companyName || client?.name || client?.company || account.company || 'Studio workspace',
+    role: member.role,
+    canManageBilling: ['owner', 'admin'].includes(member.role),
+  } };
+};

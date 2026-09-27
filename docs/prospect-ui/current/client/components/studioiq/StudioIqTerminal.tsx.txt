@@ -7,6 +7,7 @@ import {
   GlobeAltIcon,
   MagnifyingGlassIcon,
   MoonIcon,
+  QuestionMarkCircleIcon,
   SunIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
@@ -19,6 +20,8 @@ import {
 import styles from './StudioIqTerminal.module.css';
 import { ProspectAgentPanel } from './ProspectAgentPanel';
 import type { MarketSnapshot } from '../../lib/prospect-agent/market-snapshot';
+import { activeProspectWorkflow, availableProspectTourSteps, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
+import { ProspectWalkthrough } from './ProspectWalkthrough';
 
 type DiscoveryResponse = {
   generated_at_utc: string;
@@ -45,6 +48,7 @@ export function StudioIqTerminal(props: {
   organizationName: string;
   canManageBilling: boolean;
   localPreview?: boolean;
+  trialLocked?: boolean;
   initialDiscovery?: Pick<DiscoveryResponse, 'opportunities' | 'summary' | 'can_favorite'>;
 }) {
   const { theme, toggleTheme } = useTheme();
@@ -67,6 +71,46 @@ export function StudioIqTerminal(props: {
   const marketSearchRef = useRef<HTMLInputElement>(null);
   const marketListRef = useRef<HTMLDivElement>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [tourIndex, setTourIndex] = useState<number | null>(null);
+  const tourChecked = useRef(false);
+  const tourSteps = availableProspectTourSteps({ hasProjects: items.length > 0, canFavorite });
+  const tourScene = tourIndex === null ? null : tourSteps[tourIndex]?.id ?? null;
+  useEffect(() => {
+    if (loading || props.trialLocked || tourChecked.current || activeProspectWorkflow.status !== 'active') return;
+    tourChecked.current = true;
+    const forced = new URLSearchParams(window.location.search).get('tour') === '1';
+    const key = `prospect-tour-${activeProspectWorkflow.id}-v${activeProspectWorkflow.version}`;
+    if (props.localPreview) {
+      if (forced || !window.localStorage.getItem(key)) setTourIndex(0);
+      return;
+    }
+    let cancelled = false;
+    void fetch('/api/products/studioiq/walkthrough', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((progress) => { if (!cancelled && progress?.active && (forced || progress.status === 'new')) setTourIndex(0); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [loading, props.localPreview, props.trialLocked]);
+  useEffect(() => {
+    if (tourScene === 'agent') { setAgentOpen(true); setAgentExpanded(false); }
+  }, [tourScene]);
+  const finishTour = useCallback((status: 'completed' | 'skipped') => {
+    setTourIndex(null);
+    if (props.localPreview) window.localStorage.setItem(`prospect-tour-${activeProspectWorkflow.id}-v${activeProspectWorkflow.version}`, status);
+    else void fetch('/api/products/studioiq/walkthrough', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+  }, [props.localPreview]);
+  const nextTourStep = useCallback(() => {
+    if (tourIndex === null) return;
+    if (tourIndex >= tourSteps.length - 1) finishTour('completed');
+    else setTourIndex(tourIndex + 1);
+  }, [finishTour, tourIndex, tourSteps.length]);
+  const showTourScene = useCallback((scene: ProspectTourScene) => {
+    if (activeProspectWorkflow.status !== 'active') return;
+    const index = tourSteps.findIndex((step) => step.id === scene);
+    if (index < 0) return;
+    setAgentExpanded(false);
+    setTourIndex(index);
+  }, [tourSteps]);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountInitial =
     props.accountName.trim().charAt(0).toUpperCase() || 'A';
@@ -251,6 +295,10 @@ export function StudioIqTerminal(props: {
                   <UserCircleIcon />
                   Account information
                 </Link>
+                <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); showTourScene('intro'); }}>
+                  <QuestionMarkCircleIcon />
+                  Replay walkthrough
+                </button>
                 {props.canManageBilling ? (
                   <Link href="/apps/studioiq/billing" role="menuitem">
                     <CreditCardIcon />
@@ -343,10 +391,12 @@ export function StudioIqTerminal(props: {
           theme={theme}
           localPreview={props.localPreview}
           onReload={loadDiscovery}
+          tourScene={tourScene}
         /></div>
         {agentOpen && agentExpanded ? <div className={styles.workspaceResize} role="separator" aria-label="Resize Prospect and chat" aria-orientation="vertical" aria-valuenow={Math.round(chatShare * 100)} aria-valuemin={20} aria-valuemax={65} tabIndex={0} onPointerDown={resizeChat} onKeyDown={onChatResizeKey} onDoubleClick={() => setChatShareSaved(0.34)} /> : null}
-        {agentOpen ? <aside className={`${styles.agentDock} ${agentExpanded ? styles.agentDockExpanded : ''}`} aria-label="Prospect assistant chat"><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={agentExpanded} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={() => setAgentOpen(false)} /></aside> : null}
+        {agentOpen ? <aside className={`${styles.agentDock} ${agentExpanded ? styles.agentDockExpanded : ''} ${tourScene && tourScene !== 'agent' ? styles.agentDockTourHidden : ''}`} data-tour-anchor="agent" aria-label="Prospect assistant chat"><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={agentExpanded} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={() => setAgentOpen(false)} availableScenes={tourSteps.map((step) => step.id)} onShowScene={showTourScene} /></aside> : null}
       </div>
+      {tourIndex !== null && tourSteps[tourIndex] ? <ProspectWalkthrough key={tourSteps[tourIndex].id} step={tourSteps[tourIndex]} index={tourIndex} total={tourSteps.length} onNext={nextTourStep} onBack={() => setTourIndex((current) => current === null ? null : Math.max(0, current - 1))} onSkip={() => finishTour('skipped')} onUnavailable={nextTourStep} /> : null}
     </div>
   );
 }
