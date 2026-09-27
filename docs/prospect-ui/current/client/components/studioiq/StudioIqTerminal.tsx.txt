@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   CheckIcon,
+  ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   CreditCardIcon,
   GlobeAltIcon,
@@ -10,6 +11,7 @@ import {
   QuestionMarkCircleIcon,
   SunIcon,
   UserCircleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -19,7 +21,7 @@ import {
 } from './StudioIqDiscovery';
 import styles from './StudioIqTerminal.module.css';
 import { ProspectAgentPanel } from './ProspectAgentPanel';
-import type { MarketSnapshot } from '../../lib/prospect-agent/market-snapshot';
+import type { MarketSnapshot, MarketSnapshotItem } from '../../lib/prospect-agent/market-snapshot';
 import { activeProspectWorkflow, availableProspectTourSteps, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
 import { ProspectWalkthrough } from './ProspectWalkthrough';
 
@@ -67,6 +69,9 @@ export function StudioIqTerminal(props: {
   const [error, setError] = useState<string | null>(null);
   const [marketCountry, setMarketCountry] = useState('WLD');
   const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshot | null>(null);
+  const [marketDetail, setMarketDetail] = useState<MarketSnapshotItem | null>(null);
+  const marketDetailCloseRef = useRef<HTMLButtonElement>(null);
+  const marketDetailOriginRef = useRef<HTMLButtonElement | null>(null);
   const [marketError, setMarketError] = useState(false);
   const [marketPickerOpen, setMarketPickerOpen] = useState(false);
   const [marketQuery, setMarketQuery] = useState('');
@@ -153,6 +158,21 @@ export function StudioIqTerminal(props: {
     `${country.name} ${country.code}`.toLowerCase().includes(marketQuery.trim().toLowerCase()));
   const featuredMarkets = filteredMarkets.filter((country) => featuredMarketCodes.includes(country.code));
   const otherMarkets = filteredMarkets.filter((country) => !featuredMarketCodes.includes(country.code));
+
+  useEffect(() => {
+    if (!marketDetail) return;
+    marketDetailCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') closeMarketDetail();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [marketDetail]);
+
+  function closeMarketDetail() {
+    setMarketDetail(null);
+    requestAnimationFrame(() => marketDetailOriginRef.current?.focus());
+  }
 
   useEffect(() => {
     if (!marketPickerOpen) return;
@@ -368,12 +388,12 @@ export function StudioIqTerminal(props: {
               {[0, 1].map((copy) => (
                 <div className={styles.marketTickerGroup} key={copy} aria-hidden={copy === 1}>
                   {(visibleMarket?.items.length ? visibleMarket.items : []).map((item) => (
-                    <a className={styles.marketTickerItem} key={item.id} href={item.sourceUrl} target="_blank" rel="noopener noreferrer" tabIndex={copy === 1 ? -1 : undefined} title={`${item.label}: ${item.value}. ${item.geography}, ${item.period}. ${item.sourceLabel}. Retrieved ${item.fetchedAt.slice(0, 10)}. ${item.interpretation}`}>
+                    <button className={styles.marketTickerItem} type="button" key={item.id} onClick={(event) => { marketDetailOriginRef.current = event.currentTarget; setMarketDetail(item); }} tabIndex={copy === 1 ? -1 : undefined} aria-label={`Details for ${item.label}, ${item.geography}, ${item.period}`} title={`${item.label}: ${item.value}. ${item.geography}, ${item.period}. Open explanation and source.`}>
                       <span className={styles.marketTickerName}>{item.label}</span>
                       <strong className={styles.marketTickerValue}>{item.value}</strong>
                       <span className={styles.marketTickerRegion}>{item.geography} ·</span>
                       <span className={styles.marketTickerPeriod}>{item.period}</span>
-                    </a>
+                    </button>
                   ))}
                   {!visibleMarket?.items.length && copy === 0 ? <span className={styles.marketTickerItem}>{marketError || visibleMarket?.mode === 'unavailable' ? 'Market sources unavailable' : 'Loading market sources…'}</span> : null}
                   {copy === 0 && visibleMarket && marketCountry !== 'WLD' && !visibleMarket.items.some((item) => item.id.includes(marketCountry)) ? <span className={styles.marketTickerItem}>No current country series for {visibleMarket.geography.name}</span> : null}
@@ -381,6 +401,16 @@ export function StudioIqTerminal(props: {
               ))}
             </div>
           </div>
+          {marketDetail ? <div className={styles.marketDetailBackdrop} onMouseDown={(event) => { if (event.target === event.currentTarget) closeMarketDetail(); }}>
+            <section className={styles.marketDetail} role="dialog" aria-modal="true" aria-labelledby="market-detail-heading" aria-describedby="market-detail-explanation">
+              <div className={styles.marketDetailTop}><span>MARKET PULSE / SOURCE CONTEXT</span><button ref={marketDetailCloseRef} type="button" onClick={closeMarketDetail} aria-label="Close market detail"><XMarkIcon /></button></div>
+              <div className={styles.marketDetailHero}><div><p>{marketDetail.geography} · {marketDetail.frequency === 'annual' ? 'Annual series' : 'Monthly series'}</p><h2 id="market-detail-heading">{marketDetail.label}</h2></div><strong>{marketDetail.value}</strong></div>
+              <dl><div><dt>Observation</dt><dd>{marketDetail.period}</dd></div><div><dt>Published by</dt><dd>{marketDetail.sourceLabel}</dd></div><div><dt>Retrieved</dt><dd>{marketDetail.fetchedAt.slice(0, 10)}</dd></div></dl>
+              <p id="market-detail-explanation" className={styles.marketDetailExplanation}>{marketDetail.interpretation}</p>
+              <p className={styles.marketDetailScope}>This is market context for {marketDetail.geography}, not a measurement of any individual Prospect project.</p>
+              <a href={marketDetail.sourceUrl} target="_blank" rel="noopener noreferrer">Open original dataset <ArrowTopRightOnSquareIcon /></a>
+            </section>
+          </div> : null}
           <div className={styles.marketTickerStatus}>
             {visibleMarket?.stale || marketError ? <span className={styles.marketTickerStale}>SOURCE DELAY</span> : null}
             <div className={styles.marketPicker} ref={marketPickerRef}>
