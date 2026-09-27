@@ -1,0 +1,29 @@
+import type { GetServerSideProps } from 'next';
+import { createHash } from 'node:crypto';
+import { getSessionAccountFromContext } from '../../../lib/auth-guards';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
+import { ProspectSourceWorkspace, type Workspace } from '../../../components/studioiq/ProspectSourceWorkspace';
+import { loadProspectSourceWorkspace, validProspectProjectId } from '../../../lib/prospect-source-workspace';
+
+export default function SourcesPage({ workspaceKey, initialData }: { workspaceKey: string; initialData: Workspace | null }) { return <ProspectSourceWorkspace workspaceKey={workspaceKey} initialData={initialData} />; }
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const destination = context.resolvedUrl || '/apps/studioiq/sources';
+  context.res.setHeader('Cache-Control', 'private, no-store');
+  context.res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  const flag = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
+  if (flag ? !['1', 'true', 'yes', 'on'].includes(flag) : process.env.NODE_ENV === 'production') return { notFound: true };
+  const account = await getSessionAccountFromContext(context);
+  if (!account) return { redirect: { destination: cognitoIsRequired()
+    ? `/api/auth/cognito/start?next=${encodeURIComponent(destination)}`
+    : `/?auth=login&next=${encodeURIComponent(destination)}`, permanent: false } };
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return { notFound: true };
+  const workspaceKey = createHash('sha256').update(`${account.id}\0${access.mirrorClientId}`).digest('hex');
+  const id = context.query.opportunity;
+  const initialData = validProspectProjectId(id)
+    ? await loadProspectSourceWorkspace(access, id).catch(() => null)
+    : null;
+  return { props: { workspaceKey, initialData: initialData ? JSON.parse(JSON.stringify(initialData)) : null } };
+};

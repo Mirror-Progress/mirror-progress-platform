@@ -1,0 +1,205 @@
+import Head from 'next/head';
+import cityAnchors from '../../data/studioiq-city-anchors.json';
+import type { GetServerSideProps } from 'next';
+import { useState } from 'react';
+import { useTheme } from '../../hooks/useTheme';
+import {
+  StudioIqDiscovery,
+  type DiscoveryOpportunity,
+} from '../../components/studioiq/StudioIqDiscovery';
+import shell from '../../components/studioiq/StudioIqTerminal.module.css';
+import previewStyles from './studioiq-globe.module.css';
+
+// Fictional fixtures deliberately include city-centroid overlap, an unmapped portfolio
+// entry, both hemispheres and dateline neighbors. They never enter production APIs.
+const sites: [string, string, number, number, string][] = [
+  ['Malmö', 'Sweden', 55.605, 13.0038, 'Malmö Art Museum international architecture competition'],
+  ['London', 'United Kingdom', 51.5072, -0.1276, 'Civic library'],
+  ['London', 'United Kingdom', 51.5072, -0.1276, 'Waterfront arts centre'],
+  ['London', 'United Kingdom', 51.5072, -0.1276, 'Community pavilion'],
+  ['Paris', 'France', 48.8566, 2.3522, 'Museum extension'],
+  ['Amsterdam', 'Netherlands', 52.3676, 4.9041, 'Public reading room'],
+  ['Berlin', 'Germany', 52.52, 13.405, 'Cultural campus'],
+  ['Copenhagen', 'Denmark', 55.6761, 12.5683, 'Harbour library'],
+  ['New York', 'United States', 40.7128, -74.006, 'Neighbourhood library'],
+  ['Los Angeles', 'United States', 34.0522, -118.2437, 'Arts pavilion'],
+  ['Tokyo', 'Japan', 35.6762, 139.6503, 'Cultural exchange'],
+  ['Sydney', 'Australia', -33.8688, 151.2093, 'Civic waterfront'],
+  ['Auckland', 'New Zealand', -36.8509, 174.7645, 'Harbour arts centre'],
+  ['Suva', 'Fiji', -18.14, 178.44, 'Island library'],
+  ['Apia', 'Samoa', -13.83, -171.75, 'Community library'],
+];
+const items: DiscoveryOpportunity[] = sites.map(
+  ([city, country, latitude, longitude, title], i) => ({
+    opportunity_id: `sample-${i}`,
+    mirror_canonical_id: `sample-${i}`,
+    title,
+    description: i === 0 ? 'Local walkthrough sample using an abbreviated public architecture competition notice.' : `Fictional ${city} design opportunity for local interaction testing.`,
+    buyer_name: i === 0 ? 'City of Malmö' : i < 4 ? 'Sample Civic Trust' : 'Sample Cultural Commission',
+    country,
+    city,
+    project_type: i % 3 ? 'Culture' : 'Library',
+    deadline: null,
+    first_published_at: '2026-09-05T12:00:00Z',
+    discovery_class: i % 2 ? 'major' : 'niche',
+    value_score: 92 - i,
+    value_reasons: [
+      'Sample civic and cultural brief',
+      'Illustrative regional opportunity',
+    ],
+    evidence_count: i === 0 ? 2 : 0,
+    authority_level: 'sample',
+    last_verified_at: null,
+    location: {
+      latitude,
+      longitude,
+      coordinate_method: 'city_centroid',
+      coordinate_confidence: 'approximate',
+    },
+    provenance:
+      i === 0
+        ? [
+            { evidence_id: 'preview-notice', source_authority: 'TED procurement notice', source_url: 'https://ted.europa.eu/en/notice/-/detail/593944-2026', language: 'Swedish / English', captured_at: '2026-09-07T23:08:00Z', value: 'Architecture competition notice', evidence_text: 'Architecture competition for the Malmö New Art Museum. Open the source workspace to read the captured sections and source details.' },
+            { evidence_id: 'preview-site', source_authority: 'City of Malmö', source_url: 'https://malmo.se/', language: 'Swedish', captured_at: '2026-09-07T23:08:00Z', value: 'City information', evidence_text: 'A second source included to test switching documents in the local reading view.' },
+          ]
+        : [],
+    collaboration: null,
+    pursuit_brief: {
+      match_score: 88 - i,
+      summary:
+        'Illustrative portfolio relationship. All projects on this preview are fictional.',
+      strategic_rationale: ['Shared civic and cultural experience'],
+      precedent_matches: [
+        {
+          precedentId: 'sample-portfolio-1',
+          matchReasons: [
+            'Shared library and civic typology',
+            'Documented public-space design in this sample portfolio',
+          ],
+          relationshipType: 'delivered_precedent',
+          evidenceIds: ['sample-evidence'],
+        },
+      ],
+      precedents: [
+        {
+          precedent_id: 'sample-portfolio-1',
+          name: 'Sample · Civic Reading House',
+          summary:
+            'Fictional completed library used to demonstrate a supported portfolio connection. This sample combines a public reading room, adaptable community spaces, and a sheltered outdoor gathering area. Its illustrative relevance is the relationship between civic access, shared learning, and flexible public space; it is not a real project credential.',
+          location: 'Copenhagen, Denmark',
+          featured_image_url: null,
+          verification_status: 'firm_approved',
+          source_status: 'Completed',
+          source_url: null,
+        },
+        {
+          precedent_id: 'sample-unmapped',
+          name: 'Sample · Unmapped Pavilion',
+          summary:
+            'An unresolved location remains in the dossier without an invented globe position.',
+          location: null,
+          featured_image_url: null,
+        },
+      ],
+    },
+  })
+);
+items.push(
+  ...['Sample · Unlocated Polish library', 'Sample · Unlocated Polish museum'].map((title, index) => ({
+    ...items[0], opportunity_id: `sample-country-${index}`, mirror_canonical_id: `sample-country-${index}`,
+    title, country: 'Poland', city: index ? 'City B' : 'City A', location: null, pursuit_brief: null, provenance: [],
+  })),
+  { ...items[0], opportunity_id: 'sample-location-pending', mirror_canonical_id: 'sample-location-pending',
+    title: 'Sample · Location not supplied', country: null, city: null, location: null, pursuit_brief: null, provenance: [] }
+);
+
+const denseItems: DiscoveryOpportunity[] = Array.from({ length: 130 }, (_, index) => {
+  const anchor = cityAnchors[index % cityAnchors.length];
+  return { ...items[0], opportunity_id: `density-${index}`, mirror_canonical_id: `density-${index}`,
+    title: `Sample ${index + 1} · ${anchor.city} ${anchor.titleHint ?? 'cultural campus design and public-realm commission'}`,
+    city: anchor.city, country: anchor.country, location: null,
+    description: 'Fictional density fixture using geographic reference places observed in the production view.',
+    pursuit_brief: null, provenance: [], evidence_count: 0,
+  };
+});
+function LocalStudioIqGlobe() {
+  const { theme, toggleTheme } = useTheme();
+  const [empty, setEmpty] = useState(false);
+  const [dense, setDense] = useState(false);
+  const shownItems = empty ? [] : dense ? denseItems : items;
+  return (
+    <div className={shell.shell}>
+      <Head>
+        <title>Prospect · Local globe preview</title>
+        <meta name="robots" content="noindex,nofollow" />
+      </Head>
+      <header
+        className={`${shell.header} ${previewStyles.header}`}
+        style={{
+          minHeight: 64,
+          height: 'auto',
+          flexWrap: 'wrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          padding: '8px 20px',
+          color: 'var(--siq-field-text)',
+          background: 'var(--siq-field-glass)',
+        }}
+      >
+        <div className={shell.brand} style={{ flexShrink: 0 }}><div><strong>Prospect</strong><small>by Mirror Progress</small></div></div>
+        <span className={previewStyles.previewLabel} style={{ fontSize: 11, flex: 1, minWidth: 0, lineHeight: 1.3 }}>
+          Local preview · sample projects and an abbreviated Malmö notice
+        </span>
+        <button className={previewStyles.sampleControl} type="button" onClick={() => setEmpty(!empty)}>
+          {empty ? 'Restore projects' : 'Test empty view'}
+        </button>
+        <button className={previewStyles.sampleControl} type="button" onClick={() => { setDense(!dense); setEmpty(false); }}>
+          {dense ? 'Standard sample' : 'Test 130 projects'}
+        </button>
+        <button
+          className={previewStyles.themeControl}
+          type="button"
+          onClick={() => {
+            toggleTheme();
+          }}
+        >
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
+      </header>
+      <StudioIqDiscovery
+        localPreview
+        items={shownItems}
+        summary={{
+          total: shownItems.length,
+          favorites: 0,
+          team_favorites: 0,
+          niche: empty ? 0 : 7,
+          mapped: shownItems.length,
+          markets: new Set(shownItems.map(p => p.country).filter(Boolean)).size,
+          freshness_window_days: 30,
+        }}
+        canFavorite={false}
+        loading={false}
+        theme={theme}
+        onReload={async () => undefined}
+      />
+    </div>
+  );
+}
+LocalStudioIqGlobe.standalone = true;
+export const getServerSideProps: GetServerSideProps = async ({ req }) => {
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(
+    req.headers.host ?? ''
+  );
+  if (
+    !local ||
+    process.env.NODE_ENV === 'production' ||
+    ['campaign', 'platform'].includes(
+      process.env.SITE_SURFACE ?? process.env.NEXT_PUBLIC_SITE_SURFACE ?? ''
+    )
+  )
+    return { notFound: true };
+  return { props: {} };
+};
+export default LocalStudioIqGlobe;

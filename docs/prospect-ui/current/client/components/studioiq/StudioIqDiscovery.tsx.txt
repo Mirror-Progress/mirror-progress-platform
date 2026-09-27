@@ -22,6 +22,7 @@ import {
 import { globeProjectLocation } from '../../lib/studioiq-globe-location';
 import { resolvePortfolioGlobeLocation } from '../../lib/studioiq-location';
 import styles from './StudioIqDiscovery.module.css';
+import { ProspectMotionLink } from './ProspectMotionLink';
 
 const PursuitGlobe = dynamic(
   () => import('./PursuitGlobe').then((module) => module.PursuitGlobe),
@@ -1179,12 +1180,14 @@ export function StudioIqDiscovery(props: {
                         <div>
                           <strong>{evidence.source_authority}</strong>
                           {/^https?:\/\//.test(evidence.source_url) && (
-                            <a
-                              href={`/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(evidence.evidence_id)}`}
+                            <ProspectMotionLink
+                              href={props.localPreview && selected.opportunity_id === 'sample-0'
+                                ? `/local/prospect-source?evidence=${encodeURIComponent(evidence.evidence_id)}`
+                                : `/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(evidence.evidence_id)}`}
                               aria-label={`Open ${evidence.source_authority} source`}
                             >
                               Read in Prospect <ArrowTopRightOnSquareIcon />
-                            </a>
+                            </ProspectMotionLink>
                           )}
                         </div>
                         <ExpandableText
@@ -1203,12 +1206,14 @@ export function StudioIqDiscovery(props: {
 
               <footer className={styles.dossierFooter}>
                 {selected.provenance[0]?.source_url ? (
-                  <a
-                    href={`/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`}
+                  <ProspectMotionLink
+                    href={props.localPreview && selected.opportunity_id === 'sample-0'
+                      ? `/local/prospect-source?evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`
+                      : `/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`}
                   >
                     Open source workspace
                     <ArrowTopRightOnSquareIcon />
-                  </a>
+                  </ProspectMotionLink>
                 ) : null}
                 {selected.collaboration?.flagged_by.length ? (
                   <span>

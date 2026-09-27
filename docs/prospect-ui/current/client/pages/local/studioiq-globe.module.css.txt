@@ -1,0 +1,6 @@
+.themeControl{flex:none}
+@media(max-width:600px){
+  .header{min-height:54px!important;height:54px!important;flex-wrap:nowrap!important;gap:8px!important;padding:8px 12px!important}
+  .header .previewLabel,.header .sampleControl{display:none}
+  .header .themeControl{margin-left:auto;padding:7px 11px;font-size:11px}
+}

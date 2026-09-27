@@ -1,0 +1,27 @@
+import { listPublishedStudioIqIntelligence } from './research-intelligence';
+import { getStudioIqSourceDocuments } from './studioiq-source-document-store';
+
+export function validProspectProjectId(id: unknown): id is string {
+  return typeof id === 'string' && /^opportunity_[a-zA-Z0-9-]+$/.test(id);
+}
+
+export async function loadProspectSourceWorkspace(
+  access: { mirrorClientId: string; externalOrganizationId: string | null },
+  id: string
+) {
+  const intelligence = await listPublishedStudioIqIntelligence({
+    mirrorClientId: access.mirrorClientId,
+    externalOrganizationId: access.externalOrganizationId,
+  });
+  const entry = intelligence.opportunities.find(({ candidate }) => candidate.id === id);
+  if (!entry) return null;
+  const sources = await getStudioIqSourceDocuments(id);
+  return {
+    project: {
+      id, title: entry.candidate.title, description: entry.candidate.description,
+      buyer: entry.candidate.buyerName, city: entry.candidate.city,
+      country: entry.candidate.country, deadline: entry.candidate.deadline,
+    },
+    sources: sources?.sources ?? [],
+  };
+}

@@ -1,0 +1,153 @@
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeftIcon, ArrowTopRightOnSquareIcon, BookmarkIcon, CheckIcon, ClipboardDocumentIcon, DocumentTextIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import { ProspectAgentPanel } from './ProspectAgentPanel';
+import type { StudioIqSourceDocument } from '../../lib/studioiq-source-document';
+import { sourceReadingLayout } from '../../lib/studioiq-source-reading';
+import styles from './ProspectSourceWorkspace.module.css';
+import { ProspectMotionLink } from './ProspectMotionLink';
+import { useTheme } from '../../hooks/useTheme';
+
+type Project = { id: string; title: string; description: string; buyer: string | null; city: string | null; country: string | null; deadline: string | null };
+type Evidence = { evidenceId: string; sourceUrl: string; document: StudioIqSourceDocument | null };
+export type Workspace = { project: Project; sources: Evidence[] };
+type SavedWork = { bookmarks: string[]; reviewed: string[]; requirements: Array<{ id: string; text: string; citation: string; sourceId?: string; owner: string; status: string; rule: string; limit: string; format: string }>; questions: Array<{ id: string; text: string; citation: string; owner: string; status: string }>; [key: string]: unknown };
+type ReadingMode = 'english' | 'original' | 'side';
+
+const emptyWork: SavedWork = { bookmarks: [], reviewed: [], requirements: [], questions: [], flagged: [], savedContacts: [], savedPrecedents: [], partners: {}, recent: [], positions: {}, activeSource: '' };
+function host(url: string) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'Source'; } }
+function date(value: string | null | undefined) { const timestamp = Date.parse(value || ''); return Number.isFinite(timestamp) ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(timestamp) : 'Date unavailable'; }
+function safeUrl(url: string | null | undefined) { try { const value = new URL(url || ''); return ['https:', 'http:'].includes(value.protocol) ? value.href : null; } catch { return null; } }
+
+function SourceText({ text, document, section }: { text: string; document: StudioIqSourceDocument; section: StudioIqSourceDocument['sections'][number] }) {
+  if (!text) return <p className={styles.muted}>A translated reading layer is unavailable for this section. Switch to Original.</p>;
+  if (text !== section.english || document.format !== 'text') return <p className={styles.sourceText}>{text}</p>;
+  const layout = sourceReadingLayout(section, true);
+  const primary = layout.blocks.filter((block) => !block.detail);
+  const technical = layout.blocks.filter((block) => block.detail);
+  const render = (block: typeof layout.blocks[number], index: number) => block.kind === 'field'
+    ? <div className={styles.field} key={index}><dt>{block.label}</dt><dd>{text.slice(block.valueStart, block.end).trim() || 'Not stated'}</dd></div>
+    : <p className={styles.sourceText} key={index}>{text.slice(block.start, block.end).trim()}</p>;
+  return <><dl className={styles.fields}>{primary.map(render)}</dl>{technical.length ? <details className={styles.technical}><summary>Technical notice fields · {technical.length}</summary><dl className={styles.fields}>{technical.map(render)}</dl></details> : null}</>;
+}
+
+export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData }: { workspaceKey: string; previewData?: Workspace; initialData?: Workspace | null }) {
+  const { theme, toggleTheme } = useTheme();
+  const [data, setData] = useState<Workspace | null>(previewData || initialData || null);
+  const [error, setError] = useState('');
+  const [active, setActive] = useState('');
+  const [mode, setMode] = useState<ReadingMode>('english');
+  const [chatOpen, setChatOpen] = useState(true);
+  const [notebookOpen, setNotebookOpen] = useState(false);
+  const [work, setWork] = useState<SavedWork>(emptyWork);
+  const [loadedWorkKey, setLoadedWorkKey] = useState('');
+  const [status, setStatus] = useState('');
+  const projectId = data?.project.id ?? '';
+  const storageKey = projectId ? `studioiq:sources:v1:${workspaceKey}:${projectId}` : '';
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const id = query.get('opportunity');
+    const evidenceId = query.get('evidence');
+    const language = query.get('language');
+    if (language === 'english' || language === 'original' || language === 'side') setMode(language);
+    if (window.innerWidth <= 800) setChatOpen(false);
+    if (previewData || initialData) {
+      const ready = previewData || initialData!;
+      setData(ready);
+      setActive(ready.sources.some((source) => source.evidenceId === evidenceId) ? evidenceId! : ready.sources[0]?.evidenceId || '');
+      return;
+    }
+    if (!id) { setError('Choose a project in Prospect, then open one of its sources.'); return; }
+    const controller = new AbortController();
+    void fetch(`/api/products/studioiq/source-workspace?opportunity=${encodeURIComponent(id)}`, { cache: 'no-store', signal: controller.signal })
+      .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Unable to load sources.'); return body as Workspace; })
+      .then((body) => { setData(body); setActive(body.sources.some((source) => source.evidenceId === evidenceId) ? evidenceId! : body.sources[0]?.evidenceId || ''); })
+      .catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to load sources.'); });
+    return () => controller.abort();
+  }, [previewData, initialData]);
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || 'null') as SavedWork | null;
+      setWork(saved && Array.isArray(saved.bookmarks) && Array.isArray(saved.reviewed) && Array.isArray(saved.requirements) && Array.isArray(saved.questions) ? { ...emptyWork, ...saved } : emptyWork);
+    } catch { /* Reading remains available when browser storage is disabled. */ }
+    setLoadedWorkKey(storageKey);
+  }, [storageKey]);
+  useEffect(() => { if (storageKey && loadedWorkKey === storageKey) { try { window.localStorage.setItem(storageKey, JSON.stringify(work)); } catch { /* Optional device notes. */ } } }, [storageKey, loadedWorkKey, work]);
+  const evidence = data?.sources.find((source) => source.evidenceId === active);
+  const document = evidence?.document;
+  const original = safeUrl(document?.documentUrl || document?.sourceUrl || evidence?.sourceUrl);
+  const back = previewData ? '/local/studioiq-globe?opportunity=sample-0&tab=sources' : projectId ? `/apps/studioiq?opportunity=${encodeURIComponent(projectId)}&tab=sources` : '/apps/studioiq';
+  const context = !previewData && projectId && active ? { opportunityId: projectId, evidenceId: active } : undefined;
+  const counts = useMemo(() => ({ bookmarks: work.bookmarks.length, reviewed: work.reviewed.length, requirements: work.requirements.length, questions: work.questions.length }), [work]);
+
+  function chooseEvidence(id: string) {
+    setActive(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set('evidence', id);
+    url.searchParams.delete('section');
+    window.history.replaceState(null, '', url);
+  }
+  function setReadingMode(next: ReadingMode) {
+    setMode(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set('language', next);
+    window.history.replaceState(null, '', url);
+  }
+  function toggle(field: 'bookmarks' | 'reviewed', key: string) {
+    setWork((current) => ({ ...current, [field]: current[field].includes(key) ? current[field].filter((item) => item !== key) : [...current[field], key] }));
+  }
+  function addRequirement(text: string, citation: string) {
+    if (work.requirements.some((item) => item.text === text)) { setStatus('Already in your notebook.'); return; }
+    setWork((current) => ({ ...current, requirements: [...current.requirements, { id: crypto.randomUUID(), text, citation, sourceId: active, owner: '', status: 'Not started', rule: 'Review source', limit: '', format: '' }] }));
+    setNotebookOpen(true);
+    setStatus('Requirement saved to your notebook.');
+  }
+  function addQuestion(text: string, citation: string) {
+    setWork((current) => ({ ...current, questions: [...current.questions, { id: crypto.randomUUID(), text, citation, owner: '', status: 'Draft' }] }));
+    setNotebookOpen(true);
+    setStatus('Question saved to your notebook.');
+  }
+  async function copyCitation(text: string, citation: string) {
+    try { await navigator.clipboard.writeText(`${text}\n\n${citation}`); setStatus('Copied with source citation.'); }
+    catch { setStatus('Clipboard access is unavailable.'); }
+  }
+
+  return <div className={styles.workspace}>
+    <header className={styles.topbar}>
+      <ProspectMotionLink href={back} className={styles.back} aria-label="Return to Prospect project"><ArrowLeftIcon /></ProspectMotionLink>
+      <div className={styles.brand}><span>PROSPECT / EVIDENCE</span><strong>{data?.project.title || 'Source workspace'}</strong></div>
+      <button className={styles.themeToggle} type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}>{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</button>
+      <button className={styles.mobileAsk} type="button" onClick={() => setChatOpen(true)} aria-label="Ask the Prospect assistant">Ask <span className={styles.mpMark} role="img" aria-label="MP" /></button>
+    </header>
+    {error ? <main className={styles.unavailable}><DocumentTextIcon /><h1>Source workspace unavailable</h1><p role="alert">{error}</p><Link href="/apps/studioiq">Return to Prospect</Link></main>
+      : !data ? <main className={styles.unavailable} aria-busy="true"><DocumentTextIcon /><h1>Opening project evidence</h1><p>Loading the documents and your reading notes…</p></main>
+      : <div className={`${styles.layout} ${chatOpen ? styles.withChat : ''}`}>
+        <nav className={styles.sidebar} aria-label="Project sources">
+          <div className={styles.sideIntro}><span>PROJECT EVIDENCE</span><h1>Read the sources</h1><p>Select a document, then inspect its captured text and source details.</p></div>
+          <div className={styles.mobileSelect}><label htmlFor="source-picker">Document</label><select id="source-picker" value={active} onChange={(event) => chooseEvidence(event.target.value)}>{data.sources.map((source, index) => <option key={source.evidenceId} value={source.evidenceId}>{index + 1}. {source.document?.title || host(source.sourceUrl)}</option>)}</select></div>
+          <div className={styles.sourceList}>{data.sources.map((source, index) => <button key={source.evidenceId} type="button" className={source.evidenceId === active ? styles.selectedSource : ''} onClick={() => chooseEvidence(source.evidenceId)} aria-current={source.evidenceId === active ? 'true' : undefined}><span className={styles.sourceNumber}>{String(index + 1).padStart(2, '0')}</span><span><strong>{source.document?.title || host(source.sourceUrl)}</strong><small>{host(source.sourceUrl)} · {source.document ? `${source.document.sections.length} sections` : 'Captured excerpt'}</small></span></button>)}</div>
+          <button className={styles.notebookToggle} type="button" onClick={() => setNotebookOpen((value) => !value)} aria-expanded={notebookOpen}><BookmarkIcon /> Notebook <span>{counts.bookmarks + counts.requirements + counts.questions}</span></button>
+          {notebookOpen ? <div className={styles.notebook}><p>{counts.bookmarks} bookmarks · {counts.reviewed} reviewed</p><h3>Requirements</h3>{work.requirements.length ? work.requirements.map((item) => <article key={item.id}>{item.text}</article>) : <p>Save a requirement as you read.</p>}<h3>Questions</h3>{work.questions.length ? work.questions.map((item) => <article key={item.id}>{item.text}</article>) : <p>Questions you save will appear here.</p>}</div> : null}
+        </nav>
+        <main className={styles.reader} id="source-reader">
+          <div className={styles.readerTop}><div><span className={styles.eyebrow}>SOURCE {Math.max(1, data.sources.findIndex((source) => source.evidenceId === active) + 1)} OF {data.sources.length}</span><h2>{document?.title || host(evidence?.sourceUrl || '')}</h2><p>{data.project.title}</p></div><div className={styles.readerActions}>{original ? <a href={original} target="_blank" rel="noopener noreferrer"><ArrowTopRightOnSquareIcon /> Original source</a> : null}<button type="button" onClick={() => setChatOpen(true)} aria-label="Ask the Prospect assistant">Ask <span className={styles.mpMark} role="img" aria-label="MP" /></button></div></div>
+          <div className={styles.sourceFacts}><span>{document?.coverage.replaceAll('_', ' ') || 'Captured excerpt'}</span><span>{document?.sourceLanguage || 'Language unknown'}</span><span>Captured {date(document?.capturedAt)}</span></div>
+          {document ? <>
+            <div className={styles.readingControls}><div className={styles.modeTabs} role="group" aria-label="Reading language">{(['english', 'original', 'side'] as ReadingMode[]).map((value) => <button type="button" key={value} aria-pressed={mode === value} onClick={() => setReadingMode(value)}>{value === 'side' ? 'Side by side' : value === 'english' ? 'English' : 'Original'}</button>)}</div><span>{document.translation.status === 'not_required' ? 'English original' : `Translation: ${document.translation.status.replaceAll('_', ' ')}`}</span></div>
+            <div className={styles.coverage}><strong>What this document covers</strong><p>{document.coverageNote}</p><details><summary>Source integrity and reuse</summary><p>{document.reuse.reference}</p><p>Source SHA-256: {document.sourceHash}</p></details></div>
+            <div className={styles.outline} aria-label="In this document">{document.sections.map((section) => <a href={`#source-${section.id}`} key={section.id}>{section.title}</a>)}</div>
+            {document.sections.map((section) => {
+              const key = `${active}:${section.id}`;
+              const citation = `${document.title} · ${section.title}\n${original || document.sourceUrl}\nSource SHA-256: ${document.sourceHash}`;
+              const english = document.translation.status === 'not_required' ? section.original : section.english || '';
+              return <section className={styles.section} id={`source-${section.id}`} key={section.id}><div className={styles.sectionHead}><div><span className={styles.eyebrow}>SECTION</span><h3>{section.title}</h3></div><div className={styles.sectionActions}><button type="button" aria-label={`Copy ${section.title} with citation`} title="Copy with citation" onClick={() => void copyCitation(mode === 'original' ? section.original : english, citation)}><ClipboardDocumentIcon /></button><button type="button" aria-label={`Bookmark ${section.title}`} title="Bookmark" aria-pressed={work.bookmarks.includes(key)} onClick={() => toggle('bookmarks', key)}><BookmarkIcon /></button><button type="button" aria-label={`Mark ${section.title} reviewed`} title="Mark reviewed" aria-pressed={work.reviewed.includes(key)} onClick={() => toggle('reviewed', key)}><CheckIcon /></button></div></div><div className={mode === 'side' ? styles.parallel : ''}>{mode !== 'english' ? <div><span className={styles.languageLabel}>ORIGINAL · {document.sourceLanguage}</span><SourceText text={section.original} document={document} section={section} /></div> : null}{mode !== 'original' ? <div><span className={styles.languageLabel}>{document.translation.status === 'not_required' ? 'ENGLISH ORIGINAL' : 'ENGLISH READING LAYER'}</span><SourceText text={english} document={document} section={section} /></div> : null}</div><div className={styles.sectionFoot}><button type="button" onClick={() => addRequirement(mode === 'original' ? section.original : english || section.original, citation)}>Save requirement</button><button type="button" onClick={() => addQuestion(`Clarify ${section.title}.`, citation)}>Draft question</button></div></section>;
+            })}
+            {document.requirements.length ? <section className={styles.extracted}><h3>Extracted requirements</h3><p>Review these against the original wording before relying on them.</p>{document.requirements.map((item, index) => <article key={index}><span>{item.mandatory === true ? 'Mandatory' : item.mandatory === false ? 'Optional' : 'Confirm'}</span><p>{item.text}</p><button type="button" onClick={() => addRequirement(item.text, `${document.title} · ${item.sectionId}\n${original || document.sourceUrl}`)}>Save to notebook</button></article>)}</section> : null}
+          </> : <div className={styles.coverage}><strong>Captured excerpt</strong><p>{evidence?.sourceUrl ? 'A structured reading layer is unavailable for this source. Open the original or ask the assistant about the project evidence.' : 'No source is selected.'}</p></div>}
+          {status ? <p className={styles.status} role="status">{status}</p> : null}
+        </main>
+        <aside className={`${styles.chat} ${chatOpen ? '' : styles.chatClosed}`} aria-label="Prospect assistant chat" aria-hidden={!chatOpen}><ProspectAgentPanel endpoint={previewData ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(previewData)} expanded={false} canExpand={false} onToggleExpand={() => undefined} onClose={() => setChatOpen(false)} availableScenes={[]} onShowScene={() => undefined} onShowSequence={() => undefined} sourceContext={context} /></aside>
+      </div>}
+  </div>;
+}

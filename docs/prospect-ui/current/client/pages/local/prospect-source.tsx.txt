@@ -1,0 +1,19 @@
+import type { GetServerSideProps } from 'next';
+import { ProspectSourceWorkspace, type Workspace } from '../../components/studioiq/ProspectSourceWorkspace';
+
+const preview: Workspace = {
+  project: { id: 'preview-museum', title: 'Malmö Art Museum international architecture competition', description: 'Local design preview using an abbreviated public notice.', buyer: 'City of Malmö', city: 'Malmö', country: 'Sweden', deadline: '2026-10-06T23:59:00+02:00' },
+  sources: [
+    { evidenceId: 'preview-notice', sourceUrl: 'https://ted.europa.eu/en/notice/-/detail/593944-2026', document: {
+      version: 1, sourceUrl: 'https://ted.europa.eu/en/notice/-/detail/593944-2026', title: 'Architecture competition — Malmö New Art Museum', sourceLanguage: 'sv/en', capturedAt: '2026-09-07T23:08:00Z', sourceHash: '0'.repeat(64), coverage: 'main_content', coverageNote: 'Local design preview. The live workspace shows the captured notice and its exact source coverage.', format: 'text', translation: { language: 'en', status: 'complete', method: 'publisher', reviewedAt: '2026-09-07T23:08:00Z' }, reuse: { basis: 'factual_digest', reference: 'Local visual preview; open the live source for authoritative wording.' }, sections: [
+        { id: 'scope', title: 'Project and scope', original: 'The City of Malmö invites entries to an architecture competition for a new art museum in Kungsparken.', english: 'Project: Malmö New Art Museum\n\nScope of services: The City of Malmö invites entries to an architecture competition for a new art museum in Kungsparken.', page: null, sourceAnchor: null },
+        { id: 'submission', title: 'Submission and eligibility', original: 'Applications are submitted through the procurement portal.', english: 'Application deadline: 6 October 2026\n\nSubmission method: Electronic submission through the procurement portal.\n\nSubmission languages: English or Swedish.', page: null, sourceAnchor: null },
+        { id: 'evaluation', title: 'Evaluation and selection', original: 'The jury assesses competition proposals.', english: 'How submissions are assessed: Overall assessment of the competition proposals.\n\nSelection criteria: See procurement documents.', page: null, sourceAnchor: null },
+      ], requirements: [{ text: 'Submit the application through the procurement portal by the published deadline.', sectionId: 'submission', mandatory: true, category: 'submission', dueAt: '2026-10-06T23:59:00+02:00' }], stakeholders: [], questions: [],
+    } },
+    { evidenceId: 'preview-site', sourceUrl: 'https://malmo.se/', document: null },
+  ],
+};
+
+export default function ProspectSourcePreview() { return <ProspectSourceWorkspace workspaceKey="local-design-preview" previewData={preview} />; }
+export const getServerSideProps: GetServerSideProps = async () => process.env.NODE_ENV === 'production' ? { notFound: true } : { props: {} };
