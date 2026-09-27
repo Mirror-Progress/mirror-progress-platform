@@ -4,6 +4,8 @@ import { loadWorkspaceProspectCatalog } from '../../../../lib/prospect-agent/cat
 import { streamProspectAgent } from '../../../../lib/prospect-agent/http';
 import { getDb } from '../../../../lib/mongodb';
 import { redactSearchText } from '../../../../lib/prospect-usage';
+import { savePrivateProject } from '../../../../lib/prospect-private-projects';
+import { ensureLegacyProductEntitlement, productAccessMode } from '../../../../lib/product-commercial';
 
 let quotaIndexReady: Promise<string> | undefined;
 
@@ -12,6 +14,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const access = await requireStudioIqProductAccess(req, res, { readOnlyAction: true });
   if (!access?.mirrorClientId) return;
   try {
+    const canSave = access.mirrorAccountId && productAccessMode((await ensureLegacyProductEntitlement({
+      productId: 'studioiq', mirrorClientId: access.mirrorClientId, actorUserId: access.mirrorAccountId,
+    })).status) === 'write';
     return await streamProspectAgent(req, res, await loadWorkspaceProspectCatalog(access), async (name, input) => {
       if (name !== 'search_public_web' || !access.mirrorAccountId) return false;
       const query = typeof input.query === 'string' ? redactSearchText(input.query) : '';
@@ -31,7 +36,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         return true;
       } catch { return false; }
-    });
+    }, canSave && access.mirrorAccountId && access.mirrorClientId ? async (project) => {
+      const saved = await savePrivateProject({ ...project, accountId: access.mirrorAccountId!, organizationId: access.mirrorClientId! });
+      return { id: saved.id, title: saved.title };
+    } : undefined);
   } catch {
     return res.status(503).json({ error: 'Prospect projects are temporarily unavailable.' });
   }

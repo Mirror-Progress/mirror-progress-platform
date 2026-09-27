@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { listPublishedStudioIqIntelligence } from '../research-intelligence';
 import { listStudioIqPortfolioPrecedents } from '../studioiq-collaboration';
 import type { StudioIqProductAccessIdentity } from '../studioiq-collaboration';
+import { listPrivateProjects } from '../prospect-private-projects';
 
 export type ProspectProject = {
   id: string;
@@ -72,12 +73,13 @@ export async function loadLocalProspectCatalog(): Promise<ProspectCatalog> {
 }
 
 export async function loadWorkspaceProspectCatalog(access: StudioIqProductAccessIdentity): Promise<ProspectCatalog> {
-  const [intelligence, portfolio] = await Promise.all([
+  const [intelligence, portfolio, privateProjects] = await Promise.all([
     listPublishedStudioIqIntelligence({
       mirrorClientId: access.mirrorClientId,
       externalOrganizationId: access.externalOrganizationId,
     }),
     listStudioIqPortfolioPrecedents(access),
+    access.mirrorAccountId ? listPrivateProjects(access.mirrorAccountId) : Promise.resolve([]),
   ]);
   const opportunities: ProspectProject[] = intelligence.opportunities.map(({ candidate, pursuitBrief, evidence }) => ({
     id: candidate.id,
@@ -119,7 +121,13 @@ export async function loadWorkspaceProspectCatalog(access: StudioIqProductAccess
     sourceUrl: item.source_url,
     updatedAt: item.updated_at,
   }));
-  return { source: 'prospect_workspace', projects: [...opportunities, ...precedents], loadedAt: new Date().toISOString() };
+  const saved: ProspectProject[] = privateProjects.map((item) => ({ id: item.id, kind: 'opportunity', title: item.title,
+    description: item.description, stage: 'private_unverified', buyer: null,
+    location: [item.city, item.country].filter(Boolean).join(', ') || null, deadline: null,
+    projectType: item.projectType, score: null, summary: null, risks: ['Unverified public web project'],
+    nextActions: [], evidence: [{ summary: item.description, sourceUrl: item.sourceUrl, authority: 'Public web' }],
+    sourceUrl: item.sourceUrl, updatedAt: item.updatedAt }));
+  return { source: 'prospect_workspace', projects: [...opportunities, ...precedents, ...saved], loadedAt: new Date().toISOString() };
 }
 
 export function projectSummary(project: ProspectProject) {
@@ -127,7 +135,7 @@ export function projectSummary(project: ProspectProject) {
     id: project.id, kind: project.kind, title: project.title, location: project.location,
     stage: project.stage, deadline: project.deadline, projectType: project.projectType,
     buyer: project.buyer, score: project.score, sourceUrl: project.sourceUrl,
-    prospectUrl: project.kind === 'opportunity' && /^opportunity_[a-zA-Z0-9-]+$/.test(project.id)
+    prospectUrl: project.kind === 'opportunity' && /^(?:opportunity_[a-zA-Z0-9-]+|private_[a-f0-9]{24})$/.test(project.id)
       ? `/prospect?opportunity=${encodeURIComponent(project.id)}` : null,
   };
 }

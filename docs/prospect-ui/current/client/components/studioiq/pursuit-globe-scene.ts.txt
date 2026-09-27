@@ -1,0 +1,1134 @@
+import {
+  constrainGlobePose,
+  northUpGlobePose,
+  interpolateGlobePose,
+  globePoseDistance,
+  type GlobePose,
+} from '../../lib/studioiq-globe-navigation';
+import {
+  createGlobeLand,
+  matchingCountry,
+  type GlobeCountry,
+} from './pursuit-globe-land';
+import * as THREE from 'three';
+import {
+  findDensestProjectFocus,
+  fittedGlobeCameraDistance,
+} from '../../lib/studioiq-globe-geometry';
+import {
+  clusterGlobeProjects,
+  relatedGlobeProjects,
+  type GlobeOpportunity,
+  type GlobePrecedent,
+} from '../../lib/studioiq-globe-context';
+
+export type GlobeTheme = {
+  surface: string;
+  wireframe: string;
+  ambient: string;
+  keyLight: string;
+  rimLight: string;
+  selectedPoint: string;
+  activePoint: string;
+  inactivePoint: string;
+};
+export const globeThemes: Record<'dark' | 'light', GlobeTheme> = {
+  dark: {
+    surface: '#07150f',
+    wireframe: '#526f60',
+    ambient: '#b8d6c8',
+    keyLight: '#dfff52',
+    rimLight: '#6fffc1',
+    selectedPoint: '#dfff00',
+    activePoint: '#ffbd66',
+    inactivePoint: '#b9dac9',
+  },
+  light: {
+    surface: '#dce8e0',
+    wireframe: '#52705f',
+    ambient: '#f6fff8',
+    keyLight: '#ffffff',
+    rimLight: '#5a8e70',
+    selectedPoint: '#245fb7',
+    activePoint: '#a85f12',
+    inactivePoint: '#2f7656',
+  },
+};
+export type SceneState = {
+  items: GlobeOpportunity[];
+  selectedId: string | null;
+  precedentId: string | null;
+  theme: 'dark' | 'light';
+};
+export type GlobePreview = {
+  title: string;
+  location: string;
+  detail: string;
+  x: number;
+  y: number;
+} | null;
+const R = 2.28;
+export function globeVector(
+  latitude: number,
+  longitude: number,
+  radius = R + 0.025
+) {
+  const lat = (latitude * Math.PI) / 180,
+    lon = (longitude * Math.PI) / 180;
+  return new THREE.Vector3(
+    radius * Math.cos(lat) * Math.cos(lon),
+    radius * Math.sin(lat),
+    -radius * Math.cos(lat) * Math.sin(lon)
+  );
+}
+function disposeGroup(group: THREE.Group) {
+  group.traverse((node) => {
+    if (node instanceof THREE.Mesh || node instanceof THREE.Line) {
+      node.geometry.dispose();
+      const materials = Array.isArray(node.material)
+        ? node.material
+        : [node.material];
+      materials.forEach((m) => m.dispose());
+    }
+  });
+  group.clear();
+}
+
+export function createPursuitGlobeScene(
+  host: HTMLDivElement,
+  labels: HTMLDivElement,
+  initial: SceneState,
+  callbacks: {
+    select: (id: string) => void;
+    openProjects: (ids: string[]) => void;
+    preview: (value: GlobePreview) => void;
+    zoom: (value: number) => void;
+    failed: (failed: boolean) => void;
+    geographyFailed: () => void;
+  }
+) {
+  let state = initial;
+  let disposed = false,
+    contextLost = false,
+    visible = true,
+    frame = 0,
+    previousTime = 0;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(
+    Math.min(
+      window.devicePixelRatio,
+      matchMedia('(pointer: coarse)').matches ? 1.5 : 2
+    )
+  );
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.domElement.setAttribute('aria-hidden', 'true');
+  host.appendChild(renderer.domElement);
+  const globe = new THREE.Group();
+  scene.add(globe);
+  let palette = globeThemes[state.theme];
+  const material = new THREE.MeshStandardMaterial({
+    color: palette.surface,
+    roughness: 0.8,
+    metalness: 0.1,
+  });
+  const surface = new THREE.Mesh(new THREE.SphereGeometry(R, 80, 64), material);
+  globe.add(surface);
+  const land = createGlobeLand();
+  let landReady = false,
+    regionInspection = true;
+  let countries: GlobeCountry[] = [];
+  const countryLayer = document.createElement('div');
+  countryLayer.className = 'siq-globe-countries';
+  countryLayer.setAttribute('aria-hidden', 'true');
+  host.parentElement?.appendChild(countryLayer);
+  const countryLabels: { country: GlobeCountry; element: HTMLSpanElement }[] =
+    [];
+  const emphasisMaterial = new THREE.MeshBasicMaterial({
+    map: land.emphasis,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  globe.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(R + 0.008, 80, 64),
+      emphasisMaterial
+    )
+  );
+  const accuracyCanvas = document.createElement('canvas');
+  accuracyCanvas.width = accuracyCanvas.height = 64;
+  const accuracyContext = accuracyCanvas.getContext('2d');
+  if (accuracyContext) {
+    const gradient = accuracyContext.createRadialGradient(
+      32,
+      32,
+      3,
+      32,
+      32,
+      32
+    );
+    gradient.addColorStop(0, 'rgba(255,255,255,0.55)');
+    gradient.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    accuracyContext.fillStyle = gradient;
+    accuracyContext.fillRect(0, 0, 64, 64);
+  }
+  const accuracyTexture = new THREE.CanvasTexture(accuracyCanvas);
+  const wireMaterial = new THREE.MeshBasicMaterial({
+    color: palette.wireframe,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.19,
+  });
+  globe.add(
+    new THREE.Mesh(new THREE.SphereGeometry(R + 0.015, 32, 24), wireMaterial)
+  );
+  const ambient = new THREE.AmbientLight(palette.ambient, 0.55);
+  scene.add(ambient);
+  const key = new THREE.DirectionalLight(palette.keyLight, 2.1);
+  key.position.set(-4, 3, 5);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(palette.rimLight, 1.2);
+  rim.position.set(4, -2, -3);
+  scene.add(rim);
+  const coastMaterial = new THREE.LineBasicMaterial({
+    color: palette.inactivePoint,
+    transparent: true,
+    opacity: 0.28,
+  });
+  const borderMaterial = new THREE.LineBasicMaterial({
+    color: palette.wireframe,
+    transparent: true,
+    opacity: 0,
+  });
+  const earth = new THREE.Group();
+  globe.add(earth);
+  const points = new THREE.Group();
+  globe.add(points);
+  const relationships = new THREE.Group();
+  globe.add(relationships);
+  callbacks.zoom(100);
+  let zoom = 1,
+    targetZoom = 1,
+    fitDistance = 9,
+    width = 1,
+    height = 1,
+    tier = 0;
+  let focus: GlobePose | null = null,
+    inspected = false,
+    hovered = false,
+    keyboardFocused = false;
+  let velocityX = 0,
+    velocityY = 0;
+  const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  let reduced = motionQuery.matches;
+  type Marker = {
+    node: THREE.Mesh;
+    button: HTMLButtonElement;
+    location: THREE.Vector3;
+    count: number;
+    city: string;
+    selected: boolean;
+    related: boolean;
+    precedent: boolean;
+    ids: string[];
+    baseSize: number;
+    accents: THREE.Mesh[];
+  };
+  let markers: Marker[] = [];
+  let pose = northUpGlobePose(0, 0);
+  function applyPose(next: GlobePose) {
+    pose = constrainGlobePose(next);
+    // Fixed Euler order: latitude tilt, then longitude; no roll component.
+    globe.rotation.set(pose.pitch, pose.yaw, 0, 'XYZ');
+  }
+  const focusFor = northUpGlobePose;
+  const focusForVector = (point: THREE.Vector3) => {
+    const normal = point.clone().normalize();
+    return focusFor(
+      (Math.asin(THREE.MathUtils.clamp(normal.y, -1, 1)) * 180) / Math.PI,
+      (Math.atan2(-normal.z, normal.x) * 180) / Math.PI
+    );
+  };
+  const initialFocus = findDensestProjectFocus(state.items);
+  applyPose(
+    initialFocus
+      ? focusFor(initialFocus.latitude, initialFocus.longitude)
+      : pose
+  );
+  const initialPending = !initialFocus;
+  let appliedInitialFocus = !initialPending;
+  const zoomTier = (value: number) =>
+    value < 1.25 ? 0 : value < 1.9 ? 1 : value < 2.7 ? 2 : 3;
+  function schedule() {
+    if (
+      !frame &&
+      !disposed &&
+      !contextLost &&
+      visible &&
+      document.visibilityState === 'visible'
+    )
+      frame = requestAnimationFrame(render);
+  }
+  function manual() {
+    regionInspection = false;
+    inspected = true;
+    focus = null;
+    velocityX = velocityY = 0;
+    callbacks.preview(null);
+  }
+  function setZoom(value: number) {
+    targetZoom = THREE.MathUtils.clamp(value, 0.7, 3.6);
+    callbacks.zoom(Math.round(targetZoom * 100));
+    if (reduced) zoom = targetZoom;
+    schedule();
+  }
+  function aim(latitude: number, longitude: number) {
+    regionInspection = true;
+    inspected = true;
+    velocityX = velocityY = 0;
+    focus = focusFor(latitude, longitude);
+    if (reduced) {
+      applyPose(focus);
+      focus = null;
+    }
+    schedule();
+  }
+  function addLine(
+    vertices: THREE.Vector3[],
+    color: string,
+    opacity: number,
+    group = relationships
+  ) {
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(vertices),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity })
+    );
+    group.add(line);
+    return line;
+  }
+  function addMarker(
+    position: THREE.Vector3,
+    options: {
+      title: string;
+      location: string;
+      detail: string;
+      count?: number;
+      city?: string;
+      selected?: boolean;
+      related?: boolean;
+      precedent?: boolean;
+      approximate?: boolean;
+      countryLevel?: boolean;
+      ids: string[];
+      click: () => void;
+    }
+  ) {
+    const count = options.count ?? 1;
+    const color = options.selected
+      ? palette.selectedPoint
+      : options.precedent
+        ? palette.rimLight
+        : options.related
+          ? palette.activePoint
+          : palette.inactivePoint;
+    const size = options.selected
+      ? 0.061
+      : count > 1
+        ? 0.062 + Math.min(0.05, Math.log(count) * 0.013)
+        : 0.032;
+    const node = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity:
+          state.selectedId &&
+          !options.selected &&
+          !options.related &&
+          !options.precedent
+            ? 0.38
+            : 1,
+      })
+    );
+    node.position.copy(position);
+    points.add(node);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'siq-globe-marker';
+    button.dataset.cluster = String(count > 1);
+    button.dataset.country = String(Boolean(options.countryLevel));
+    button.dataset.selected = String(Boolean(options.selected));
+    button.dataset.precedent = String(Boolean(options.precedent));
+    button.setAttribute(
+      'aria-label',
+      options.title + '. ' + options.location + '. ' + options.detail
+    );
+    button.title = options.title;
+    const countLabel = document.createElement('span');
+    countLabel.className = 'siq-globe-count';
+    countLabel.textContent = count > 1 || options.countryLevel ? String(count) : '';
+    const cityLabel = document.createElement('span');
+    cityLabel.className = 'siq-globe-city';
+    cityLabel.textContent = options.city ?? '';
+    button.append(countLabel, cityLabel);
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(0.08, 0.15, 36),
+      new THREE.MeshBasicMaterial({
+        color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+      })
+    );
+    halo.position.copy(
+      position
+        .clone()
+        .normalize()
+        .multiplyScalar(R + 0.027)
+    );
+    halo.lookAt(new THREE.Vector3());
+    points.add(halo);
+    const show = () => {
+      hovered = true;
+      node.userData.hovered = true;
+      halo.material.opacity = 0.24;
+      const rect = button.getBoundingClientRect(),
+        parent = host.getBoundingClientRect();
+      callbacks.preview({
+        title: options.title,
+        location: options.location,
+        detail: options.detail,
+        x: Math.max(12, Math.min(width - 292, rect.left - parent.left + 24)),
+        y: Math.max(60, Math.min(height - 155, rect.top - parent.top + 24)),
+      });
+      schedule();
+    };
+    const hide = () => {
+      hovered = false;
+      node.userData.hovered = false;
+      halo.material.opacity = 0;
+      callbacks.preview(null);
+      schedule();
+    };
+    button.addEventListener('pointerenter', show);
+    button.addEventListener('pointerleave', hide);
+    button.addEventListener('focus', show);
+    button.addEventListener('blur', hide);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      hide();
+      if (!options.precedent && zoom >= 2.7) {
+        const rect = button.getBoundingClientRect();
+        const ids = new Set(options.ids);
+        for (const marker of markers) {
+          if (marker.precedent || marker.button.style.visibility === 'hidden' || marker.button.hidden) continue;
+          const other = marker.button.getBoundingClientRect();
+          if (other.width && other.height && rect.left < other.right && rect.right > other.left && rect.top < other.bottom && rect.bottom > other.top) {
+            marker.ids.forEach((id) => ids.add(id));
+          }
+        }
+        if (ids.size > 1) { callbacks.openProjects([...ids]); return; }
+      }
+      options.click();
+    });
+    labels.appendChild(button);
+    const accents: THREE.Mesh[] = [halo];
+    if (options.approximate && count === 1) {
+      const accuracy = new THREE.Mesh(
+        new THREE.CircleGeometry(0.1, 40),
+        new THREE.MeshBasicMaterial({
+          color,
+          map: accuracyTexture,
+          transparent: true,
+          opacity: 0.65,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      accuracy.position.copy(position);
+      accuracy.lookAt(new THREE.Vector3());
+      points.add(accuracy);
+      accents.push(accuracy);
+      button.dataset.approximate = 'true';
+    }
+    markers.push({
+      node,
+      button,
+      location: position,
+      count,
+      city: options.city ?? '',
+      selected: Boolean(options.selected),
+      related: Boolean(options.related),
+      precedent: Boolean(options.precedent),
+      ids: options.ids,
+      baseSize: size,
+      accents,
+    });
+    if (options.selected) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.085, 0.107, 48),
+        new THREE.MeshBasicMaterial({
+          color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.8,
+        })
+      );
+      ring.position.copy(position);
+      ring.lookAt(new THREE.Vector3());
+      points.add(ring);
+      accents.push(ring);
+    }
+  }
+  function rebuild() {
+    if (markers.some((marker) => marker.button === document.activeElement))
+      host.parentElement?.focus({ preventScroll: true });
+    hovered = false;
+    callbacks.preview(null);
+    disposeGroup(points);
+    disposeGroup(relationships);
+    labels.replaceChildren();
+    markers = [];
+    const selected = state.items.find((item) => item.id === state.selectedId);
+    const related = new Set(
+      selected
+        ? relatedGlobeProjects(selected, state.items).map((e) => e.item.id)
+        : []
+    );
+    const groups = clusterGlobeProjects(state.items, zoom);
+    for (const g of groups) {
+      const item = g.items.find((p) => p.id === state.selectedId) ?? g.items[0];
+      const position = globeVector(g.latitude, g.longitude);
+      const count = g.items.length;
+      const regional = g.items.some((p) => p.latitude !== g.latitude || p.longitude !== g.longitude);
+      const countryLevel = !regional && item.coordinateMethod === 'country_centroid';
+      const precise =
+        item.coordinateMethod === 'source_document' &&
+        item.coordinateConfidence === 'high';
+      const approximate = precise
+        ? 'Verified source coordinates'
+        : item.coordinateMethod === 'city_centroid'
+          ? 'City-level location · halo is symbolic, not a site boundary'
+          : item.coordinateMethod === 'region_centroid'
+            ? 'Approximate regional reference · not a project site'
+            : item.coordinateMethod === 'country_centroid'
+            ? 'Country-level location · halo is symbolic'
+            : 'Location accuracy unconfirmed · halo is symbolic';
+      addMarker(position, {
+        title:
+          regional ? `${count} projects in this area` : countryLevel ? `${item.country} · ${count} projects awaiting city coordinates: ${item.title}` : count > 1
+            ? `${count} projects at ${item.city ?? item.country}: ${item.title}`
+            : item.title,
+        location: regional ? 'Multiple locations' : countryLevel ? `${item.country} · country marker, not a project site` : [item.city, item.country].filter(Boolean).join(', '),
+        detail:
+          regional ? 'Select to zoom in and reveal project locations' : count > 1
+            ? 'Select to choose any project at this location'
+            : `${item.projectType ?? 'Project type pending'} · ${approximate}`,
+        ids: g.items.map((p) => p.id),
+        count,
+        approximate: !precise,
+        countryLevel,
+        city: countryLevel ? `${item.country} · country` : item.city ?? item.country,
+        selected: item.id === state.selectedId,
+        related: g.items.some((p) => related.has(p.id) || p.active),
+        click: () => {
+          if (regional) {
+            aim(g.latitude, g.longitude);
+            setZoom(tier === 0 ? 1.55 : tier === 1 ? 2.25 : 3.1);
+            return;
+          }
+          aim(g.latitude, g.longitude);
+          if (count > 1) callbacks.openProjects(g.items.map((p) => p.id));
+          else callbacks.select(item.id);
+        },
+      });
+    }
+    if (selected) {
+      if (!['country_centroid', 'region_centroid'].includes(selected.coordinateMethod ?? '')) {
+        const normal = globeVector(selected.latitude, selected.longitude, 1);
+        const orientation = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, 1),
+          normal
+        );
+        const angle = 250 / 6371;
+        addLine(
+          Array.from({ length: 97 }, (_, i) =>
+            new THREE.Vector3(
+              Math.sin(angle) * Math.cos((i / 96) * Math.PI * 2),
+              Math.sin(angle) * Math.sin((i / 96) * Math.PI * 2),
+              Math.cos(angle)
+            )
+              .applyQuaternion(orientation)
+              .multiplyScalar(R + 0.024)
+          ),
+          palette.selectedPoint,
+          0.32
+        );
+      }
+      const precedents = selected.precedents ?? [];
+      const active = precedents.find((p) => p.id === state.precedentId) ?? null;
+      precedents.forEach((p) => {
+        const position = globeVector(p.latitude, p.longitude);
+        addMarker(position, {
+          title: p.name,
+          location: p.location,
+          detail: `${p.relationship} · ${p.reasons.join('; ')} · Approximate city location`,
+          city: p.name,
+          ids: ['precedent:' + p.id],
+          approximate: true,
+          precedent: true,
+          related: true,
+          selected: p.id === active?.id,
+          click: () => {
+            inspectPrecedent(p);
+          },
+        });
+      });
+      if (active) {
+        const from = globeVector(selected.latitude, selected.longitude, 1),
+          to = globeVector(active.latitude, active.longitude, 1);
+        const angle = from.angleTo(to);
+        // Quaternion interpolation remains finite for antipodal points.
+        const rotation = new THREE.Quaternion().setFromUnitVectors(from, to);
+        addLine(
+          Array.from({ length: 97 }, (_, i) => {
+            const t = i / 96;
+            return from
+              .clone()
+              .applyQuaternion(new THREE.Quaternion().slerp(rotation, t))
+              .multiplyScalar(
+                R + 0.08 + Math.sin(t * Math.PI) * Math.min(0.65, angle * 0.3)
+              );
+          }),
+          palette.rimLight,
+          0.65
+        );
+      }
+    }
+  }
+  let precedentCallback: ((id: string) => void) | null = null;
+  function inspectPrecedent(p: GlobePrecedent) {
+    precedentCallback?.(p.id);
+    const selected = state.items.find((item) => item.id === state.selectedId);
+    if (!selected) return;
+    const a = globeVector(selected.latitude, selected.longitude, 1),
+      b = globeVector(p.latitude, p.longitude, 1);
+    const center = a.clone().add(b);
+    if (center.lengthSq() < 0.01)
+      center.copy(a).applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    focus = focusForVector(center);
+    inspected = true;
+    velocityX = velocityY = 0;
+    if (reduced) {
+      applyPose(focus);
+      focus = null;
+    }
+    setZoom(Math.min(1.4, 1.05 + 0.3 * (1 - a.angleTo(b) / Math.PI)));
+    schedule();
+  }
+  const abort = new AbortController();
+  fetch('/data/studioiq-earth.json', { signal: abort.signal })
+    .then((response) => {
+      if (!response.ok) throw new Error('Geography unavailable');
+      return response.json();
+    })
+    .then(
+      (
+        data: Record<'coast' | 'borders', number[][][]> & {
+          countries: GlobeCountry[];
+        }
+      ) => {
+        if (disposed) return;
+        countries = data.countries;
+        land.setCountries(countries);
+        land.paint(
+          state.theme,
+          state.items.find((item) => item.id === state.selectedId)?.country
+        );
+        material.map = land.color;
+        material.roughnessMap = land.roughness;
+        material.roughness = 1;
+        material.metalness = 0.06;
+        material.color.set('#ffffff');
+        material.needsUpdate = true;
+        landReady = true;
+        for (const country of countries) {
+          const element = document.createElement('span');
+          element.textContent = country.label;
+          element.hidden = true;
+          countryLayer.appendChild(element);
+          countryLabels.push({ country, element });
+        }
+        for (const type of ['coast', 'borders'] as const) {
+          const vertices: number[] = [];
+          for (const line of data[type])
+            for (let i = 1; i < line.length; i++) {
+              const a = globeVector(line[i - 1][1], line[i - 1][0], R + 0.022),
+                b = globeVector(line[i][1], line[i][0], R + 0.022);
+              // Densify long boundary segments to keep chords outside the opaque surface.
+              const steps = Math.max(1, Math.ceil(a.angleTo(b) / 0.012));
+              for (let j = 0; j < steps; j++)
+                for (const t of [j / steps, (j + 1) / steps])
+                  vertices.push(
+                    ...a
+                      .clone()
+                      .lerp(b, t)
+                      .normalize()
+                      .multiplyScalar(R + 0.022)
+                      .toArray()
+                  );
+            }
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute(
+            'position',
+            new THREE.Float32BufferAttribute(vertices, 3)
+          );
+          earth.add(
+            new THREE.LineSegments(
+              geometry,
+              type === 'coast' ? coastMaterial : borderMaterial
+            )
+          );
+        }
+        schedule();
+      }
+    )
+    .catch((error) => {
+      if (error.name !== 'AbortError' && !disposed) callbacks.geographyFailed();
+    });
+
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchDistance = 0,
+    lastMoveAt = 0;
+  const distance = () => {
+    const p = [...pointers.values()];
+    return p.length === 2 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0;
+  };
+  const down = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    manual();
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    renderer.domElement.setPointerCapture(e.pointerId);
+    pinchDistance = distance();
+    lastMoveAt = performance.now();
+    schedule();
+  };
+  function rotate(x: number, y: number) {
+    const next = constrainGlobePose({
+      pitch: pose.pitch + x,
+      yaw: pose.yaw + y,
+    });
+    if (next.pitch === pose.pitch && x !== 0) velocityX = 0;
+    applyPose(next);
+  }
+  const move = (e: PointerEvent) => {
+    const prior = pointers.get(e.pointerId);
+    if (!prior) return;
+    const dx = e.clientX - prior.x,
+      dy = e.clientY - prior.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const next = distance();
+      if (pinchDistance > 0) setZoom((targetZoom * next) / pinchDistance);
+      pinchDistance = next;
+    } else {
+      const elapsed = Math.max(8, performance.now() - lastMoveAt);
+      rotate((dy * 0.004) / Math.sqrt(zoom), (dx * 0.006) / Math.sqrt(zoom));
+      velocityX = THREE.MathUtils.clamp(
+        ((dy * 0.004) / Math.sqrt(zoom) / elapsed) * 1000,
+        -2,
+        2
+      );
+      velocityY = THREE.MathUtils.clamp(
+        ((dx * 0.006) / Math.sqrt(zoom) / elapsed) * 1000,
+        -2,
+        2
+      );
+    }
+    lastMoveAt = performance.now();
+    schedule();
+  };
+  const up = (e: PointerEvent) => {
+    pointers.delete(e.pointerId);
+    if (renderer.domElement.hasPointerCapture(e.pointerId))
+      renderer.domElement.releasePointerCapture(e.pointerId);
+    if (
+      performance.now() - lastMoveAt > 90 ||
+      reduced ||
+      e.type === 'pointercancel'
+    )
+      velocityX = velocityY = 0;
+    pinchDistance = distance();
+    schedule();
+  };
+  const wheel = (e: WheelEvent) => {
+    if ((e.target as Element).closest('[data-project-picker]')) return;
+    e.preventDefault();
+    manual();
+    const rect = host.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(
+      new THREE.Vector2(
+        ((e.clientX - rect.left) / width) * 2 - 1,
+        (-(e.clientY - rect.top) / height) * 2 + 1
+      ),
+      camera
+    );
+    scene.updateMatrixWorld(true);
+    const hit = ray.intersectObject(surface)[0];
+    const delta =
+      e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? height : 1);
+    if (hit && delta < 0 && targetZoom < 3.6) {
+      const local = globe.worldToLocal(hit.point.clone()).normalize();
+      const desired = focusForVector(local);
+      focus = interpolateGlobePose(
+        pose,
+        desired,
+        Math.min(0.22, Math.abs(delta) * 0.002)
+      );
+      if (reduced) {
+        applyPose(focus);
+        focus = null;
+      }
+    }
+    setZoom(
+      targetZoom * Math.exp(-THREE.MathUtils.clamp(delta, -150, 150) * 0.0016)
+    );
+  };
+  renderer.domElement.addEventListener('pointerdown', down);
+  renderer.domElement.addEventListener('pointermove', move);
+  renderer.domElement.addEventListener('pointerup', up);
+  renderer.domElement.addEventListener('pointercancel', up);
+  renderer.domElement.addEventListener('lostpointercapture', up);
+  const inputSurface = host.parentElement ?? host;
+  inputSurface.addEventListener('wheel', wheel, { passive: false });
+  const onFocusIn = () => {
+    keyboardFocused = true;
+    schedule();
+  };
+  const onFocusOut = (e: FocusEvent) => {
+    keyboardFocused =
+      host.parentElement?.contains(e.relatedTarget as Node) ?? false;
+    schedule();
+  };
+  host.parentElement?.addEventListener('focusin', onFocusIn);
+  host.parentElement?.addEventListener('focusout', onFocusOut);
+  const resize = () => {
+    width = Math.max(1, host.clientWidth);
+    height = Math.max(1, host.clientHeight);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    fitDistance = fittedGlobeCameraDistance(camera.aspect, camera.fov, 2.58);
+    renderer.setSize(width, height, false);
+    schedule();
+  };
+  const observer = new ResizeObserver(resize);
+  observer.observe(host);
+  resize();
+  const intersection = new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    if (!visible && frame) {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    } else schedule();
+  });
+  intersection.observe(host);
+  const onVisibility = () => {
+    if (document.visibilityState !== 'visible') {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      pointers.clear();
+      velocityX = velocityY = 0;
+    } else schedule();
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+  const onMotion = () => {
+    reduced = motionQuery.matches;
+    if (reduced) {
+      zoom = targetZoom;
+      velocityX = velocityY = 0;
+      if (focus) {
+        applyPose(focus);
+        focus = null;
+      }
+    }
+    schedule();
+  };
+  motionQuery.addEventListener('change', onMotion);
+  const lost = (event: Event) => {
+    event.preventDefault();
+    contextLost = true;
+    countryLayer.hidden = true;
+    cancelAnimationFrame(frame);
+    frame = 0;
+    callbacks.failed(true);
+  };
+  const restored = () => {
+    contextLost = false;
+    countryLayer.hidden = false;
+    callbacks.failed(false);
+    schedule();
+  };
+  renderer.domElement.addEventListener('webglcontextlost', lost);
+  renderer.domElement.addEventListener('webglcontextrestored', restored);
+  function render(time: number) {
+    frame = 0;
+    if (disposed || contextLost) return;
+    const dt = Math.min(0.05, Math.max(0.001, (time - previousTime) / 1000));
+    previousTime = time;
+    const ease = 1 - Math.exp(-dt * 10);
+    zoom += (targetZoom - zoom) * ease;
+    if (Math.abs(zoom - targetZoom) < 0.001) zoom = targetZoom;
+    camera.position.set(0, 0, Math.max(R + 0.7, fitDistance / zoom));
+    camera.updateMatrixWorld();
+    if (focus && !pointers.size) {
+      applyPose(interpolateGlobePose(pose, focus, ease));
+      if (globePoseDistance(pose, focus) < 0.001) {
+        applyPose(focus);
+        focus = null;
+      }
+    }
+    const moving = Math.abs(velocityX) + Math.abs(velocityY) > 0.006;
+    if (!pointers.size && !focus && !reduced && moving) {
+      rotate(velocityX * dt, velocityY * dt);
+      const damping = Math.exp(-dt * 5);
+      velocityX *= damping;
+      velocityY *= damping;
+    }
+    const idle =
+      !reduced &&
+      !inspected &&
+      !hovered &&
+      !keyboardFocused &&
+      !state.selectedId &&
+      !pointers.size;
+    if (idle) rotate(0, dt * 0.035);
+    if (zoomTier(zoom) !== tier) {
+      tier = zoomTier(zoom);
+      rebuild();
+    }
+    const emphasisTarget = state.selectedId && regionInspection ? 0.2 : 0;
+    emphasisMaterial.opacity +=
+      (emphasisTarget - emphasisMaterial.opacity) * (reduced ? 1 : ease);
+    const emphasisMoving =
+      Math.abs(emphasisTarget - emphasisMaterial.opacity) > 0.002;
+    if (!emphasisMoving) emphasisMaterial.opacity = emphasisTarget;
+    coastMaterial.opacity = 0.38 + Math.min(0.22, (zoom - 0.7) * 0.11);
+    borderMaterial.opacity = Math.max(0, Math.min(0.26, (zoom - 1.3) * 0.22));
+    wireMaterial.opacity = Math.max(0.07, 0.18 - (zoom - 1) * 0.055);
+    scene.updateMatrixWorld(true);
+    const occupied: { x: number; y: number; w: number }[] = [];
+    const cityNames = new Set<string>();
+    for (const marker of [...markers].sort(
+      (a, b) => Number(b.selected) - Number(a.selected)
+    )) {
+      marker.node.position.copy(marker.location);
+      const world = marker.node.position
+        .clone()
+        .applyQuaternion(globe.quaternion);
+      const pixelRadius = marker.count > 1 ? 8 : marker.selected ? 6 : 4;
+      const pixelScale =
+        (Math.max(0.001, camera.position.z - world.z) *
+          2 *
+          Math.tan((camera.fov * Math.PI) / 360) *
+          pixelRadius) /
+        height /
+        marker.baseSize;
+      marker.node.scale.setScalar(
+        pixelScale * (marker.node.userData.hovered ? 1.4 : 1)
+      );
+      marker.accents.forEach((accent) => accent.scale.setScalar(pixelScale));
+      const direction = world.clone().normalize();
+      const front = direction.dot(camera.position.clone().sub(world)) > 0.08;
+      const projected = world.clone().project(camera);
+      const x = ((projected.x + 1) * width) / 2,
+        y = ((1 - projected.y) * height) / 2;
+      const shown =
+        front && x > 20 && x < width - 20 && y > 50 && y < height - 30;
+      marker.button.hidden = !shown;
+      marker.button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      const labelWidth = Math.min(180, marker.city.length * 7 + 20);
+      const canLabel =
+        shown &&
+        marker.count === 1 &&
+        (zoom >= 1.25 || marker.selected) &&
+        !cityNames.has(marker.city) &&
+        x + labelWidth + 24 < width &&
+        !occupied.some(
+          (o) => Math.abs(o.y - y) < 25 && x < o.x + o.w && x + labelWidth > o.x
+        );
+      marker.button.dataset.label = String(canLabel);
+      if (canLabel) {
+        occupied.push({ x, y, w: labelWidth });
+        cityNames.add(marker.city);
+      }
+    }
+    const selectedCountry = matchingCountry(
+      countries,
+      state.items.find((item) => item.id === state.selectedId)?.country
+    );
+    let visibleCountries = 0;
+    for (const { country, element } of [...countryLabels].sort(
+      (a, b) =>
+        Number(b.country === selectedCountry) -
+        Number(a.country === selectedCountry)
+    )) {
+      const selected = country === selectedCountry && regionInspection;
+      const world = globeVector(
+        country.latitude,
+        country.longitude,
+        R + 0.03
+      ).applyQuaternion(globe.quaternion);
+      const front =
+        world.clone().normalize().dot(camera.position.clone().sub(world)) > 0.2;
+      const projected = world.clone().project(camera);
+      const x = ((projected.x + 1) * width) / 2;
+      let y = ((1 - projected.y) * height) / 2;
+      const labelWidth = Math.min(190, country.label.length * 6.5 + 14);
+      const left = x - labelWidth / 2;
+      const overlaps = (candidateY: number) =>
+        occupied.some(
+          (o) =>
+            Math.abs(o.y - candidateY) < 30 &&
+            left < o.x + o.w + 12 &&
+            left + labelWidth > o.x - 12
+        );
+      if (selected && overlaps(y))
+        y =
+          [y - 35, y + 35, y - 65].find(
+            (candidateY) =>
+              !overlaps(candidateY) &&
+              candidateY > 115 &&
+              candidateY < height - 125
+          ) ?? y;
+      const shown =
+        front &&
+        (selected || (zoom >= 1.1 && zoom < 2.7)) &&
+        visibleCountries < (width < 500 ? 2 : 4) &&
+        left > 15 &&
+        x + labelWidth / 2 < width - 15 &&
+        y > 115 &&
+        y < height - 125 &&
+        !occupied.some(
+          (o) =>
+            Math.abs(o.y - y) < 30 &&
+            left < o.x + o.w + 12 &&
+            left + labelWidth > o.x - 12
+        );
+      element.hidden = !shown;
+      element.dataset.selected = String(selected);
+      element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      if (shown) {
+        occupied.push({ x: left, y, w: labelWidth });
+        visibleCountries++;
+      }
+    }
+    renderer.render(scene, camera);
+    if (
+      focus ||
+      zoom !== targetZoom ||
+      emphasisMoving ||
+      (!reduced && moving) ||
+      idle
+    )
+      schedule();
+  }
+  rebuild();
+  schedule();
+  return {
+    setPrecedentCallback(callback: (id: string) => void) {
+      precedentCallback = callback;
+    },
+    update(next: SceneState) {
+      const selectionChanged = next.selectedId !== state.selectedId;
+      if (selectionChanged) {
+        emphasisMaterial.opacity = 0;
+        regionInspection = true;
+      }
+      const precedentChanged = next.precedentId !== state.precedentId;
+      state = next;
+      palette = globeThemes[state.theme];
+      material.color.set(landReady ? '#ffffff' : palette.surface);
+      if (landReady)
+        land.paint(
+          state.theme,
+          state.items.find((item) => item.id === state.selectedId)?.country
+        );
+      wireMaterial.color.set(palette.wireframe);
+      coastMaterial.color.set(palette.inactivePoint);
+      borderMaterial.color.set(palette.wireframe);
+      ambient.color.set(palette.ambient);
+      key.color.set(palette.keyLight);
+      rim.color.set(palette.rimLight);
+      rebuild();
+      const selected = state.items.find((item) => item.id === state.selectedId);
+      if (!appliedInitialFocus && state.items.length && !inspected) {
+        const f = findDensestProjectFocus(state.items);
+        if (f) {
+          applyPose(focusFor(f.latitude, f.longitude));
+          appliedInitialFocus = true;
+        }
+      } else if (selectionChanged && selected)
+        aim(selected.latitude, selected.longitude);
+      if (precedentChanged && selected) {
+        const p = selected.precedents?.find((p) => p.id === state.precedentId);
+        if (p) inspectPrecedent(p);
+      }
+      schedule();
+    },
+    zoom(delta: number) {
+      manual();
+      setZoom(targetZoom + delta);
+    },
+    focusProject(id: string) {
+      const project = state.items.find((item) => item.id === id);
+      if (!project) return;
+      velocityX = velocityY = 0;
+      aim(project.latitude, project.longitude);
+      setZoom(Math.max(targetZoom, 1.55));
+      schedule();
+    },
+    rotate(x: number, y: number) {
+      manual();
+      rotate(x, y);
+      schedule();
+    },
+    fit() {
+      manual();
+      setZoom(1);
+      const f = findDensestProjectFocus(state.items);
+      aim(f?.latitude ?? 20, f?.longitude ?? 0);
+    },
+    dispose() {
+      disposed = true;
+      abort.abort();
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      intersection.disconnect();
+      motionQuery.removeEventListener('change', onMotion);
+      document.removeEventListener('visibilitychange', onVisibility);
+      inputSurface.removeEventListener('wheel', wheel);
+      host.parentElement?.removeEventListener('focusin', onFocusIn);
+      host.parentElement?.removeEventListener('focusout', onFocusOut);
+      renderer.domElement.removeEventListener('pointerdown', down);
+      renderer.domElement.removeEventListener('pointermove', move);
+      renderer.domElement.removeEventListener('pointerup', up);
+      renderer.domElement.removeEventListener('pointercancel', up);
+      renderer.domElement.removeEventListener('lostpointercapture', up);
+      renderer.domElement.removeEventListener('webglcontextlost', lost);
+      renderer.domElement.removeEventListener('webglcontextrestored', restored);
+      disposeGroup(globe);
+      land.dispose();
+      accuracyTexture.dispose();
+      countryLayer.remove();
+      coastMaterial.dispose();
+      borderMaterial.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+      labels.replaceChildren();
+    },
+  };
+}

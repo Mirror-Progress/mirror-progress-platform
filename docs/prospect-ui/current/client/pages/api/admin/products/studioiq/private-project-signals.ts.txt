@@ -1,0 +1,22 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireAdminApiAccount } from '../../../../../lib/auth-guards';
+import { getDb } from '../../../../../lib/mongodb';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
+  const admin = await requireAdminApiAccount(req, res);
+  if (!admin) return;
+  try {
+    const signals = await (await getDb()).collection('prospect_private_projects').aggregate([
+      { $group: { _id: '$dedupeFingerprint', savedBy: { $addToSet: '$accountId' },
+        title: { $first: '$title' }, sourceUrl: { $first: '$sourceUrl' },
+        country: { $first: '$country' }, projectType: { $first: '$projectType' },
+        earliestSave: { $min: '$savedAt' }, latestSave: { $max: '$savedAt' } } },
+      { $project: { _id: 0, fingerprint: '$_id', title: 1, sourceUrl: 1, country: 1, projectType: 1,
+        saverCount: { $size: '$savedBy' }, earliestSave: 1, latestSave: 1 } },
+      { $sort: { saverCount: -1, latestSave: -1 } }, { $limit: 100 },
+    ]).toArray();
+    return res.status(200).json({ signals, note: 'Private saves are sourcing signals. No project is published from this endpoint.' });
+  } catch { return res.status(503).json({ error: 'Private project signals are temporarily unavailable.' }); }
+}

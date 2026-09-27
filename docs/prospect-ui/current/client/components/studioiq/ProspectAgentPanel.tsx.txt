@@ -16,7 +16,7 @@ const localChatsKey = 'prospect-local-chats-v1';
 const activeChatKey = 'prospect-active-chat-v1';
 type Activity = { label: string; detail?: string; state: 'running' | 'done' | 'error' };
 
-type AgentEvent = { type: 'activity' | 'token' | 'error' | 'done' | 'ui_action'; label?: string; detail?: string; text?: string; error?: string; action?: { type: 'show_workflow_scene'; workflow: string; version: number; scene: ProspectTourScene } | { type: 'show_workflow_sequence'; workflow: string; version: number; scenes: ProspectTourScene[] } };
+type AgentEvent = { type: 'activity' | 'token' | 'error' | 'done' | 'ui_action' | 'private_project_saved' | 'session_project_found'; label?: string; detail?: string; text?: string; error?: string; projectId?: string; project?: unknown; action?: { type: 'show_workflow_scene'; workflow: string; version: number; scene: ProspectTourScene } | { type: 'show_workflow_sequence'; workflow: string; version: number; scenes: ProspectTourScene[] } | { type: 'focus_project'; projectId: string } };
 
 function activityLabel(label: string): string {
   const legacy: Record<string, string> = {
@@ -205,6 +205,12 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
             if (event.action.workflow === activeProspectWorkflow.id && event.action.version === activeProspectWorkflow.version && availableScenes.includes(event.action.scene)) onShowScene(event.action.scene);
           } else if (event.type === 'ui_action' && event.action?.type === 'show_workflow_sequence') {
             if (event.action.workflow === activeProspectWorkflow.id && event.action.version === activeProspectWorkflow.version && event.action.scenes.length >= 2 && event.action.scenes.every((scene) => availableScenes.includes(scene))) onShowSequence(event.action.scenes);
+          } else if (event.type === 'ui_action' && event.action?.type === 'focus_project') {
+            window.dispatchEvent(new CustomEvent('prospect:focus-project', { detail: { id: event.action.projectId } }));
+          } else if (event.type === 'private_project_saved') {
+            window.dispatchEvent(new Event('prospect:private-projects-changed'));
+          } else if (event.type === 'session_project_found' && event.project) {
+            window.dispatchEvent(new CustomEvent('prospect:session-project-found', { detail: event.project }));
           } else if (event.type === 'error') {
             throw new Error(event.error ?? 'Agent request failed.');
           }

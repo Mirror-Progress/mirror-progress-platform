@@ -1,0 +1,123 @@
+import { createHash } from 'node:crypto';
+import { getDb } from './mongodb';
+
+let privateIndexReady: Promise<string> | undefined;
+
+export type PrivateProject = {
+  id: string; accountId: string; organizationId: string; title: string; sourceUrl: string; canonicalUrl: string;
+  dedupeFingerprint: string; stage: string | null; buyerName: string | null;
+  description: string; country: string | null; city: string | null; projectType: string | null;
+  deadline: string | null; sourcePublishedAt: string | null; firstSeenAt: string; lastVerifiedAt: null;
+  evidence: { retrievalMethod: 'search'; capturedAt: string; sourceTitle: string; sourceUrl: string;
+    sourceAuthority: 'aggregator'; supportText: string; fieldEvidence: Record<string, string> };
+  savedAt: string; updatedAt: string; status: 'unverified';
+};
+
+function isoDate(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : value;
+}
+
+function evidenced(value: unknown, quote: unknown, sourceText: string, max: number): string | null {
+  const cleanQuote = clean(quote, 300);
+  const cleaned = clean(value, max);
+  return cleaned && cleanQuote.length >= 3 && sourceText.toLocaleLowerCase().includes(cleanQuote.toLocaleLowerCase()) &&
+    cleanQuote.toLocaleLowerCase().includes(cleaned.toLocaleLowerCase()) ? cleaned : null;
+}
+
+function evidencedDeadline(value: unknown, quote: unknown, sourceText: string): string | null {
+  const normalized = isoDate(value);
+  const cleanQuote = clean(quote, 300);
+  if (!normalized || !cleanQuote || !sourceText.toLocaleLowerCase().includes(cleanQuote.toLocaleLowerCase())) return null;
+  const parsed = new Date(cleanQuote);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === normalized ? normalized : null;
+}
+
+export function canonicalProjectUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (!['https:', 'http:'].includes(url.protocol) || !url.hostname.includes('.') || url.username || url.password) return null;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) if (/^(utm_|fbclid$|gclid$)/i.test(key)) url.searchParams.delete(key);
+    return url.toString();
+  } catch { return null; }
+}
+
+export function privateProjectId(accountId: string, url: string): string {
+  return `private_${createHash('sha256').update(`${accountId}\n${url}`).digest('hex').slice(0, 24)}`;
+}
+
+function clean(value: unknown, max: number): string {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, max) : '';
+}
+
+type PrivateProjectInput = {
+  accountId: string; organizationId: string; title: unknown; sourceUrl: unknown;
+  description?: unknown; country?: unknown; city?: unknown; projectType?: unknown; deadline?: unknown;
+  fieldEvidence?: Record<string, unknown>; sourceTitle: string; sourceText: string; sourcePublishedDate?: string;
+};
+
+export function normalizePrivateProject(input: PrivateProjectInput, now = new Date().toISOString()): PrivateProject {
+  const sourceUrl = canonicalProjectUrl(clean(input.sourceUrl, 2048));
+  const title = clean(input.title, 250);
+  if (!sourceUrl || title.length < 3) throw new Error('A project title and public source URL are required.');
+  const sourceText = clean(`${input.sourceTitle} ${input.sourceText}`, 2200);
+  const fieldEvidence = input.fieldEvidence ?? {};
+  const country = evidenced(input.country, fieldEvidence.country, sourceText, 100);
+  const city = evidenced(input.city, fieldEvidence.city, sourceText, 100);
+  const projectType = evidenced(input.projectType, fieldEvidence.projectType, sourceText, 120);
+  const deadline = evidencedDeadline(input.deadline, fieldEvidence.deadline, sourceText);
+  const id = privateProjectId(input.accountId, sourceUrl);
+  const record: PrivateProject = { id, accountId: input.accountId, organizationId: input.organizationId,
+    canonicalUrl: sourceUrl, dedupeFingerprint: createHash('sha256').update(sourceUrl).digest('hex'),
+    stage: null, buyerName: null, firstSeenAt: now, lastVerifiedAt: null,
+    title, sourceUrl, description: clean(input.description, 1800) || clean(input.sourceText, 1800), country,
+    city, projectType, deadline, sourcePublishedAt: isoDate(input.sourcePublishedDate),
+    evidence: { retrievalMethod: 'search', capturedAt: now, sourceTitle: clean(input.sourceTitle, 250), sourceUrl,
+      sourceAuthority: 'aggregator', supportText: clean(input.sourceText, 1800),
+      fieldEvidence: Object.fromEntries(Object.entries(fieldEvidence).flatMap(([key, value]) =>
+        ['country', 'city', 'projectType', 'deadline'].includes(key) && typeof value === 'string'
+          ? [[key, clean(value, 300)]] : [])) },
+    savedAt: now, updatedAt: now, status: 'unverified' };
+  return record;
+}
+
+export async function savePrivateProject(input: PrivateProjectInput): Promise<PrivateProject> {
+  const record = normalizePrivateProject(input);
+  const { id } = record;
+  const collection = (await getDb()).collection<PrivateProject>('prospect_private_projects');
+  privateIndexReady ??= collection.createIndex({ id: 1 }, { unique: true }).catch((error) => {
+    privateIndexReady = undefined;
+    throw error;
+  });
+  await privateIndexReady;
+  const { savedAt, firstSeenAt, ...mutable } = record;
+  await collection.updateOne({ id, accountId: input.accountId }, { $set: mutable, $setOnInsert: { savedAt, firstSeenAt } }, { upsert: true });
+  return record;
+}
+
+export async function listPrivateProjects(accountId: string): Promise<PrivateProject[]> {
+  return (await getDb()).collection<PrivateProject>('prospect_private_projects')
+    .find({ accountId }).sort({ savedAt: -1 }).limit(500).toArray();
+}
+
+export async function deletePrivateProject(accountId: string, id: string): Promise<boolean> {
+  if (!/^private_[a-f0-9]{24}$/.test(id)) return false;
+  const result = await (await getDb()).collection<PrivateProject>('prospect_private_projects').deleteOne({ accountId, id });
+  return result.deletedCount === 1;
+}
+
+export function projectPrivateDiscovery(item: PrivateProject) {
+  return {
+    opportunity_id: item.id, mirror_canonical_id: item.id, title: item.title, description: item.description,
+    buyer_name: null, country: item.country, city: item.city, project_type: item.projectType,
+    deadline: item.deadline ?? null, first_published_at: null, saved_at: item.savedAt,
+    source_published_at: item.sourcePublishedAt ?? null, discovery_class: 'private', value_score: 0,
+    value_reasons: ['Saved privately from a public web source. Details have not been verified by Mirror Progress.'],
+    evidence_count: 1, authority_level: 'unverified', last_verified_at: null, location: null,
+    provenance: [{ evidence_id: item.id, evidence_text: item.evidence?.supportText || item.description || item.title, value: item.title,
+      source_url: item.sourceUrl, source_authority: 'Public web search', captured_at: item.evidence?.capturedAt || item.savedAt, language: 'unknown' }],
+    collaboration: null, pursuit_brief: null, private_saved: true, source_url: item.sourceUrl,
+  };
+}

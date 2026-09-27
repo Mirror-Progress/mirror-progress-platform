@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   CheckIcon,
   ArrowTopRightOnSquareIcon,
@@ -55,11 +55,14 @@ export function StudioIqTerminal(props: {
 }) {
   const { theme, toggleTheme } = useTheme();
   const [items, setItems] = useState<DiscoveryOpportunity[]>(props.initialDiscovery?.opportunities ?? []);
+  const [sessionProjects, setSessionProjects] = useState<DiscoveryOpportunity[]>([]);
+  const displayedItems = useMemo(() => [...items, ...sessionProjects], [items, sessionProjects]);
   const [summary, setSummary] = useState<DiscoverySummary | null>(props.initialDiscovery?.summary ?? null);
   const [canFavorite, setCanFavorite] = useState(props.initialDiscovery?.can_favorite ?? false);
   const [loading, setLoading] = useState(!props.initialDiscovery);
   const [agentOpen, setAgentOpen] = useState(true);
   const [agentExpanded, setAgentExpanded] = useState(false);
+  const [agentFocus, setAgentFocus] = useState<{ id: string; sequence: number } | null>(null);
   const [pendingScene, setPendingScene] = useState<ProspectTourScene | null>(null);
   const [pendingSequence, setPendingSequence] = useState<ProspectTourScene[] | null>(null);
   const [tourSequence, setTourSequence] = useState<ProspectTourScene[] | null>(null);
@@ -239,6 +242,31 @@ export function StudioIqTerminal(props: {
   useEffect(() => {
     void loadDiscovery();
   }, [loadDiscovery]);
+  useEffect(() => {
+    const refresh = () => { void loadDiscovery(); };
+    window.addEventListener('prospect:private-projects-changed', refresh);
+    return () => window.removeEventListener('prospect:private-projects-changed', refresh);
+  }, [loadDiscovery]);
+  useEffect(() => {
+    const focus = (event: Event) => {
+      const id = (event as CustomEvent<{ id?: string }>).detail?.id;
+      if (!id || !/^[a-zA-Z0-9_-]{3,120}$/.test(id)) return;
+      setTourIndex(null);
+      setAgentExpanded(false);
+      setAgentFocus({ id, sequence: Date.now() });
+    };
+    window.addEventListener('prospect:focus-project', focus);
+    return () => window.removeEventListener('prospect:focus-project', focus);
+  }, []);
+  useEffect(() => {
+    const found = (event: Event) => {
+      const project = (event as CustomEvent<DiscoveryOpportunity>).detail;
+      if (!project || !/^session_[a-f0-9]{24}$/.test(project.opportunity_id) || !project.source_url?.startsWith('http')) return;
+      setSessionProjects((current) => [...current.filter((item) => item.opportunity_id !== project.opportunity_id), project].slice(-10));
+    };
+    window.addEventListener('prospect:session-project-found', found);
+    return () => window.removeEventListener('prospect:session-project-found', found);
+  }, []);
 
   useEffect(() => {
     if (window.matchMedia('(max-width: 767px)').matches) setAgentOpen(false);
@@ -446,7 +474,7 @@ export function StudioIqTerminal(props: {
 
       <div ref={layoutRef} className={`${styles.workspaceLayout} ${expandedLayout ? styles.workspaceLayoutExpanded : ''}`} style={{ '--prospect-chat-width': `${chatWidth}px` } as CSSProperties}>
         <div className={styles.workspaceMain}><StudioIqDiscovery
-          items={items}
+          items={displayedItems}
           summary={summary}
           canFavorite={canFavorite}
           loading={loading}
@@ -454,6 +482,8 @@ export function StudioIqTerminal(props: {
           localPreview={props.localPreview}
           onReload={loadDiscovery}
           tourScene={tourScene}
+          agentFocus={agentFocus}
+          onDismissSessionProject={(id) => setSessionProjects((current) => current.filter((item) => item.opportunity_id !== id))}
         /></div>
         {expandedLayout ? <div className={styles.workspaceResize} role="separator" aria-label="Resize Prospect and chat" aria-orientation="vertical" aria-valuenow={Math.round(chatShare * 100)} aria-valuemin={20} aria-valuemax={65} tabIndex={0} onPointerDown={resizeChat} onKeyDown={onChatResizeKey} onDoubleClick={() => setChatShareSaved(0.34)} /> : null}
         <aside className={`${styles.agentDock} ${expandedLayout ? styles.agentDockExpanded : ''} ${!agentOpen || (tourScene && tourScene !== 'agent') ? styles.agentDockTourHidden : ''}`} data-tour-anchor={agentOpen ? 'agent' : undefined} aria-label="Prospect assistant chat" aria-hidden={!agentOpen || Boolean(tourScene && tourScene !== 'agent')}><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={expandedLayout} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={closeAgent} availableScenes={tourSteps.map((step) => step.id)} onShowScene={showTourScene} onShowSequence={showTourSequence} /></aside>

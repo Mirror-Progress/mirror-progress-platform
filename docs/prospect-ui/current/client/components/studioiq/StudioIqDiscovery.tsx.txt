@@ -64,7 +64,7 @@ type Collaborator = {
   display_name: string;
 };
 type ViewMode = 'list' | 'globe';
-type Filter = 'all' | 'favorites' | 'recommended' | 'closing';
+type Filter = 'all' | 'favorites' | 'recommended' | 'closing' | 'private';
 
 export type DiscoveryOpportunity = {
   opportunity_id: string;
@@ -77,6 +77,8 @@ export type DiscoveryOpportunity = {
   project_type: string | null;
   deadline: string | null;
   first_published_at: string | null;
+  saved_at?: string | null;
+  source_published_at?: string | null;
   discovery_class: string;
   value_score: number;
   value_reasons: string[];
@@ -124,6 +126,9 @@ export type DiscoveryOpportunity = {
       source_url?: string | null;
     }>;
   } | null;
+  private_saved?: boolean;
+  session_preview?: boolean;
+  source_url?: string;
 };
 
 export type DiscoverySummary = {
@@ -138,12 +143,14 @@ export type DiscoverySummary = {
 
 const filters: Array<[Filter, string]> = [
   ['all', 'All projects'],
+  ['private', 'My saved'],
   ['favorites', 'Favorites'],
   ['recommended', 'Recommended'],
   ['closing', 'Closing'],
 ];
 
 function priorityScore(item: DiscoveryOpportunity) {
+  if (item.private_saved || item.session_preview) return 30 + Math.max(0, 15 - (Date.now() - (Date.parse(item.saved_at ?? '') || Date.now())) / 86_400_000);
   const match = item.pursuit_brief?.match_score ?? 0;
   const published = Date.parse(item.first_published_at ?? '') || 0;
   const ageDays = published
@@ -196,6 +203,8 @@ export function StudioIqDiscovery(props: {
   localPreview?: boolean;
   onReload: () => Promise<void>;
   tourScene?: import('../../lib/studioiq-walkthrough').ProspectTourScene | null;
+  agentFocus?: { id: string; sequence: number } | null;
+  onDismissSessionProject?: (id: string) => void;
 }) {
   const [dossierTab, setDossierTab] = useState<DossierTab>('overview');
   const dossierId = useId();
@@ -256,6 +265,16 @@ export function StudioIqDiscovery(props: {
   const [market, setMarket] = useState('all');
   const [marketOpen, setMarketOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  useEffect(() => {
+    const focus = props.agentFocus;
+    if (!focus || !props.items.some((item) => item.opportunity_id === focus.id)) return;
+    setFilter('all');
+    setMarket('all');
+    setQuery('');
+    setViewMode('globe');
+    setSelectedId(focus.id);
+    setDossierOpen(true);
+  }, [props.agentFocus, props.items]);
   useEffect(() => {
     let entered = Date.now();
     const flush = () => {
@@ -368,6 +387,7 @@ export function StudioIqDiscovery(props: {
     const normalized = query.trim().toLowerCase();
     return props.items
       .filter((item) => filter !== 'favorites' || isFavorite(item))
+      .filter((item) => filter !== 'private' || item.private_saved)
       .filter(
         (item) => filter !== 'recommended' || item.discovery_class === 'niche'
       )
@@ -488,6 +508,25 @@ export function StudioIqDiscovery(props: {
     recommended: props.items.filter((item) => item.discovery_class === 'niche')
       .length,
     closing: props.items.filter(closingSoon).length,
+    private: props.items.filter((item) => item.private_saved).length,
+  };
+
+  const removePrivateProject = async (item: DiscoveryOpportunity) => {
+    if (item.session_preview) {
+      props.onDismissSessionProject?.(item.opportunity_id);
+      setDossierOpen(false);
+      return;
+    }
+    if (!item.private_saved) return;
+    try {
+      const response = await fetch('/api/products/studioiq/private-projects', {
+        method: 'DELETE', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: item.opportunity_id }),
+      });
+      if (!response.ok) throw new Error('Unable to remove this saved project.');
+      setDossierOpen(false);
+      await props.onReload();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to remove this saved project.'); }
   };
 
   const toggleFavorite = async (item: DiscoveryOpportunity) => {
@@ -543,7 +582,7 @@ export function StudioIqDiscovery(props: {
         <div className={styles.analyticsIntro}>
           <span>{props.localPreview ? 'Local project preview' : 'Live project intelligence'}</span>
           <strong>{props.localPreview ? 'Explore project signals' : 'New projects matched to your firm'}</strong>
-          <small>{props.localPreview ? 'Historical sample projects · market pulse uses sourced data.' : 'Verified opportunities ranked by score and recency.'}</small>
+          <small>{props.localPreview ? 'Historical sample projects · market pulse uses sourced data.' : 'Published opportunities and your private saved projects.'}</small>
         </div>
         <button
           className={`${styles.metric} ${styles.metricNew}`}
@@ -759,7 +798,7 @@ export function StudioIqDiscovery(props: {
                         </span>
                         <div>
                           <span className={styles.itemMeta}>
-                            {relativeTime(item.first_published_at)} ·{' '}
+                            {item.private_saved ? `Saved ${relativeTime(item.saved_at ?? null)}` : item.session_preview ? 'Found this session' : relativeTime(item.first_published_at)} ·{' '}
                             {[item.city, item.country]
                               .filter(Boolean)
                               .join(', ') || 'Location pending'}
@@ -775,16 +814,18 @@ export function StudioIqDiscovery(props: {
                               <i>Recommended</i>
                             ) : null}
                             {closingSoon(item) ? <i>Closing</i> : null}
+                            {item.private_saved ? <i>Private · unverified</i> : null}
+                            {item.session_preview ? <i>Session preview · unverified</i> : null}
                           </span>
                         </div>
-                        <span className={styles.fit}>
+                        {!item.private_saved && !item.session_preview ? <span className={styles.fit}>
                           {Math.round(
                             item.pursuit_brief?.match_score ?? item.value_score
                           )}
                           <small>Score</small>
-                        </span>
+                        </span> : null}
                       </button>
-                      <button
+                      {!item.private_saved && !item.session_preview ? <button
                         className={`${styles.favoriteButton} ${isFavorite(item) ? styles.favoriteActive : ''}`}
                         type="button"
                         disabled={
@@ -800,7 +841,7 @@ export function StudioIqDiscovery(props: {
                         }
                       >
                         <HeartIcon />
-                      </button>
+                      </button> : <button className={styles.favoriteButton} type="button" onClick={() => void removePrivateProject(item)} aria-label={`Dismiss ${item.title}`} title={item.session_preview ? 'Dismiss session preview' : 'Remove private project'}><XMarkIcon /></button>}
                     </article>
                   ))
                 )}
@@ -854,6 +895,7 @@ export function StudioIqDiscovery(props: {
                 theme={props.theme}
                 opportunities={globeOpportunities}
                 selectedId={selectedId}
+                focusSignal={props.agentFocus}
                 precedentId={precedentId}
                 onSelectPrecedent={setPrecedentId}
                 onSelect={(id) => {
@@ -870,11 +912,10 @@ export function StudioIqDiscovery(props: {
                   </span>
                   <strong>{selected.title}</strong>
                   <small>
-                    {Math.round(
+                    {selected.private_saved || selected.session_preview ? 'Unverified project' : <>{Math.round(
                       selected.pursuit_brief?.match_score ??
                         selected.value_score
-                    )}{' '}
-                    Prospect score
+                    )}{' '}Prospect score</>}
                   </small>
                 </div>
               ) : null}
@@ -907,16 +948,16 @@ export function StudioIqDiscovery(props: {
                 </button>
                 <div className={styles.signalLine}>
                   <span>
-                    {selected.discovery_class === 'niche'
+                    {selected.session_preview ? 'Session preview' : selected.private_saved ? 'Private saved project' : selected.discovery_class === 'niche'
                       ? 'Recommended project'
                       : 'New project'}
                   </span>
-                  <span>Found {relativeTime(selected.first_published_at)}</span>
+                  <span>{selected.private_saved ? `Saved ${relativeTime(selected.saved_at ?? null)}` : selected.session_preview ? 'Found this session' : `Found ${relativeTime(selected.first_published_at)}`}</span>
                   <span>{selected.authority_level} authority</span>
                 </div>
                 <div className={styles.titleRow}>
                   <h2 title={selected.title}>{selected.title}</h2>
-                  <button
+                  {selected.private_saved || selected.session_preview ? <button type="button" className={styles.dossierFavorite} onClick={() => void removePrivateProject(selected)}><XMarkIcon /><span>{selected.session_preview ? 'Dismiss' : 'Remove'}</span></button> : <button
                     className={`${styles.dossierFavorite} ${isFavorite(selected) ? styles.favoriteActive : ''}`}
                     type="button"
                     disabled={
@@ -934,7 +975,7 @@ export function StudioIqDiscovery(props: {
                     <span>
                       {isFavorite(selected) ? 'Favorited' : 'Favorite'}
                     </span>
-                  </button>
+                  </button>}
                 </div>
                 <dl>
                   <div>
@@ -949,7 +990,9 @@ export function StudioIqDiscovery(props: {
                     <dt>Deadline</dt>
                     <dd>{dateLabel(selected.deadline)}</dd>
                   </div>
-                  <div>
+                  {(selected.private_saved || selected.session_preview) && selected.source_url ? <div><dt>Source</dt><dd><a href={selected.source_url} target="_blank" rel="noreferrer">Open public source</a></dd></div> : null}
+                  {(selected.private_saved || selected.session_preview) && selected.source_published_at ? <div><dt>Source published</dt><dd>{dateLabel(selected.source_published_at)}</dd></div> : null}
+                  {!selected.private_saved && !selected.session_preview ? <div>
                     <dt>Prospect score</dt>
                     <dd>
                       {Math.round(
@@ -957,7 +1000,7 @@ export function StudioIqDiscovery(props: {
                           selected.value_score
                       )}
                     </dd>
-                  </div>
+                  </div> : null}
                 </dl>
               </header>
 

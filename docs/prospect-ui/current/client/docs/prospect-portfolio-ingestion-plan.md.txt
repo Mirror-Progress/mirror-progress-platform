@@ -1,0 +1,25 @@
+# Customer portfolio ingestion for Prospect
+
+Prospect discovery must work when a firm has not supplied its past projects. An absent portfolio means practice relevance is unknown; it does not mean an opportunity is low value. The current matcher and UI conflate those states: `lib/studioiq-portfolio-matching.ts` and `lib/research-intelligence.ts` produce zero or no pursuit brief, while `components/studioiq/StudioIqDiscovery.tsx` gives a missing match 35% of its ranking weight and says a verified match is still being resolved. The matcher also has MAD-specific text. Fix this before accepting imports.
+
+## Product states
+
+Expose a tenant portfolio state: `none`, `importing`, `ready`, or `error`, derived from tenant-scoped approved portfolio records and active import sessions. When state is `none`, show sourced opportunities, value signals, dates, locations, and evidence normally. Show “Practice fit available after you add your projects” in the practice tab; do not show `0` as a relevance score. Rank with available dimensions only, renormalizing opportunity value and recency weights. When state becomes `ready`, compute and show practice matches without changing the underlying opportunity record.
+
+## Import workflow
+
+1. A user with the `manage_portfolio` workspace role opens Settings → Portfolio → Import projects. They can upload CSV first; later accept XLSX, PDF, DOCX, images, and ZIP through format-specific parsers. Each upload creates a tenant-scoped import session and encrypted raw artifact with size, format, hash, uploader, and retention metadata. No file is published by upload alone.
+2. Deterministic parsing extracts rows or sections. MP maps each item to a draft `StudioIqPortfolioPrecedent` and field-level source spans. Normalized fields include stable external ID, name, summary, completion year, location, typology, disciplines, project types, sector tags, credits, source URL, images, and source revision/hash. Unknown is `null`; do not infer that a project was delivered or that a firm owns the work.
+3. Show a preview table with mappings, missing fields, duplicates, and conflicting claims. The user can correct rows and approve an import batch. Re-import of the same source updates the same tenant record through a stable ID/hash. Keep original evidence and corrections separately.
+4. Approved records enter the tenant portfolio via the existing `studioiq_portfolio_precedents` store. Firm verification of credentials is a separate flag. Refresh practice matching and agent catalog only for that tenant. Other tenants cannot read these records.
+
+## Existing seams
+
+- Schema and permissions: `lib/studioiq-collaboration-types.ts` (`StudioIqPortfolioPrecedent`, `manage_portfolio`) and `lib/studioiq-collaboration.ts` (list/create/ingest/review/hydrate). The current manual endpoint is `pages/api/products/studioiq/practice.ts`; it accepts only a small field set and can mark a project approved directly.
+- The MAD-specific Sanity sync is `scripts/sync-mad-sanity-portfolio.mjs`. General ingestion should use a provider-neutral adapter and leave that sync intact until parity is verified.
+- Matching and brief publication are in `lib/studioiq-portfolio-matching.ts` and `lib/research-intelligence.ts`. Remove MAD-specific prose. Permit a sourced opportunity brief without a portfolio match, and represent `matchScore` as absent rather than zero when no portfolio exists.
+- MP already reads portfolio projects as `portfolio_project` in `lib/prospect-agent/catalog.ts`. Add read tools for import-session status and a gated normalization tool. Only a user-authorized upload and approval step may write a tenant portfolio record.
+
+## Validation
+
+Cover empty portfolios, CSV header variants, malformed dates, duplicate re-import, conflicting files, source-span preservation, unauthorized role and cross-tenant access, read-only commercial entitlement, match-state transition, and removal of MAD-specific copy. Evaluate extraction field accuracy and human correction rate before expanding beyond CSV.

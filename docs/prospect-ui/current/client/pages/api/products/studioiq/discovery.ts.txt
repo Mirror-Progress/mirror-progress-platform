@@ -1,0 +1,72 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { listPublishedStudioIqIntelligence } from '../../../../lib/research-intelligence';
+import {
+  ensureStudioIqWorkspaceMembership,
+  hydrateStudioIqPortfolioPrecedentsByOpportunity,
+  listStudioIqOpportunityCollaborationSummaries,
+} from '../../../../lib/studioiq-collaboration';
+import { canStudioIqWorkspaceRole } from '../../../../lib/studioiq-collaboration-types';
+import {
+  isCurrentStudioIqDiscovery,
+  STUDIOIQ_DISCOVERY_FRESHNESS_WINDOW_DAYS,
+} from '../../../../lib/studioiq-discovery-policy';
+import { projectStudioIqOpportunity } from '../../../../lib/studioiq-intelligence-projection';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { listPrivateProjects, projectPrivateDiscovery } from '../../../../lib/prospect-private-projects';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
+  const access = await requireStudioIqProductAccess(req, res);
+  if (!access?.mirrorClientId) return;
+
+  try {
+    const [result, member] = await Promise.all([
+      listPublishedStudioIqIntelligence({
+        mirrorClientId: access.mirrorClientId,
+        externalOrganizationId: access.externalOrganizationId,
+      }),
+      ensureStudioIqWorkspaceMembership(access),
+    ]);
+    const now = Date.now();
+    const currentOpportunities = result.opportunities.filter((item) =>
+      isCurrentStudioIqDiscovery(item.candidate, now)
+    );
+    const candidateIds = currentOpportunities.map((item) => item.candidate.id);
+    const opportunityPrecedentIds = new Map(
+      currentOpportunities.map((item) => [item.candidate.id, item.pursuitBrief?.precedentIds ?? []])
+    );
+    const [collaborationByCandidate, precedentsByCandidate] = await Promise.all([
+      listStudioIqOpportunityCollaborationSummaries({ access, opportunityCandidateIds: candidateIds }),
+      hydrateStudioIqPortfolioPrecedentsByOpportunity({ access, opportunityPrecedentIds }),
+    ]);
+    const publishedOpportunities = currentOpportunities.map((item) => projectStudioIqOpportunity({
+      ...item,
+      collaboration: collaborationByCandidate.get(item.candidate.id),
+      hydratedPrecedents: precedentsByCandidate.get(item.candidate.id),
+    }));
+    const privateProjects = access.mirrorAccountId ? await listPrivateProjects(access.mirrorAccountId) : [];
+    const opportunities = [...publishedOpportunities, ...privateProjects.map(projectPrivateDiscovery)];
+    const countries = new Set(opportunities.map((item) => item.country).filter(Boolean));
+
+    return res.status(200).json({
+      generated_at_utc: result.generatedAt,
+      total: opportunities.length,
+      can_favorite: canStudioIqWorkspaceRole(member.role, 'flag'),
+      private_saved_count: privateProjects.length,
+      summary: {
+        total: publishedOpportunities.length,
+        favorites: opportunities.filter((item) => item.collaboration?.current_user_flagged).length,
+        team_favorites: opportunities.filter((item) => item.collaboration?.flagged_by.length).length,
+        niche: opportunities.filter((item) => item.discovery_class === 'niche').length,
+        mapped: opportunities.filter((item) => item.location).length,
+        markets: countries.size,
+        freshness_window_days: STUDIOIQ_DISCOVERY_FRESHNESS_WINDOW_DAYS,
+      },
+      opportunities,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unable to load Prospect discovery.',
+    });
+  }
+}

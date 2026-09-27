@@ -1,0 +1,271 @@
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  validGlobePoint,
+  type GlobeOpportunity,
+} from '../../lib/studioiq-globe-context';
+import {
+  createPursuitGlobeScene,
+  type GlobePreview,
+  type GlobeTheme,
+} from './pursuit-globe-scene';
+import styles from './PursuitGlobe.module.css';
+export type { GlobeOpportunity, GlobeTheme };
+
+export function PursuitGlobe(props: {
+  theme: 'dark' | 'light';
+  opportunities: GlobeOpportunity[];
+  selectedId: string | null;
+  focusSignal?: { id: string; sequence: number } | null;
+  onSelect: (id: string) => void;
+  precedentId?: string | null;
+  onSelectPrecedent?: (id: string) => void;
+}) {
+  const host = useRef<HTMLDivElement>(null),
+    labels = useRef<HTMLDivElement>(null);
+  const scene = useRef<ReturnType<typeof createPursuitGlobeScene> | null>(null);
+  const current = useRef(props);
+  current.current = props;
+  const [ready, setReady] = useState(false),
+    [failed, setFailed] = useState(false);
+  const [geographyFailed, setGeographyFailed] = useState(false);
+  const [zoom, setZoom] = useState(100),
+    [preview, setPreview] = useState<GlobePreview>(null);
+  const id = useId();
+  const [pickerIds, setPickerIds] = useState<string[]>([]);
+  const picker = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const pickerItems = props.opportunities.filter((item) => pickerIds.includes(item.id));
+  function closePicker() {
+    setPickerIds([]);
+    if (returnFocus.current?.isConnected) returnFocus.current.focus();
+    else host.current?.parentElement?.focus();
+  }
+  useEffect(() => {
+    if (pickerIds.length) picker.current?.querySelector<HTMLButtonElement>('button')?.focus();
+  }, [pickerIds]);
+  const selected = props.opportunities.find(
+    (item) => item.id === props.selectedId
+  );
+  useEffect(() => {
+    if (!host.current || !labels.current) return;
+    try {
+      scene.current = createPursuitGlobeScene(
+        host.current,
+        labels.current,
+        {
+          items: current.current.opportunities.filter(validGlobePoint),
+          selectedId: current.current.selectedId,
+          precedentId: current.current.precedentId ?? null,
+          theme: current.current.theme,
+        },
+        {
+          select: (id) => current.current.onSelect(id),
+          openProjects: (ids) => {
+            returnFocus.current = document.activeElement as HTMLElement | null;
+            setPreview(null);
+            setPickerIds(ids);
+          },
+          preview: setPreview,
+          zoom: setZoom,
+          failed: setFailed,
+          geographyFailed: () => setGeographyFailed(true),
+        }
+      );
+      scene.current.setPrecedentCallback((id) =>
+        current.current.onSelectPrecedent?.(id)
+      );
+    } catch {
+      setFailed(true);
+    }
+    setReady(true);
+    return () => {
+      scene.current?.dispose();
+      scene.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    scene.current?.update({
+      items: props.opportunities.filter(validGlobePoint),
+      selectedId: props.selectedId,
+      precedentId: props.precedentId ?? null,
+      theme: props.theme,
+    });
+  }, [props.opportunities, props.selectedId, props.precedentId, props.theme]);
+  useEffect(() => {
+    if (props.focusSignal && props.selectedId === props.focusSignal.id) scene.current?.focusProject(props.focusSignal.id);
+  }, [props.focusSignal, props.selectedId]);
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    const items = props.opportunities.filter(validGlobePoint);
+    const index = items.findIndex((p) => p.id === props.selectedId);
+    switch (event.key) {
+      case 'ArrowLeft':
+        scene.current?.rotate(0, -0.14);
+        break;
+      case 'ArrowRight':
+        scene.current?.rotate(0, 0.14);
+        break;
+      case 'ArrowUp':
+        scene.current?.rotate(-0.1, 0);
+        break;
+      case 'ArrowDown':
+        scene.current?.rotate(0.1, 0);
+        break;
+      case '+':
+      case '=':
+        scene.current?.zoom(0.25);
+        break;
+      case '-':
+      case '_':
+        scene.current?.zoom(-0.25);
+        break;
+      case '0':
+        scene.current?.fit();
+        break;
+      case 'PageDown':
+        if (items.length) props.onSelect(items[(index + 1) % items.length].id);
+        break;
+      case 'PageUp':
+        if (items.length)
+          props.onSelect(items[(Math.max(0, index) - 1 + items.length) % items.length].id);
+        break;
+      case 'Home':
+        if (items[0]) props.onSelect(items[0].id);
+        break;
+      case 'End':
+        if (items.length) props.onSelect(items[items.length - 1].id);
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  }
+  return (
+    <div
+      className={styles.globe}
+      data-theme={props.theme}
+      data-ready={ready}
+      data-testid="studioiq-globe"
+      tabIndex={0}
+      role="region"
+      aria-label="Interactive pursuit opportunity globe"
+      aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown = - 0 PageUp PageDown Home End"
+      aria-describedby={id}
+      onKeyDown={onKeyDown}
+      onPointerDown={(event) => {
+        if (pickerIds.length && !(event.target as Element).closest('[data-project-picker]')) closePicker();
+      }}
+    >
+      <div className={styles.scene} ref={host} />
+      <div className={styles.labels} ref={labels} hidden={failed} />
+      {!failed && (
+        <div className={styles.zoomControls} aria-label="Globe zoom controls">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            disabled={zoom <= 70}
+            onClick={() => scene.current?.zoom(-0.25)}
+          >
+            -
+          </button>
+          <output aria-label={`Globe zoom ${zoom} percent`}>{zoom}%</output>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={zoom >= 360}
+            onClick={() => scene.current?.zoom(0.25)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className={styles.fitButton}
+            onClick={() => scene.current?.fit()}
+            title="Return to geographic overview"
+          >
+            Fit
+          </button>
+        </div>
+      )}
+      {pickerItems.length > 0 && (
+        <div ref={picker} className={styles.projectPicker} data-project-picker
+          role="dialog" aria-modal="false" aria-label="Projects in this area"
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === 'Escape') { event.preventDefault(); closePicker(); }
+          }}>
+          <header><strong>{pickerItems.length} projects</strong>
+            <button type="button" aria-label="Close project picker" onClick={closePicker}>×</button>
+          </header>
+          <p>Choose a project to inspect its details.</p>
+          <div className={styles.pickerList}>
+            {pickerItems.map((item, index) => <button type="button" key={item.id}
+              aria-pressed={item.id === props.selectedId}
+              onClick={() => props.onSelect(item.id)}>
+              <span>{index + 1}</span><div><strong>{item.title}</strong>
+                <small>{[item.city, item.country].filter(Boolean).join(', ')}
+                  {item.coordinateMethod === 'country_centroid' ? ' · City not yet identified' : item.coordinateMethod === 'region_centroid' ? ' · Approximate region' : item.coordinateMethod === 'source_document' ? ' · Source coordinates' : ' · Approximate city'}
+                </small></div>
+            </button>)}
+          </div>
+        </div>
+      )}
+      {!ready && <span className={styles.loading}>Resolving field</span>}
+      {failed && (
+        <div
+          className={styles.fallbackMap}
+          data-testid="studioiq-globe-fallback"
+        >
+          <strong>Project locations</strong>
+          <p>3D view unavailable. Select a project to inspect its context.</p>
+          {props.opportunities.filter(validGlobePoint).map((p) => (
+            <button
+              type="button"
+              key={p.id}
+              aria-pressed={p.id === props.selectedId}
+              onClick={() => props.onSelect(p.id)}
+            >
+              {p.title}
+              <small>{p.city ?? p.country}</small>
+            </button>
+          ))}
+        </div>
+      )}
+      {preview && !failed && !pickerItems.length && (
+        <div
+          className={styles.hoverPreview}
+          style={{ left: preview.x, top: preview.y }}
+          role="status"
+        >
+          <span>{preview.location}</span>
+          <strong>{preview.title}</strong>
+          <small>{preview.detail}</small>
+        </div>
+      )}
+      {!props.opportunities.length && ready && (
+        <span className={styles.loading}>No mapped projects in this view</span>
+      )}
+      <div className={styles.axes} aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
+      <span className={styles.scaleHint}>
+        {geographyFailed
+          ? 'Geography unavailable · projects remain interactive'
+          : 'Select a cluster to zoom · shared locations open all projects'}
+      </span>
+      <p id={id} className={styles.accessibleContext}>
+        Drag to rotate. Scroll or pinch to zoom. Arrow keys rotate; plus and
+        minus zoom; zero fits the globe. Page Up and Page Down select projects.
+        Tab to inspect visible markers. Coastlines and boundaries provide
+        geographic context only.
+      </p>
+      <p className={styles.accessibleContext} aria-live="polite">
+        {selected
+          ? `Selected opportunity: ${selected.title}, ${selected.country}.`
+          : 'No project selected.'}
+      </p>
+    </div>
+  );
+}

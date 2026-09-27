@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { canonicalProjectUrl, normalizePrivateProject, privateProjectId } from '../lib/prospect-private-projects';
+
+test('private project normalization preserves evidence and rejects unsupported fields', () => {
+  const record = normalizePrivateProject({
+    accountId: 'account-a', organizationId: 'org-a', title: 'Central Station Renewal',
+    sourceUrl: 'https://example.org/projects/station?utm_source=search',
+    sourceTitle: 'Central Station Renewal',
+    sourceText: 'The Central Station Renewal in Sacramento, USA is a transit project. Applications close October 15, 2026.',
+    sourcePublishedDate: '2026-09-27', country: 'USA', city: 'Sacramento', projectType: 'transit',
+    deadline: '2026-10-15', fieldEvidence: { country: 'Sacramento, USA', city: 'Sacramento',
+      projectType: 'transit project', deadline: 'October 15, 2026' },
+  }, '2026-09-27T12:00:00.000Z');
+  assert.equal(record.country, 'USA');
+  assert.equal(record.city, 'Sacramento');
+  assert.equal(record.projectType, 'transit');
+  assert.equal(record.deadline, '2026-10-15');
+  assert.equal(record.sourcePublishedAt, '2026-09-27');
+  assert.equal(record.sourceUrl, 'https://example.org/projects/station');
+  assert.equal(record.evidence.retrievalMethod, 'search');
+  assert.equal(record.status, 'unverified');
+
+  const unsupported = normalizePrivateProject({ accountId: 'account-a', organizationId: 'org-a',
+    title: 'Unknown Project', sourceUrl: 'https://example.org/unknown', sourceTitle: 'Unknown Project',
+    sourceText: 'A potential project has been discussed.', country: 'USA', city: 'Chicago',
+    deadline: '2026-10-15', fieldEvidence: { country: 'potential project', city: 'Chicago', deadline: 'potential project' },
+  });
+  assert.equal(unsupported.country, null);
+  assert.equal(unsupported.city, null);
+  assert.equal(unsupported.deadline, null);
+});
+
+test('private IDs deduplicate per owner and do not reuse another account’s ID', () => {
+  const url = canonicalProjectUrl('https://example.org/project?gclid=123');
+  assert.equal(url, 'https://example.org/project');
+  assert.equal(privateProjectId('account-a', url!), privateProjectId('account-a', url!));
+  assert.notEqual(privateProjectId('account-a', url!), privateProjectId('account-b', url!));
+});
