@@ -48,6 +48,8 @@ const userError = (error: unknown): string => {
   if (code === "company_unavailable") return "Choose an existing company with active Prospect access and an available seat.";
   if (code === "external_email_delivery_unavailable") return "Invites to this email domain are temporarily unavailable. Contact your admin to use a verified Mirror Progress address.";
   if (code === "invitation_conflict") return "That email already has an invitation. Check the list below.";
+  if (code === "trial_preparation_failed") return "We couldn't prepare this trial. Check whether the company already has a Prospect workspace, then try again.";
+  if (code === "invalid_trial_invitation") return "Enter a valid email, 1–365 trial days, and at least one seat.";
   if (code === "privileged_passkey_required") return "Finish signing in with your passkey.";
   if (code === "remote_enrollment_link_used_or_expired" || code === "remote_enrollment_used_or_expired") return "This one-time setup link has expired or was already used.";
   if (code === "AUTH_CANCELLED" || code === "ERROR_CEREMONY_ABORTED") return "The passkey prompt was cancelled. Try again when ready.";
