@@ -52,7 +52,14 @@
 <p>While signed in on your Mac, add a passkey to your iPhone. In the browser prompt, choose “Use another device” or “Phone or tablet,” then scan the QR code with your iPhone. If iCloud Keychain is on for the same Apple Account, the passkey will also be available on your iPad.</p>
 <button id="add-device-passkey" type="button" class="secondary wide">Add phone or iPad passkey</button></section>
 <section class="card" id="invitation-admin" hidden><p class="step">TEAM ACCESS</p><h2>Invite someone to Prospect</h2>
-<p>Enter their details. We’ll email one secure setup link.</p>
+<p>Start a Prospect trial in one step. The trial clock begins when the recipient first signs in, not when the email is sent.</p>
+<form id="invite-trial"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
+<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
+<label>Company<input name="company" maxlength="120" required></label>
+<label>Trial length (days)<input name="trialDays" type="number" min="1" max="365" value="14" required></label>
+<label>Seats<input name="seatAllowance" type="number" min="1" max="10000" value="25" required></label>
+<button type="submit">Send trial invitation</button></form>
+<h3>Invite to an existing workspace</h3><p>Use this for team members or Mirror Progress admins.</p>
 <form id="invite-person"><label>Name<input name="name" maxlength="120" autocomplete="off" required></label>
 <label>Email<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
 <label>Account type<select name="accountType" required><option value="external">External Prospect account</option><option value="admin">Mirror Progress admin</option></select></label>

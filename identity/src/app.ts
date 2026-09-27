@@ -209,6 +209,38 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (!info) throw new PolicyError("invalid_invitation", 400);
       return json(info);
     }
+    if (request.method === "POST" && url.pathname === "/api/identity/admin/trial-invitations") {
+      if (config.mode !== "production" || !config.freshInstall || !config.sessionStatusSecret) throw new PolicyError("route_not_exposed", 404);
+      const identity = await requiredSession(request.headers);
+      const managed = store as StagingStore;
+      const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
+      if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
+      const body = await readObject(request);
+      if (Object.keys(body).some(key => !["name", "email", "company", "trialDays", "seatAllowance"].includes(key))) throw new PolicyError("unexpected_invitation_field", 400);
+      const name = stringField(body, "name", 1, 120).trim();
+      const email = stringField(body, "email", 3, 254).trim().toLowerCase();
+      const company = stringField(body, "company", 1, 120).trim();
+      const trialDays = Number(body.trialDays), seatAllowance = Number(body.seatAllowance);
+      if (!name || !company || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+          !Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365 ||
+          !Number.isInteger(seatAllowance) || seatAllowance < 1 || seatAllowance > 10_000) {
+        throw new PolicyError("invalid_trial_invitation", 400);
+      }
+      if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
+      await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
+      const trialKeyHash = createHash("sha256").update(`${email}\0${company.toLowerCase()}`).digest("hex").slice(0, 32);
+      const idempotencyKey = `${trialKeyHash.slice(0, 8)}-${trialKeyHash.slice(8, 12)}-${trialKeyHash.slice(12, 16)}-${trialKeyHash.slice(16, 20)}-${trialKeyHash.slice(20)}`;
+      const prepared = await fetch("https://platform.mirrorprogress.com/api/internal/identity/prepare-trial", {
+        method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000),
+        headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
+        body: JSON.stringify({ name, email, company, trialDays, seatAllowance,
+          actorPrincipalId: principal.id, idempotencyKey }),
+      }).catch(() => null);
+      if (!prepared?.ok || prepared.redirected) throw new PolicyError("trial_preparation_failed", 409);
+      return json(await managed.issueManagedInvitation(identity.session.id, {
+        name, email, company, accountType: "external", role: "client",
+      }), 202);
+    }
     if (url.pathname === "/api/identity/admin/invitations" &&
         (request.method === "GET" || request.method === "POST")) {
       if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);

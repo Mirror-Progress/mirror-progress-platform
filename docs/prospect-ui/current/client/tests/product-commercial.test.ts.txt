@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  productAccessMode,
+  resolveProductEntitlementLifecycle,
+  trialActivationDates,
+  type ProductEntitlement,
+} from '../lib/product-commercial';
+
+function entitlement(overrides: Partial<ProductEntitlement> = {}): ProductEntitlement {
+  return {
+    id: 'entitlement-1', productId: 'studioiq', mirrorClientId: 'client-1', planId: 'firm_pilot', planName: 'Firm Pilot',
+    status: 'pending_activation', seatAllowance: 25, trialDays: 30, graceDays: 7, trialStartsAt: null,
+    trialEndsAt: null, graceEndsAt: null, renewalTreatment: 'custom', revision: 1, metadata: {},
+    createdAt: '2026-08-01T12:00:00.000Z', updatedAt: '2026-08-01T12:00:00.000Z', ...overrides,
+  };
+}
+
+test('founder trial begins at owner activation and receives exact trial and grace windows', () => {
+  const dates = trialActivationDates({ activatedAt: '2026-08-03T16:00:00.000Z', trialDays: 30, graceDays: 7 });
+  assert.equal(dates.trialStartsAt, '2026-08-03T16:00:00.000Z');
+  assert.equal(dates.trialEndsAt, '2026-09-02T16:00:00.000Z');
+  assert.equal(dates.graceEndsAt, '2026-09-09T16:00:00.000Z');
+});
+
+test('trial lifecycle becomes read-only at expiry and blocked after grace', () => {
+  const record = entitlement({
+    status: 'trialing', trialStartsAt: '2026-08-03T16:00:00.000Z',
+    trialEndsAt: '2026-09-02T16:00:00.000Z', graceEndsAt: '2026-09-09T16:00:00.000Z',
+  });
+  assert.equal(resolveProductEntitlementLifecycle(record, new Date('2026-09-02T15:59:59.999Z')).status, 'trialing');
+  assert.equal(resolveProductEntitlementLifecycle(record, new Date('2026-09-02T16:00:00.000Z')).status, 'grace_read_only');
+  assert.equal(resolveProductEntitlementLifecycle(record, new Date('2026-09-09T16:00:00.000Z')).status, 'expired');
+});
+
+test('a 14-day trial with no grace blocks project access at the exact deadline', () => {
+  const dates = trialActivationDates({ activatedAt: '2026-09-01T12:00:00.000Z', trialDays: 14, graceDays: 0 });
+  const record = entitlement({ status: 'trialing', trialDays: 14, graceDays: 0, ...dates });
+  assert.equal(resolveProductEntitlementLifecycle(record, new Date('2026-09-15T11:59:59.999Z')).status, 'trialing');
+  assert.equal(resolveProductEntitlementLifecycle(record, new Date('2026-09-15T12:00:00.000Z')).status, 'expired');
+  assert.equal(productAccessMode('expired'), 'none');
+});
+
+test('commercial access modes preserve reads during grace and block inactive entitlements', () => {
+  assert.equal(productAccessMode('trialing'), 'write');
+  assert.equal(productAccessMode('active'), 'write');
+  assert.equal(productAccessMode('grace_read_only'), 'read');
+  assert.equal(productAccessMode('pending_activation'), 'none');
+  assert.equal(productAccessMode('expired'), 'none');
+  assert.equal(productAccessMode('suspended'), 'none');
+});

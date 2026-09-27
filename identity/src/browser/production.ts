@@ -328,6 +328,15 @@ submit("enroll", async values => { const enrolled = await api("/api/identity/enr
   }
 });
 const inviteForm = node<HTMLFormElement>("invite-person");
+const trialForm = node<HTMLFormElement>("invite-trial");
+submit("invite-trial", async values => {
+  await api("/api/identity/admin/trial-invitations", {
+    ...values, trialDays: Number(values.trialDays), seatAllowance: Number(values.seatAllowance),
+  });
+  show("Trial invitation queued. The trial starts when the recipient first signs in.");
+  trialForm.reset();
+  await loadInvitations();
+});
 const accountType = inviteForm.elements.namedItem("accountType") as HTMLSelectElement;
 const role = inviteForm.elements.namedItem("role") as HTMLSelectElement;
 const company = inviteForm.elements.namedItem("company") as HTMLInputElement;
