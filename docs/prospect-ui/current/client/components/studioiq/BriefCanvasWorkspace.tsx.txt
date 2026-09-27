@@ -1,0 +1,1584 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  ArrowDownTrayIcon,
+  ArrowPathIcon,
+  ArrowsPointingOutIcon,
+  ChatBubbleLeftRightIcon,
+  CheckCircleIcon,
+  ChevronLeftIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  EyeIcon,
+  FlagIcon,
+  HandRaisedIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+  MoonIcon,
+  PaperAirplaneIcon,
+  PencilSquareIcon,
+  SunIcon,
+  UserPlusIcon,
+  UsersIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
+import { useTheme } from '../../hooks/useTheme';
+import {
+  calculateCanvasGeometry,
+  clampCanvasCamera,
+  fitRectCamera,
+  relatedCanvasFrames,
+  STUDIOIQ_CANVAS_LAYOUT,
+  type CanvasCamera,
+  type StudioIqCanvasFrameId,
+  type StudioIqCanvasLaneId,
+} from '../../lib/studioiq-canvas-layout';
+import styles from './BriefCanvasWorkspace.module.css';
+
+type EvidenceStatus =
+  | 'verified'
+  | 'reported'
+  | 'inferred'
+  | 'unknown'
+  | 'conflicting'
+  | 'superseded'
+  | 'firm_input'
+  | 'approved';
+
+type SupportedValue = {
+  value?: unknown;
+  effective_value?: unknown;
+  effectiveValue?: unknown;
+  source_value?: unknown;
+  sourceValue?: unknown;
+  status?: EvidenceStatus;
+  confidence?: number;
+  evidence_ids?: string[];
+  evidenceIds?: string[];
+  source_wording?: string | null;
+  sourceText?: string | null;
+  edited_by_member_id?: string | null;
+  editedByMemberId?: string | null;
+  updated_by?: string | null;
+  updated_at?: string | null;
+};
+
+type Precedent = {
+  precedent_id?: string;
+  name?: string;
+  summary?: string;
+  location?: string | null;
+  featured_image_url?: string | null;
+  source_url?: string | null;
+};
+
+type ProposalSection = {
+  id: string;
+  title: string;
+  content: string;
+  status?: string;
+  owner?: string | null;
+  page_budget?: number | null;
+  citations?: string[];
+};
+
+type BriefComment = {
+  id: string;
+  author_name?: string;
+  actorDisplayName?: string;
+  body: string;
+  anchor_id?: string | null;
+  anchorId?: string | null;
+  created_at?: string;
+  createdAt?: string;
+};
+
+type BriefPayload = {
+  brief_id?: string;
+  briefId?: string;
+  id?: string;
+  revision_id?: string;
+  revisionId?: string;
+  revision?: number;
+  schema_version?: string;
+  schemaVersion?: string;
+  lifecycle_state?: string;
+  lifecycle?: string;
+  status?: string;
+  title?: string | SupportedValue;
+  organization_name?: string;
+  match_score?: number;
+  matchScore?: number;
+  summary?: string | SupportedValue;
+  strategic_rationale?: string[];
+  strategicRationale?: string[];
+  risks?: string[];
+  recommended_actions?: string[];
+  recommendedActions?: string[];
+  precedents?: Precedent[];
+  precedent_matches?: Array<Record<string, unknown>>;
+  precedentMatches?: Array<Record<string, unknown>>;
+  citations?: Array<{ label?: string; url?: string }>;
+  evidence?: Array<Record<string, unknown>>;
+  comments?: BriefComment[];
+  proposal_sections?: ProposalSection[];
+  proposalSections?: ProposalSection[];
+  recommendation?: string;
+  recommendationConfidence?: number;
+  decisionOwnerMemberId?: string | null;
+  blockers?: string[];
+  conditions?: string[];
+  workingDaysRemaining?: number | null;
+  client?: SupportedValue;
+  location?: SupportedValue;
+  deadline?: SupportedValue;
+  projectType?: SupportedValue;
+  deliveryType?: SupportedValue;
+  submissionMethod?: SupportedValue;
+  constructionBudget?: SupportedValue;
+  designFeeBudget?: SupportedValue;
+  estimatedPursuitCost?: SupportedValue;
+  decision?: Record<string, unknown>;
+  opportunity?: Record<string, unknown>;
+  project_definition?: Record<string, unknown>;
+  projectDefinition?: Record<string, unknown>;
+  site_and_constraints?: Record<string, unknown>;
+  siteAndConstraints?: Record<string, unknown>;
+  program?: unknown[];
+  scope?: unknown[];
+  procurement?: Record<string, unknown>;
+  commercial?: Record<string, unknown>;
+  schedule?: unknown[];
+  milestones?: unknown[];
+  submission?: unknown[];
+  submissionRequirements?: unknown[];
+  evaluation?: unknown[];
+  evaluationCriteria?: unknown[];
+  eligibility?: unknown[] | SupportedValue;
+  team_requirements?: unknown[];
+  teamRequirements?: unknown[];
+  sustainability?: Record<string, unknown> | unknown[];
+  sustainabilityRequirements?: unknown[];
+  approvals?: unknown[];
+  digital_delivery?: Record<string, unknown>;
+  digitalDelivery?: Record<string, unknown>;
+  firm_readiness?: Record<string, unknown>;
+  firmReadiness?: Record<string, unknown>;
+  stakeholders?: unknown[];
+  competitors?: unknown[];
+  partners?: unknown[];
+  win_themes?: unknown[];
+  winThemes?: unknown[];
+  clarification_questions?: unknown[];
+  clarificationQuestions?: unknown[];
+  firm_questions?: unknown[];
+  firmQuestions?: unknown[];
+  questions?: unknown[];
+  actions?: unknown[];
+  decision_gates?: unknown[];
+  decisionGates?: unknown[];
+  [key: string]: unknown;
+};
+
+type CurrentMember = {
+  member_id?: string;
+  display_name?: string;
+  role?: 'owner' | 'admin' | 'member' | 'viewer';
+};
+
+type FrameId = StudioIqCanvasFrameId;
+
+type PresetId = 'overview' | 'analysis' | 'evidence' | 'decision' | 'proposal';
+type InspectorMode = 'object' | 'team' | 'activity';
+
+type TeamMember = {
+  member_id: string;
+  external_user_id: string;
+  display_name: string;
+  email: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+};
+
+type Activity = {
+  event_id: string;
+  type: string;
+  actor: { member_id: string; display_name: string };
+  assignee?: { member_id: string; display_name: string } | null;
+  occurred_at: string;
+  comment_text?: string | null;
+};
+
+type CollaborationProjection = {
+  generated_at: string;
+  current_member: TeamMember;
+  members: TeamMember[];
+  pending_invitations: unknown[];
+  member_management_capabilities: { invite: boolean };
+  summary: {
+    flagged_by: Array<{ member_id: string; display_name: string }>;
+    last_viewed_by: ({ member_id: string; display_name: string; viewed_at: string } | null);
+    assignee: ({ member_id: string; external_user_id: string; display_name: string } | null);
+    comment_count: number;
+    latest_activity: Activity | null;
+    current_user_flagged: boolean;
+  };
+  timeline: Activity[];
+  brief_comments: BriefComment[];
+  brief_revisions: Array<{
+    id: string;
+    operation: string;
+    actorMemberId: string;
+    createdAt: string;
+    changes?: Array<{ path?: string }>;
+  }>;
+};
+
+type CanvasField = {
+  id: string;
+  label: string;
+  path: string;
+  value: unknown;
+  status: EvidenceStatus;
+  confidence?: number;
+  evidenceIds: string[];
+  sourceValue?: unknown;
+  sourceWording?: string | null;
+  editable?: boolean;
+  valueKind?: 'scalar' | 'string_list';
+  options?: string[];
+};
+
+type CanvasFrame = {
+  id: FrameId;
+  index: string;
+  title: string;
+  description: string;
+  fields: CanvasField[];
+  tone?: 'critical' | 'signal' | 'neutral';
+};
+
+type Transform = CanvasCamera;
+
+const frameOrder: FrameId[] = [
+  'decision',
+  'commission',
+  'site-program',
+  'practice-match',
+  'delivery',
+  'compliance',
+  'risks-questions',
+  'capture-strategy',
+  'proposal',
+  'evidence',
+];
+
+const presetTargets: Record<PresetId, { frame?: FrameId; lane?: StudioIqCanvasLaneId }> = {
+  overview: {},
+  analysis: { lane: 'prove' },
+  evidence: { frame: 'evidence' },
+  decision: { lane: 'qualify' },
+  proposal: { lane: 'win' },
+};
+
+const statusLabels: Record<EvidenceStatus, string> = {
+  verified: 'Verified',
+  reported: 'Reported',
+  inferred: 'Inferred',
+  unknown: 'Unknown',
+  conflicting: 'Conflict',
+  superseded: 'Superseded',
+  firm_input: 'Firm input',
+  approved: 'Approved',
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function firstDefined(...values: unknown[]) {
+  return values.find((value) => value !== undefined && value !== null);
+}
+
+function titleCase(value: string) {
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function initials(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || '?';
+}
+
+function relativeTime(value?: string | null) {
+  if (!value) return 'No activity';
+  const elapsed = Date.now() - new Date(value).getTime();
+  if (elapsed < 120_000) return 'Active now';
+  if (elapsed < 3_600_000) return `${Math.max(2, Math.floor(elapsed / 60_000))}m ago`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
+  return new Date(value).toLocaleDateString();
+}
+
+function displayValue(value: unknown): string {
+  if (value === undefined || value === null || value === '') return 'Not established';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return 'Not established';
+    return value.map((entry) => {
+      if (typeof entry === 'string' || typeof entry === 'number') return String(entry);
+      const record = asRecord(entry);
+      return String(firstDefined(record.title, record.label, record.name, record.question, record.value, 'Structured item'));
+    }).join(' · ');
+  }
+  const record = asRecord(value);
+  return String(firstDefined(record.label, record.title, record.name, record.value, JSON.stringify(record)));
+}
+
+function readSupported(value: unknown): {
+  value: unknown;
+  status: EvidenceStatus;
+  confidence?: number;
+  evidenceIds: string[];
+  sourceValue?: unknown;
+  sourceWording?: string | null;
+} {
+  const record = asRecord(value) as SupportedValue;
+  const isSupported = Object.prototype.hasOwnProperty.call(record, 'value')
+    || Object.prototype.hasOwnProperty.call(record, 'effective_value')
+    || Object.prototype.hasOwnProperty.call(record, 'effectiveValue');
+  if (!isSupported) {
+    return {
+      value,
+      status: value === undefined || value === null || value === '' ? 'unknown' : 'reported',
+      evidenceIds: [],
+    };
+  }
+  const editedByMemberId = firstDefined(record.edited_by_member_id, record.editedByMemberId);
+  const status = editedByMemberId
+    ? 'firm_input'
+    : typeof record.status === 'string' && record.status in statusLabels
+      ? record.status as EvidenceStatus
+      : 'reported';
+  return {
+    value: firstDefined(record.effective_value, record.effectiveValue, record.value),
+    status,
+    confidence: typeof record.confidence === 'number' ? record.confidence : undefined,
+    evidenceIds: Array.isArray(record.evidence_ids)
+      ? record.evidence_ids
+      : Array.isArray(record.evidenceIds) ? record.evidenceIds : [],
+    sourceValue: firstDefined(record.source_value, record.sourceValue, record.value),
+    sourceWording: firstDefined(record.source_wording, record.sourceText) as string | null | undefined,
+  };
+}
+
+function field(
+  label: string,
+  path: string,
+  value: unknown,
+  options: {
+    id?: string;
+    editable?: boolean;
+    fallbackStatus?: EvidenceStatus;
+    choices?: string[];
+  } = {}
+): CanvasField {
+  const supported = readSupported(value);
+  return {
+    id: options.id ?? path.replaceAll('.', '-'),
+    label,
+    path,
+    value: supported.value,
+    status: supported.status === 'unknown' && options.fallbackStatus ? options.fallbackStatus : supported.status,
+    confidence: supported.confidence,
+    evidenceIds: supported.evidenceIds,
+    sourceValue: supported.sourceValue,
+    sourceWording: supported.sourceWording,
+    editable: options.editable !== false,
+    valueKind: 'scalar',
+    options: options.choices,
+  };
+}
+
+function listField(label: string, path: string, value: unknown): CanvasField {
+  const entries = asArray(value);
+  const containsStructuredItems = entries.some((entry) => entry !== null && typeof entry === 'object');
+  return {
+    ...field(label, path, entries, { editable: !containsStructuredItems }),
+    valueKind: 'string_list',
+  };
+}
+
+function normalizeBrief(raw: unknown): BriefPayload {
+  const envelope = asRecord(raw);
+  const payload = asRecord(firstDefined(envelope.brief, envelope.data, raw));
+  return {
+    ...payload,
+    evidence: firstDefined(payload.evidence, envelope.evidence, []),
+    current_member: firstDefined(payload.current_member, envelope.current_member),
+    source_refresh_available: firstDefined(
+      payload.source_refresh_available,
+      envelope.source_refresh_available,
+      false
+    ),
+    latest_source_updated_at: firstDefined(
+      payload.latest_source_updated_at,
+      envelope.latest_source_updated_at
+    ),
+  } as BriefPayload;
+}
+
+function buildFrames(brief: BriefPayload): CanvasFrame[] {
+  const decision = asRecord(brief.decision);
+  const opportunity = asRecord(brief.opportunity);
+  const definition = asRecord(firstDefined(brief.project_definition, brief.projectDefinition));
+  const site = asRecord(firstDefined(brief.site_and_constraints, brief.siteAndConstraints));
+  const procurement = asRecord(brief.procurement);
+  const commercial = asRecord(brief.commercial);
+  const digital = asRecord(firstDefined(brief.digital_delivery, brief.digitalDelivery));
+  const readiness = asRecord(firstDefined(brief.firm_readiness, brief.firmReadiness));
+  const rationale = firstDefined(brief.strategic_rationale, brief.strategicRationale, []);
+  const actions = firstDefined(brief.actions, brief.recommended_actions, brief.recommendedActions, []);
+  const questions = [
+    ...asArray(firstDefined(brief.clarification_questions, brief.clarificationQuestions)),
+    ...asArray(firstDefined(brief.firm_questions, brief.firmQuestions)),
+  ];
+  const proposalSections = firstDefined(brief.proposal_sections, brief.proposalSections, []);
+  const exactV2 = brief.schemaVersion === 'studioiq-pursuit-brief-v2';
+  const effectivePath = (root: string) => exactV2 ? `${root}.effectiveValue` : root;
+  const evaluationFields = exactV2
+    ? asArray(brief.evaluationCriteria).slice(0, 10).map((entry, index) => {
+        const criterion = asRecord(entry);
+        return field(
+          `Evaluation / ${String(firstDefined(criterion.label, `Criterion ${index + 1}`))}`,
+          `evaluationCriteria.${index}.responseStrength`,
+          criterion.responseStrength,
+          { choices: ['unknown', 'weak', 'adequate', 'strong'] }
+        );
+      })
+    : [listField('Evaluation matrix', 'evaluation', brief.evaluation)];
+  const submissionFields = exactV2
+    ? asArray(brief.submissionRequirements).slice(0, 10).map((entry, index) => {
+        const requirement = asRecord(entry);
+        return field(
+          `Requirement / ${String(firstDefined(requirement.label, `Item ${index + 1}`))}`,
+          `submissionRequirements.${index}.status`,
+          requirement.status,
+          { choices: ['not_started', 'in_progress', 'ready', 'blocked', 'not_applicable'] }
+        );
+      })
+    : [listField('Submission requirements', 'submission', brief.submission)];
+  const questionFields = exactV2
+    ? asArray(brief.questions).slice(0, 10).map((entry, index) => {
+        const question = asRecord(entry);
+        return field(
+          `Question / ${String(firstDefined(question.prompt, `Question ${index + 1}`))}`,
+          `questions.${index}.response`,
+          question.response
+        );
+      })
+    : [listField('Open questions', 'firm_questions', questions)];
+  const actionFields = exactV2
+    ? asArray(brief.actions).slice(0, 10).map((entry, index) => {
+        const action = asRecord(entry);
+        return field(
+          `Action / ${String(firstDefined(action.title, `Action ${index + 1}`))}`,
+          `actions.${index}.status`,
+          action.status,
+          { choices: ['not_started', 'in_progress', 'blocked', 'complete'] }
+        );
+      })
+    : [listField('Actions', 'actions', actions)];
+  const proposalFields = asArray(proposalSections).slice(0, 8).map((entry, index) => {
+    const section = asRecord(entry);
+    return field(
+      String(firstDefined(section.title, `Proposal section ${index + 1}`)),
+      exactV2 ? `proposalSections.${index}.body` : `proposal_sections.${index}.content`,
+      firstDefined(section.body, section.content)
+    );
+  });
+
+  return [
+    {
+      id: 'decision',
+      index: '01',
+      title: 'Decision',
+      description: 'Pursuit posture, hard blockers, confidence, and accountable ownership.',
+      tone: 'critical',
+      fields: [
+        field(
+          'Recommendation',
+          exactV2 ? 'recommendation' : 'decision.recommendation',
+          firstDefined(brief.recommendation, decision.recommendation, brief.lifecycle_state, brief.status),
+          exactV2
+            ? { choices: ['undecided', 'pursue', 'conditional', 'hold', 'decline'] }
+            : {}
+        ),
+        field('Decision confidence', exactV2 ? 'recommendationConfidence' : 'decision.confidence', firstDefined(brief.recommendationConfidence, decision.confidence)),
+        field('Strategic fit', 'decision.strategic_fit', firstDefined(decision.strategic_fit, brief.match_score, brief.matchScore), { editable: !exactV2 }),
+        field(
+          'Decision owner',
+          exactV2 ? 'decisionOwnerMemberId' : 'decision.owner',
+          firstDefined(brief.decisionOwnerMemberId, decision.owner),
+          { editable: !exactV2 }
+        ),
+        listField('Hard blockers', exactV2 ? 'blockers' : 'decision.blockers', firstDefined(brief.blockers, decision.blockers, [])),
+        field('Pursuit cost', effectivePath(exactV2 ? 'estimatedPursuitCost' : 'decision.estimated_pursuit_cost'), firstDefined(brief.estimatedPursuitCost, decision.estimated_pursuit_cost)),
+      ],
+    },
+    {
+      id: 'commission',
+      index: '02',
+      title: 'Commission',
+      description: 'What is being procured, by whom, through which appointment.',
+      fields: [
+        field('Client / promoter', effectivePath(exactV2 ? 'client' : 'opportunity.client'), firstDefined(brief.client, opportunity.client, opportunity.buyer_name, opportunity.promoter_name)),
+        field('Project', effectivePath(exactV2 ? 'title' : 'opportunity.title'), firstDefined(brief.title, opportunity.title)),
+        field('Location', effectivePath(exactV2 ? 'location' : 'opportunity.location'), firstDefined(brief.location, opportunity.location, opportunity.city, opportunity.country)),
+        field(
+          'Appointment role',
+          effectivePath(exactV2 ? 'deliveryType' : 'procurement.appointment_role'),
+          firstDefined(brief.deliveryType, procurement.appointment_role),
+          { id: 'commission-appointment-role' }
+        ),
+        field(
+          'Procurement route',
+          effectivePath(exactV2 ? 'deliveryType' : 'procurement.route'),
+          firstDefined(brief.deliveryType, procurement.route, opportunity.procurement_route),
+          { id: 'commission-procurement-route' }
+        ),
+        field('Submission deadline', effectivePath(exactV2 ? 'deadline' : 'opportunity.deadline'), firstDefined(brief.deadline, opportunity.deadline)),
+        field('Construction budget', effectivePath(exactV2 ? 'constructionBudget' : 'commercial.construction_budget'), firstDefined(brief.constructionBudget, commercial.construction_budget)),
+        field('Design fee budget', effectivePath(exactV2 ? 'designFeeBudget' : 'commercial.design_fee_budget'), firstDefined(brief.designFeeBudget, commercial.design_fee_budget)),
+      ],
+    },
+    {
+      id: 'site-program',
+      index: '03',
+      title: 'Site + Program',
+      description: 'Spatial quantities, physical conditions, approvals, and known constraints.',
+      fields: [
+        field('Project type', effectivePath(exactV2 ? 'projectType' : 'project_definition.project_type'), firstDefined(brief.projectType, definition.project_type, opportunity.project_type)),
+        field('Site quantities', exactV2 ? 'projectDefinition.quantities' : 'project_definition.site_area', firstDefined(definition.quantities, definition.site_area), { editable: !exactV2 }),
+        listField('Program outcomes', exactV2 ? 'projectDefinition.outcomes' : 'program', firstDefined(definition.outcomes, brief.program)),
+        listField('Site constraints', exactV2 ? 'siteAndConstraints.environmental' : 'site_and_constraints.constraints', firstDefined(site.environmental, site.constraints, site.known_constraints, [])),
+        listField('Planning pathway', exactV2 ? 'siteAndConstraints.planning' : 'site_and_constraints.planning_pathway', firstDefined(site.planning, site.planning_pathway)),
+        listField('Heritage', exactV2 ? 'siteAndConstraints.heritage' : 'site_and_constraints.heritage', firstDefined(site.heritage, [])),
+        listField('Existing conditions', exactV2 ? 'projectDefinition.existingConditions' : 'site_and_constraints.existing_conditions', firstDefined(definition.existingConditions, site.existing_conditions)),
+        listField('Missing surveys', exactV2 ? 'siteAndConstraints.missingSurveys' : 'site_and_constraints.missing_surveys', firstDefined(site.missingSurveys, site.missing_surveys)),
+      ],
+    },
+    {
+      id: 'practice-match',
+      index: '04',
+      title: 'Practice Match',
+      description: 'The firm’s most defensible credentials against the commission.',
+      tone: 'signal',
+      fields: [
+        field('Overall match', 'match_score', firstDefined(brief.match_score, brief.matchScore), { editable: false }),
+        listField('Strategic rationale', exactV2 ? 'strategicRationale' : 'strategic_rationale', rationale),
+        listField('Matched precedents', 'precedents', brief.precedents),
+        listField('Match evidence', 'precedent_matches', firstDefined(brief.precedent_matches, brief.precedentMatches)),
+        listField('Registration gaps', exactV2 ? 'firmReadiness.registrationGaps' : 'firm_readiness.registration_gaps', firstDefined(readiness.registrationGaps, readiness.registration_gaps, [])),
+        listField('Capability gaps', exactV2 ? 'firmReadiness.capacityGaps' : 'firm_readiness.gaps', firstDefined(readiness.capacityGaps, readiness.gaps, [])),
+      ],
+    },
+    {
+      id: 'delivery',
+      index: '05',
+      title: 'Delivery',
+      description: 'Team structure, project stages, partners, and digital obligations.',
+      fields: [
+        listField('Scope and stages', 'scope', brief.scope),
+        listField('Team requirements', exactV2 ? 'firmReadiness.capacityGaps' : 'team_requirements', firstDefined(brief.team_requirements, brief.teamRequirements, readiness.capacityGaps)),
+        listField('Partners', 'partners', brief.partners),
+        listField('Local partner gaps', exactV2 ? 'firmReadiness.partnerGaps' : 'procurement.local_partner_requirement', firstDefined(readiness.partnerGaps, procurement.local_partner_requirement)),
+        listField('BIM / information standard', exactV2 ? 'digitalDelivery.standards' : 'digital_delivery.standard', firstDefined(digital.standards, digital.standard)),
+        listField('Digital deliverables', exactV2 ? 'digitalDelivery.deliverables' : 'digital_delivery.deliverables', firstDefined(digital.deliverables, [])),
+        listField('Approvals', 'approvals', brief.approvals),
+        listField('Milestones', exactV2 ? 'milestones' : 'schedule', firstDefined(brief.milestones, brief.schedule)),
+      ],
+    },
+    {
+      id: 'compliance',
+      index: '06',
+      title: 'Compliance',
+      description: 'Mandatory submissions, eligibility, and weighted evaluation response.',
+      tone: 'critical',
+      fields: [
+        field('Eligibility', effectivePath('eligibility'), brief.eligibility),
+        ...submissionFields,
+        ...evaluationFields,
+        field('Contract conditions', 'procurement.contract_conditions', procurement.contract_conditions),
+        field('Insurance / liability', 'commercial.insurance_and_liability', commercial.insurance_and_liability),
+        field('Submission method', effectivePath(exactV2 ? 'submissionMethod' : 'procurement.submission_method'), firstDefined(brief.submissionMethod, procurement.submission_method)),
+      ],
+    },
+    {
+      id: 'risks-questions',
+      index: '07',
+      title: 'Risks + Questions',
+      description: 'Unknowns are made operational through owners and due dates.',
+      fields: [
+        listField('Pursuit risks', 'risks', brief.risks),
+        ...questionFields,
+        listField('Competitors', 'competitors', brief.competitors),
+        listField('Stakeholders', 'stakeholders', brief.stakeholders),
+      ],
+    },
+    {
+      id: 'capture-strategy',
+      index: '08',
+      title: 'Capture Strategy',
+      description: 'Positioning thesis, win themes, gates, and next moves.',
+      tone: 'signal',
+      fields: [
+        field('Pursuit thesis', effectivePath('summary'), brief.summary),
+        listField('Win themes', exactV2 ? 'winThemes' : 'win_themes', firstDefined(brief.win_themes, brief.winThemes)),
+        ...actionFields,
+        listField('Decision gates', exactV2 ? 'decisionGates' : 'decision_gates', firstDefined(brief.decision_gates, brief.decisionGates)),
+      ],
+    },
+    {
+      id: 'proposal',
+      index: '09',
+      title: 'Proposal',
+      description: 'Owned response sections, page budgets, evidence, and approvals.',
+      fields: proposalFields.length ? [
+        ...proposalFields,
+        listField('Evaluation coverage', exactV2 ? 'evaluationCriteria' : 'evaluation', firstDefined(brief.evaluationCriteria, brief.evaluation)),
+        listField('Approved project evidence', 'precedents', brief.precedents),
+        listField('Required citations', 'citations', brief.citations),
+      ] : [
+        listField('Response sections', exactV2 ? 'proposalSections' : 'proposal_sections', proposalSections),
+        listField('Evaluation coverage', exactV2 ? 'evaluationCriteria' : 'evaluation', firstDefined(brief.evaluationCriteria, brief.evaluation)),
+        listField('Approved project evidence', 'precedents', brief.precedents),
+        listField('Required citations', 'citations', brief.citations),
+      ],
+    },
+    {
+      id: 'evidence',
+      index: '10',
+      title: 'Evidence',
+      description: 'Primary support, source wording, authority, and change history.',
+      fields: [
+        listField('Evidence artifacts', 'evidence', brief.evidence),
+        listField('Citations', 'citations', brief.citations),
+        field('Schema', 'schemaVersion', firstDefined(brief.schemaVersion, brief.schema_version), { editable: false }),
+        field('Revision', 'revision', firstDefined(brief.revision, brief.revision_id, brief.revisionId), { editable: false }),
+      ],
+    },
+  ];
+}
+
+async function readJson(response: Response) {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(String(asRecord(payload).error || 'Prospect request failed.'));
+    Object.assign(error, { status: response.status, payload });
+    throw error;
+  }
+  return payload;
+}
+
+function FieldStatus({ field }: { field: CanvasField }) {
+  return <span className={styles.status} data-status={field.status}>
+    <i aria-hidden="true" />
+    {statusLabels[field.status]}
+  </span>;
+}
+
+function FrameCard(props: {
+  frame: CanvasFrame;
+  rect: { x: number; y: number; width: number; height: number };
+  selectedId: string | null;
+  selectedFrame: boolean;
+  related: boolean;
+  assignee?: string | null;
+  commentCount?: number;
+  onSelect: (field: CanvasField, frame: CanvasFrame) => void;
+}) {
+  const established = props.frame.fields.filter((item) => item.status !== 'unknown').length;
+  return <section
+    id={`brief-frame-${props.frame.id}`}
+    className={styles.frame}
+    data-tone={props.frame.tone ?? 'neutral'}
+    data-related={props.related}
+    data-active={props.selectedFrame}
+    style={{
+      left: props.rect.x,
+      top: props.rect.y,
+      width: props.rect.width,
+      height: props.rect.height,
+    }}
+    aria-labelledby={`brief-frame-title-${props.frame.id}`}
+  >
+    <header className={styles.frameHeader}>
+      <span>{props.frame.index}</span>
+      <div>
+        <p>{props.frame.description}</p>
+        <h2 id={`brief-frame-title-${props.frame.id}`}>{props.frame.title}</h2>
+      </div>
+      <div className={styles.frameSignals}>
+        {props.assignee ? <span title={`Assigned to ${props.assignee}`}>{initials(props.assignee)}</span> : null}
+        {props.commentCount ? <span title={`${props.commentCount} brief comments`}><ChatBubbleLeftRightIcon />{props.commentCount}</span> : null}
+        <small>{established}/{props.frame.fields.length}</small>
+      </div>
+    </header>
+    <div className={styles.frameGrid}>
+      {props.frame.fields.map((item) => <button
+        type="button"
+        key={item.id}
+        className={styles.field}
+        data-selected={props.selectedId === item.id}
+        data-status={item.status}
+        onClick={(event) => {
+          event.stopPropagation();
+          props.onSelect(item, props.frame);
+        }}
+        aria-pressed={props.selectedId === item.id}
+      >
+        <span className={styles.fieldLabel}>{item.label}</span>
+        <strong>{displayValue(item.value)}</strong>
+        <FieldStatus field={item} />
+      </button>)}
+    </div>
+  </section>;
+}
+
+function LoadingWorkspace() {
+  return <main className={styles.loading} aria-live="polite">
+    <div><ArrowPathIcon /><span>Assembling pursuit room</span></div>
+    <i /><i /><i />
+  </main>;
+}
+
+export function BriefCanvasWorkspace(props: {
+  briefId: string;
+  accountName: string;
+  organizationName: string;
+}) {
+  const { theme, toggleTheme } = useTheme();
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
+  const [brief, setBrief] = useState<BriefPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedFrameId, setSelectedFrameId] = useState<FrameId>('decision');
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [preset, setPreset] = useState<PresetId>('overview');
+  const [transform, setTransform] = useState<Transform>({ x: 36, y: 32, scale: 0.72 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
+  const [comments, setComments] = useState<BriefComment[]>([]);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const [inspectorMode, setInspectorMode] = useState<InspectorMode>('object');
+  const [collaboration, setCollaboration] = useState<CollaborationProjection | null>(null);
+  const [collaborationMutation, setCollaborationMutation] = useState('');
+  const [viewportSize, setViewportSize] = useState({ width: 900, height: 760 });
+
+  const endpoint = `/api/products/studioiq/pursuit-briefs/${encodeURIComponent(props.briefId)}`;
+  const collaborationEndpoint = `${endpoint}/collaboration`;
+
+  const loadBrief = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [payload, commentPayload, collaborationPayload] = await Promise.all([
+        readJson(await fetch(endpoint, { headers: { accept: 'application/json' } })),
+        readJson(await fetch(`${endpoint}/comments`, { headers: { accept: 'application/json' } }))
+          .catch(() => ({ comments: [] })),
+        readJson(await fetch(collaborationEndpoint, { headers: { accept: 'application/json' } }))
+          .catch(() => null),
+      ]);
+      const next = normalizeBrief(payload);
+      setBrief(next);
+      const commentEnvelope = asRecord(commentPayload);
+      setComments(Array.isArray(commentEnvelope.comments) ? commentEnvelope.comments as BriefComment[] : []);
+      if (collaborationPayload) setCollaboration(collaborationPayload as CollaborationProjection);
+      setConflict(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load this pursuit brief.');
+    } finally {
+      setLoading(false);
+    }
+  }, [collaborationEndpoint, endpoint]);
+
+  useEffect(() => {
+    void loadBrief();
+  }, [loadBrief]);
+
+  const loadCollaboration = useCallback(async () => {
+    try {
+      const payload = await readJson(await fetch(collaborationEndpoint, {
+        headers: { accept: 'application/json' },
+      }));
+      setCollaboration(payload as CollaborationProjection);
+    } catch {
+      // The pursuit remains usable when the collaboration projection is unavailable.
+    }
+  }, [collaborationEndpoint]);
+
+  const recordCollaboration = useCallback(async (
+    action: 'viewed' | 'flagged' | 'unflagged' | 'assigned' | 'unassigned',
+    assigneeExternalUserId?: string
+  ) => {
+    setCollaborationMutation(action);
+    try {
+      await readJson(await fetch(collaborationEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          action,
+          idempotency_key: action === 'viewed'
+            ? `brief-view:${props.briefId}:${Math.floor(Date.now() / 60_000)}`
+            : crypto.randomUUID(),
+          assignee_external_user_id: assigneeExternalUserId,
+        }),
+      }));
+      await loadCollaboration();
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : 'Unable to update collaboration.');
+    } finally {
+      setCollaborationMutation('');
+    }
+  }, [collaborationEndpoint, loadCollaboration, props.briefId]);
+
+  const loadedBriefId = brief?.id ?? brief?.brief_id ?? brief?.briefId;
+  useEffect(() => {
+    if (!loadedBriefId) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadCollaboration();
+      void recordCollaboration('viewed');
+    };
+    refresh();
+    const interval = window.setInterval(() => void loadCollaboration(), 30_000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [loadedBriefId, loadCollaboration, recordCollaboration]);
+
+  const frames = useMemo(() => brief ? buildFrames(brief) : [], [brief]);
+  const fieldCounts = useMemo(() => Object.fromEntries(
+    frames.map((item) => [item.id, item.fields.length])
+  ), [frames]);
+  const geometry = useMemo(
+    () => calculateCanvasGeometry(fieldCounts, viewportSize.width),
+    [fieldCounts, viewportSize.width]
+  );
+  const selectedFrame = frames.find((item) => item.id === selectedFrameId) ?? frames[0];
+  const selectedField = selectedFrame?.fields.find((item) => item.id === selectedFieldId)
+    ?? frames.flatMap((item) => item.fields).find((item) => item.id === selectedFieldId)
+    ?? null;
+  const currentMember = asRecord(brief?.current_member) as CurrentMember;
+  const canEdit = Boolean(currentMember.role && currentMember.role !== 'viewer');
+  const canDecide = currentMember.role === 'owner';
+  const relatedFrames = useMemo(() => relatedCanvasFrames(selectedFrameId), [selectedFrameId]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setViewportSize({
+        width: Math.max(1, entry.contentRect.width),
+        height: Math.max(1, entry.contentRect.height),
+      });
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [brief]);
+
+  useEffect(() => {
+    if (!selectedField) return;
+    if (selectedField.valueKind === 'string_list' && Array.isArray(selectedField.value)) {
+      setDraft(selectedField.value.map(displayValue).join('\n'));
+      return;
+    }
+    setDraft(displayValue(selectedField.value) === 'Not established' ? '' : displayValue(selectedField.value));
+  }, [selectedField]);
+
+  const applyCamera = useCallback((camera: CanvasCamera) => {
+    setTransform(clampCanvasCamera(camera, geometry.board, viewportSize));
+  }, [geometry.board, viewportSize]);
+
+  const fitBoard = useCallback(() => {
+    applyCamera(fitRectCamera(geometry.board, viewportSize, { maximumScale: 0.78, gutter: 28 }));
+  }, [applyCamera, geometry.board, viewportSize]);
+
+  const fitLane = useCallback((laneId: StudioIqCanvasLaneId) => {
+    applyCamera(fitRectCamera(geometry.lanes[laneId], viewportSize, { maximumScale: 0.88, gutter: 30 }));
+  }, [applyCamera, geometry.lanes, viewportSize]);
+
+  useEffect(() => {
+    if (!frames.length || window.innerWidth < 768) return;
+    const selectedRect = geometry.nodes[selectedFrameId];
+    if (!selectedRect) return;
+    const camera = fitRectCamera(selectedRect, viewportSize, { maximumScale: 0.92, gutter: 34 });
+    setTransform((current) => {
+      const projected = {
+        left: current.x + selectedRect.x * current.scale,
+        top: current.y + selectedRect.y * current.scale,
+        right: current.x + (selectedRect.x + selectedRect.width) * current.scale,
+        bottom: current.y + (selectedRect.y + selectedRect.height) * current.scale,
+      };
+      const gutter = 24;
+      const selectedIsReadable = projected.left >= gutter
+        && projected.top >= gutter
+        && projected.right <= viewportSize.width - gutter
+        && projected.bottom <= viewportSize.height - gutter;
+      return clampCanvasCamera(
+        current.scale === 0.72 || !selectedIsReadable ? camera : current,
+        geometry.board,
+        viewportSize
+      );
+    });
+  }, [frames.length, geometry.board, geometry.nodes, selectedFrameId, viewportSize]);
+
+  const focusFrame = useCallback((frameId: FrameId) => {
+    setSelectedFrameId(frameId);
+    setSelectedFieldId(null);
+    setMobileInspectorOpen(false);
+    const element = document.getElementById(`brief-frame-${frameId}`);
+    if (element && window.innerWidth >= 768) {
+      applyCamera(fitRectCamera(geometry.nodes[frameId], viewportSize, {
+        maximumScale: 0.94,
+        gutter: 34,
+      }));
+    } else {
+      element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [applyCamera, geometry.nodes, viewportSize]);
+
+  const choosePreset = (next: PresetId) => {
+    setPreset(next);
+    const target = presetTargets[next];
+    if (target.frame) focusFrame(target.frame);
+    else if (target.lane) fitLane(target.lane);
+    else fitBoard();
+  };
+
+  const zoom = (delta: number) => {
+    setTransform((current) => {
+      const nextScale = Math.min(1.35, Math.max(0.32, current.scale + delta));
+      const centerX = viewportSize.width / 2;
+      const centerY = viewportSize.height / 2;
+      const ratio = nextScale / current.scale;
+      return clampCanvasCamera({
+        scale: nextScale,
+        x: centerX - (centerX - current.x) * ratio,
+        y: centerY - (centerY - current.y) * ratio,
+      }, geometry.board, viewportSize);
+    });
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (window.innerWidth < 768 || event.button !== 0 || (event.target as HTMLElement).closest('button, a, input, textarea')) return;
+    dragRef.current = { x: event.clientX, y: event.clientY, originX: transform.x, originY: transform.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsPanning(true);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    setTransform((current) => clampCanvasCamera({
+      ...current,
+      x: dragRef.current!.originX + event.clientX - dragRef.current!.x,
+      y: dragRef.current!.originY + event.clientY - dragRef.current!.y,
+    }, geometry.board, viewportSize));
+  };
+
+  const stopPan = () => {
+    dragRef.current = null;
+    setIsPanning(false);
+  };
+
+  const handleCanvasKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (window.innerWidth < 768) return;
+    if (event.key === 'Home') {
+      event.preventDefault();
+      fitBoard();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const rect = geometry.nodes[selectedFrameId];
+      if (rect) applyCamera(fitRectCamera(rect, viewportSize, { maximumScale: 0.94, gutter: 34 }));
+      return;
+    }
+    const movement = event.shiftKey ? 96 : 36;
+    const vectors: Record<string, [number, number]> = {
+      ArrowLeft: [movement, 0],
+      ArrowRight: [-movement, 0],
+      ArrowUp: [0, movement],
+      ArrowDown: [0, -movement],
+    };
+    const vector = vectors[event.key];
+    if (!vector) return;
+    event.preventDefault();
+    setTransform((current) => clampCanvasCamera({
+      ...current,
+      x: current.x + vector[0],
+      y: current.y + vector[1],
+    }, geometry.board, viewportSize));
+  };
+
+  const selectField = (fieldValue: CanvasField, frame: CanvasFrame) => {
+    setSelectedFrameId(frame.id);
+    setSelectedFieldId(fieldValue.id);
+    setInspectorMode('object');
+    setMobileInspectorOpen(true);
+  };
+
+  const saveField = async () => {
+    if (!brief || !selectedField || !selectedField.editable || !canEdit) return;
+    setSaveState('saving');
+    setConflict(null);
+    try {
+      const governedDecision = selectedField.path === 'recommendation';
+      if (governedDecision && !canDecide) {
+        throw new Error('Only the workspace owner may record the final pursuit decision.');
+      }
+      const payload = await readJson(await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          expected_revision: brief.revision,
+          idempotency_key: crypto.randomUUID(),
+          operation: governedDecision ? 'set_decision' : 'update_fields',
+          item: governedDecision
+            ? {
+                recommendation: draft.trim().toLowerCase().replaceAll(' ', '_'),
+                reason: 'Decision updated in the Prospect brief canvas',
+              }
+            : undefined,
+          changes: governedDecision
+            ? undefined
+            : [{
+                path: selectedField.path,
+                value: selectedField.valueKind === 'string_list'
+                  ? draft.split('\n').map((item) => item.trim()).filter(Boolean)
+                  : draft,
+                reason: 'Updated in the Prospect brief canvas',
+              }],
+        }),
+      }));
+      setBrief(normalizeBrief(payload));
+      setSaveState('saved');
+      window.setTimeout(() => setSaveState('idle'), 1600);
+    } catch (saveError) {
+      const typed = saveError as Error & { status?: number };
+      if (typed.status === 409) {
+        setConflict('A teammate changed this brief after you opened it. Reload the current revision before saving.');
+      } else {
+        setError(typed.message);
+      }
+      setSaveState('idle');
+    }
+  };
+
+  const postComment = async () => {
+    const body = comment.trim();
+    if (!body) return;
+    const mentionedMemberIds = (collaboration?.members ?? [])
+      .filter((member) => {
+        const handle = member.email.split('@')[0].toLowerCase();
+        return body.toLowerCase().includes(`@${handle}`)
+          || body.toLowerCase().includes(`@${member.display_name.toLowerCase()}`);
+      })
+      .map((member) => member.member_id);
+    try {
+      const payload = await readJson(await fetch(`${endpoint}/comments`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          body,
+          anchor_type: selectedField ? 'field' : 'section',
+          anchor_id: selectedField?.id ?? selectedFrameId,
+          idempotency_key: crypto.randomUUID(),
+          mentioned_member_ids: mentionedMemberIds,
+        }),
+      }));
+      const next = asRecord(payload);
+      const created = asRecord(firstDefined(next.comment, payload)) as unknown as BriefComment;
+      setComments((current) => [...current, created]);
+      setComment('');
+      await loadCollaboration();
+    } catch (commentError) {
+      setError(commentError instanceof Error ? commentError.message : 'Unable to post comment.');
+    }
+  };
+
+  const startExport = async (format: 'pdf' | 'docx') => {
+    setExporting(format);
+    try {
+      window.location.assign(`${endpoint}/export?format=${format}`);
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : `Unable to create ${format.toUpperCase()} export.`);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  if (loading) return <LoadingWorkspace />;
+
+  if (error && !brief) {
+    return <main className={styles.errorState}>
+      <span>Brief unavailable</span>
+      <h1>The pursuit room could not be assembled.</h1>
+      <p>{error}</p>
+      <div><button type="button" onClick={() => void loadBrief()}><ArrowPathIcon /> Retry</button><Link href="/prospect">Return to terminal</Link></div>
+    </main>;
+  }
+
+  if (!brief) return null;
+
+  const title = displayValue(readSupported(firstDefined(brief.title, asRecord(brief.opportunity).title, 'Untitled pursuit')).value);
+  const revision = String(firstDefined(brief.revision, brief.revision_id, brief.revisionId, 'unversioned'));
+  const lifecycle = String(firstDefined(brief.lifecycle, brief.lifecycle_state, brief.status, 'research'));
+  const activeMembers = (collaboration?.timeline ?? [])
+    .filter((event) => Date.now() - new Date(event.occurred_at).getTime() < 120_000)
+    .map((event) => event.actor)
+    .filter((member, index, all) => all.findIndex((candidate) => candidate.member_id === member.member_id) === index)
+    .slice(0, 3);
+  const collaborationSummary = collaboration?.summary;
+  const minimapScale = Math.min(112 / geometry.board.width, 70 / geometry.board.height);
+  const minimapViewport = {
+    left: Math.max(0, (-transform.x / transform.scale) * minimapScale),
+    top: Math.max(0, (-transform.y / transform.scale) * minimapScale),
+    width: Math.min(112, (viewportSize.width / transform.scale) * minimapScale),
+    height: Math.min(70, (viewportSize.height / transform.scale) * minimapScale),
+  };
+
+  return <main className={styles.workspace} data-theme-surface={theme}>
+    <header className={styles.commandBar}>
+      <div className={styles.identity}>
+        <Link href="/prospect" aria-label="Return to Prospect"><ChevronLeftIcon /></Link>
+        <span className={styles.prospectBrand}>Prospect<em>by Mirror Progress</em></span>
+        <i aria-hidden="true" />
+        <div><small>{props.organizationName}</small><strong>{title}</strong></div>
+      </div>
+      <div className={styles.presets} role="tablist" aria-label="Brief view preset">
+        {(['overview', 'analysis', 'evidence', 'decision', 'proposal'] as PresetId[]).map((item) => <button
+          type="button"
+          role="tab"
+          aria-selected={preset === item}
+          key={item}
+          onClick={() => choosePreset(item)}
+        >{titleCase(item)}</button>)}
+      </div>
+      <div className={styles.commands}>
+        <span className={styles.revision}><i />{titleCase(lifecycle)} · {revision.slice(-8)}</span>
+        <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Toggle theme">
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
+        <div className={styles.exportMenu}>
+          <button type="button" onClick={() => void startExport('pdf')} disabled={Boolean(exporting)} title="Export PDF">
+            <ArrowDownTrayIcon /> <span>{exporting === 'pdf' ? 'Preparing' : 'PDF'}</span>
+          </button>
+          <button type="button" onClick={() => void startExport('docx')} disabled={Boolean(exporting)} title="Export editable DOCX">
+            <DocumentTextIcon /> <span>{exporting === 'docx' ? 'Preparing' : 'DOCX'}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    {error ? <div className={styles.toast} role="status"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss"><XMarkIcon /></button></div> : null}
+    {brief.source_refresh_available ? <div className={styles.researchRefresh} role="status">
+      <ArrowPathIcon />
+      <span><strong>New research is available</strong><small>Review source changes before the next pursuit decision.</small></span>
+    </div> : null}
+
+    <div className={styles.shell}>
+      <aside className={styles.outline}>
+        <div className={styles.railHeading}>
+          <span>Pursuit map</span>
+          <small>{frames.length} frames</small>
+        </div>
+        <nav aria-label="Brief frames">
+          {frames.map((frameItem) => {
+            const unknown = frameItem.fields.filter((item) => item.status === 'unknown').length;
+            return <button
+              type="button"
+              key={frameItem.id}
+              data-active={selectedFrameId === frameItem.id}
+              aria-current={selectedFrameId === frameItem.id ? 'location' : undefined}
+              onClick={() => focusFrame(frameItem.id)}
+            >
+              <span>{frameItem.index}</span>
+              <div><strong>{frameItem.title}</strong><small>{unknown ? `${unknown} unknown` : 'Established'}</small></div>
+              <i />
+            </button>;
+          })}
+        </nav>
+        <div className={styles.outlineFooter}>
+          <span><i /> Source-backed</span>
+          <span><i /> Firm layer</span>
+          <small>Signed in as {props.accountName}</small>
+        </div>
+      </aside>
+
+      <section className={styles.canvasRegion} aria-label="Interactive pursuit brief canvas">
+        <div
+          ref={viewportRef}
+          className={styles.viewport}
+          data-panning={isPanning}
+          tabIndex={0}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopPan}
+          onPointerCancel={stopPan}
+          onKeyDown={handleCanvasKeyDown}
+        >
+          <div className={styles.canvasMeta}>
+            <span><HandRaisedIcon /> Drag to navigate</span>
+            <span>{Math.round(transform.scale * 100)}%</span>
+          </div>
+          <div
+            className={styles.canvas}
+            style={{
+              width: geometry.board.width,
+              height: geometry.board.height,
+              transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
+            }}
+          >
+            <svg
+              className={styles.connectorLayer}
+              width={geometry.board.width}
+              height={geometry.board.height}
+              viewBox={`0 0 ${geometry.board.width} ${geometry.board.height}`}
+              aria-hidden="true"
+            >
+              {geometry.edges.map((edge) => <path
+                key={`${edge.from}-${edge.to}`}
+                d={edge.path}
+                data-active={relatedFrames.has(edge.from) && relatedFrames.has(edge.to)}
+              />)}
+            </svg>
+            {STUDIOIQ_CANVAS_LAYOUT.lanes.map((lane) => {
+              const rect = geometry.lanes[lane.id];
+              const active = STUDIOIQ_CANVAS_LAYOUT.nodes.some((node) =>
+                  node.id === selectedFrameId && node.lane === lane.id
+                );
+              return <div key={lane.id}>
+                <div
+                  className={styles.lanePlane}
+                  data-lane={lane.id}
+                  data-active={active}
+                  style={{ left: rect.x - 12, top: rect.y - 12, width: rect.width + 24, height: rect.height + 24 }}
+                />
+                <div
+                  className={styles.laneHeader}
+                  data-active={active}
+                  style={{ left: rect.x, top: rect.y, width: rect.width }}
+                >
+                  <span>{lane.label}</span><p>{lane.intent}</p>
+                </div>
+              </div>;
+            })}
+            {frames.map((frameItem) => <FrameCard
+              key={frameItem.id}
+              frame={frameItem}
+              rect={geometry.nodes[frameItem.id]}
+              selectedId={selectedFieldId}
+              selectedFrame={selectedFrameId === frameItem.id}
+              related={relatedFrames.has(frameItem.id)}
+              assignee={collaborationSummary?.assignee?.display_name}
+              commentCount={comments.filter((item) =>
+                (item.anchorId ?? item.anchor_id) === frameItem.id
+              ).length}
+              onSelect={selectField}
+            />)}
+          </div>
+          <div className={styles.zoomControls} aria-label="Canvas zoom controls">
+            <button type="button" onClick={() => zoom(-0.1)} aria-label="Zoom out"><MagnifyingGlassMinusIcon /></button>
+            <button type="button" onClick={fitBoard} aria-label="Fit board" title="Fit board"><ArrowsPointingOutIcon /></button>
+            <button type="button" onClick={() => {
+              const lane = STUDIOIQ_CANVAS_LAYOUT.nodes.find((node) => node.id === selectedFrameId)?.lane;
+              if (lane) fitLane(lane);
+            }} aria-label="Fit selected lane">Lane</button>
+            <button type="button" onClick={() => focusFrame(selectedFrameId)} aria-label="Fit selected frame">Frame</button>
+            <button type="button" onClick={() => zoom(0.1)} aria-label="Zoom in"><MagnifyingGlassPlusIcon /></button>
+          </div>
+          <div className={styles.minimap} aria-hidden="true">
+            {frameOrder.map((frameId) => {
+              const rect = geometry.nodes[frameId];
+              return <i
+                key={frameId}
+                data-active={selectedFrameId === frameId}
+                style={{
+                  left: 7 + rect.x * minimapScale,
+                  top: 7 + rect.y * minimapScale,
+                  width: Math.max(4, rect.width * minimapScale),
+                  height: Math.max(3, rect.height * minimapScale),
+                }}
+              />;
+            })}
+            <span style={{
+              left: 7 + minimapViewport.left,
+              top: 7 + minimapViewport.top,
+              width: minimapViewport.width,
+              height: minimapViewport.height,
+            }} />
+          </div>
+        </div>
+      </section>
+
+      <aside
+        className={styles.inspector}
+        aria-label="Brief object inspector"
+        data-mobile-open={mobileInspectorOpen}
+      >
+        <header className={styles.inspectorHeader}>
+          <div><span>{selectedFrame?.index ?? '00'} / {titleCase(inspectorMode)}</span><h2>{selectedField?.label ?? selectedFrame?.title ?? 'Brief'}</h2></div>
+          <div className={styles.inspectorHeaderActions}>
+            {selectedField ? <FieldStatus field={selectedField} /> : null}
+            <button
+              type="button"
+              className={styles.mobileInspectorClose}
+              onClick={() => setMobileInspectorOpen(false)}
+              aria-label="Close object inspector"
+            >
+              <XMarkIcon />
+            </button>
+          </div>
+        </header>
+
+        <div className={styles.collaborationHeader}>
+          <div className={styles.assigneeSignal}>
+            <span>{collaborationSummary?.assignee ? initials(collaborationSummary.assignee.display_name) : '—'}</span>
+            <div><small>Assignee</small><strong>{collaborationSummary?.assignee?.display_name ?? 'Unassigned'}</strong></div>
+          </div>
+          <div className={styles.presenceStack} aria-label={`${activeMembers.length} active teammates`}>
+            {activeMembers.length
+              ? activeMembers.map((member) => <i key={member.member_id} title={`${member.display_name} is active`}>{initials(member.display_name)}</i>)
+              : <i title="No teammates currently active">0</i>}
+          </div>
+          <span title="Flags"><FlagIcon />{collaborationSummary?.flagged_by.length ?? 0}</span>
+          <span title="Comments"><ChatBubbleLeftRightIcon />{collaborationSummary?.comment_count ?? comments.length}</span>
+          <small>{collaborationSummary?.latest_activity
+            ? relativeTime(collaborationSummary.latest_activity.occurred_at)
+            : 'No activity'}</small>
+        </div>
+        <div className={styles.inspectorModes} role="tablist" aria-label="Inspector mode">
+          {(['object', 'team', 'activity'] as InspectorMode[]).map((mode) => <button
+            type="button"
+            role="tab"
+            aria-selected={inspectorMode === mode}
+            key={mode}
+            onClick={() => {
+              setInspectorMode(mode);
+              setMobileInspectorOpen(true);
+            }}
+          >
+            {mode === 'object' ? <EyeIcon /> : mode === 'team' ? <UsersIcon /> : <ClockIcon />}
+            {titleCase(mode)}
+          </button>)}
+        </div>
+
+        <div className={styles.inspectorBody}>
+          {inspectorMode === 'object' ? <>
+          {selectedField ? <>
+            <section className={styles.editSection}>
+              <div className={styles.sectionLabel}><span>Effective value</span>{selectedField.editable ? <PencilSquareIcon /> : null}</div>
+              {selectedField.options?.length ? <select
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                disabled={
+                  !selectedField.editable ||
+                  !canEdit ||
+                  (selectedField.path === 'recommendation' && !canDecide)
+                }
+                aria-label={`Edit ${selectedField.label}`}
+              >
+                {selectedField.options.map((option) => <option value={option} key={option}>
+                  {titleCase(option)}
+                </option>)}
+              </select> : <textarea
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                disabled={
+                  !selectedField.editable ||
+                  !canEdit ||
+                  (selectedField.path === 'recommendation' && !canDecide)
+                }
+                rows={Math.max(4, Math.min(10, draft.split('\n').length + 3))}
+                aria-label={`Edit ${selectedField.label}`}
+              />}
+              <button
+                type="button"
+                className={styles.primaryAction}
+                onClick={() => void saveField()}
+                disabled={
+                  !selectedField.editable ||
+                  !canEdit ||
+                  saveState === 'saving' ||
+                  (selectedField.path === 'recommendation' && !canDecide)
+                }
+              >
+                {saveState === 'saving' ? <ArrowPathIcon className={styles.spin} /> : <CheckCircleIcon />}
+                {saveState === 'saved' ? 'Revision saved' : saveState === 'saving' ? 'Saving revision' : 'Save to firm layer'}
+              </button>
+              {conflict ? <div className={styles.conflict} role="alert">
+                <strong>Revision conflict</strong><p>{conflict}</p>
+                <button type="button" onClick={() => void loadBrief()}><ArrowPathIcon /> Reload current revision</button>
+              </div> : null}
+            </section>
+
+            <section>
+              <div className={styles.sectionLabel}><span>Source original</span><small>{selectedField.evidenceIds.length} links</small></div>
+              <div className={styles.sourcePanel}>
+                <p>{selectedField.sourceWording || displayValue(selectedField.sourceValue)}</p>
+                <dl>
+                  <div><dt>State</dt><dd>{statusLabels[selectedField.status]}</dd></div>
+                  <div><dt>Confidence</dt><dd>{selectedField.confidence === undefined ? 'Not scored' : `${Math.round(selectedField.confidence * 100)}%`}</dd></div>
+                </dl>
+              </div>
+            </section>
+          </> : <section className={styles.frameSummary}>
+            <span>Frame selected</span>
+            <h3>{selectedFrame?.title}</h3>
+            <p>{selectedFrame?.description}</p>
+            <dl>
+              <div><dt>Fields</dt><dd>{selectedFrame?.fields.length ?? 0}</dd></div>
+              <div><dt>Unknown</dt><dd>{selectedFrame?.fields.filter((item) => item.status === 'unknown').length ?? 0}</dd></div>
+            </dl>
+          </section>}
+
+          <section className={styles.discussion}>
+            <div className={styles.sectionLabel}><span>Discussion</span><ChatBubbleLeftRightIcon /></div>
+            <div className={styles.commentStream}>
+              {comments.filter((item) => !(item.anchorId ?? item.anchor_id) || (item.anchorId ?? item.anchor_id) === (selectedField?.id ?? selectedFrameId)).slice(-4).map((item) => {
+                const createdAt = item.createdAt ?? item.created_at ?? '';
+                return <article key={item.id}>
+                <div><strong>{item.actorDisplayName ?? item.author_name ?? 'Workspace member'}</strong><time dateTime={createdAt}><ClockIcon />{createdAt ? new Date(createdAt).toLocaleDateString() : 'Now'}</time></div>
+                <p>{item.body}</p>
+              </article>;
+              })}
+              {!comments.filter((item) =>
+                !(item.anchorId ?? item.anchor_id) ||
+                (item.anchorId ?? item.anchor_id) === (selectedField?.id ?? selectedFrameId)
+              ).length
+                ? <p className={styles.emptyComments}>No discussion on this object yet.</p>
+                : null}
+            </div>
+            <div className={styles.commentComposer}>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                placeholder={canEdit ? 'Add a decision note or mention a teammate…' : 'This workspace is read-only.'}
+                disabled={!canEdit}
+                rows={3}
+              />
+              <button type="button" onClick={() => void postComment()} disabled={!canEdit || !comment.trim()} aria-label="Post comment"><PaperAirplaneIcon /></button>
+            </div>
+            {collaboration?.members?.length ? <div className={styles.mentionSuggestions}>
+              {collaboration.members.slice(0, 5).map((member) => <button
+                type="button"
+                key={member.member_id}
+                onClick={() => setComment((current) => `${current}${current ? ' ' : ''}@${member.email.split('@')[0]} `)}
+                disabled={!canEdit}
+              >@{member.email.split('@')[0]}</button>)}
+            </div> : null}
+          </section>
+          </> : null}
+
+          {inspectorMode === 'team' ? <div className={styles.teamMode}>
+            <section>
+              <div className={styles.sectionLabel}><span>Pursuit ownership</span><UsersIcon /></div>
+              <label className={styles.assignmentControl}>
+                <span>Opportunity assignee</span>
+                <select
+                  value={collaborationSummary?.assignee?.external_user_id ?? ''}
+                  disabled={!canEdit || collaborationMutation === 'assigned'}
+                  onChange={(event) => void recordCollaboration(
+                    event.target.value ? 'assigned' : 'unassigned',
+                    event.target.value || undefined
+                  )}
+                >
+                  <option value="">Unassigned</option>
+                  {(collaboration?.members ?? []).map((member) => <option
+                    value={member.external_user_id}
+                    key={member.member_id}
+                  >{member.display_name} · {titleCase(member.role)}</option>)}
+                </select>
+              </label>
+              <button
+                type="button"
+                className={styles.flagAction}
+                data-active={collaborationSummary?.current_user_flagged}
+                disabled={!canEdit || collaborationMutation.includes('flag')}
+                onClick={() => void recordCollaboration(
+                  collaborationSummary?.current_user_flagged ? 'unflagged' : 'flagged'
+                )}
+              >
+                <FlagIcon />
+                {collaborationSummary?.current_user_flagged ? 'Remove my flag' : 'Flag for my attention'}
+              </button>
+            </section>
+            <section>
+              <div className={styles.sectionLabel}><span>Workspace team</span><small>{collaboration?.members.length ?? 0} members</small></div>
+              <div className={styles.memberList}>
+                {(collaboration?.members ?? []).map((member) => {
+                  const activity = collaboration?.timeline.find((event) => event.actor.member_id === member.member_id);
+                  return <article key={member.member_id}>
+                    <i>{initials(member.display_name)}</i>
+                    <div><strong>{member.display_name}</strong><small>{titleCase(member.role)} · {relativeTime(activity?.occurred_at)}</small></div>
+                    {collaborationSummary?.assignee?.member_id === member.member_id ? <span>Assigned</span> : null}
+                  </article>;
+                })}
+              </div>
+              {collaboration?.member_management_capabilities.invite ? <Link
+                className={styles.inviteAction}
+                href="/prospect?view=team"
+              ><UserPlusIcon /> Invite teammate</Link> : null}
+            </section>
+            {collaborationSummary?.last_viewed_by ? <section className={styles.lastViewed}>
+              <EyeIcon />
+              <div><span>Last viewed by {collaborationSummary.last_viewed_by.display_name}</span><small>{relativeTime(collaborationSummary.last_viewed_by.viewed_at)}</small></div>
+            </section> : null}
+          </div> : null}
+
+          {inspectorMode === 'activity' ? <div className={styles.activityMode}>
+            <div className={styles.sectionLabel}><span>Decision activity</span><small>{collaboration?.timeline.length ?? 0} events</small></div>
+            <div className={styles.activityList}>
+              {(collaboration?.timeline ?? []).map((activity) => <article key={activity.event_id}>
+                <i data-type={activity.type}>{initials(activity.actor.display_name)}</i>
+                <div>
+                  <strong>{activity.actor.display_name}</strong>
+                  <p>{titleCase(activity.type)}{activity.assignee ? ` · ${activity.assignee.display_name}` : ''}{activity.comment_text ? ` · ${activity.comment_text}` : ''}</p>
+                  <time dateTime={activity.occurred_at}>{relativeTime(activity.occurred_at)}</time>
+                </div>
+              </article>)}
+              {!(collaboration?.timeline.length) ? <p className={styles.emptyComments}>No activity has been recorded.</p> : null}
+            </div>
+            {collaboration?.brief_revisions.length ? <section>
+              <div className={styles.sectionLabel}><span>Brief revisions</span><small>{collaboration.brief_revisions.length}</small></div>
+              <div className={styles.revisionList}>
+                {collaboration.brief_revisions.slice(0, 20).map((item) => <article key={item.id}>
+                  <div><strong>{titleCase(item.operation)}</strong><time>{relativeTime(item.createdAt)}</time></div>
+                  <small>{item.changes?.length ?? 0} governed changes · {item.actorMemberId.slice(-8)}</small>
+                </article>)}
+              </div>
+            </section> : null}
+          </div> : null}
+        </div>
+      </aside>
+    </div>
+  </main>;
+}

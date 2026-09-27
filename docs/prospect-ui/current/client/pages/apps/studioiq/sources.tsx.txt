@@ -9,7 +9,7 @@ import { loadProspectSourceWorkspace, validProspectProjectId } from '../../../li
 export default function SourcesPage({ workspaceKey, initialData }: { workspaceKey: string; initialData: Workspace | null }) { return <ProspectSourceWorkspace workspaceKey={workspaceKey} initialData={initialData} />; }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const destination = context.resolvedUrl || '/apps/studioiq/sources';
+  const destination = (context.resolvedUrl || '/prospect/sources').replace(/^\/apps\/studioiq(?=\/|\?|$)/, '/prospect');
   context.res.setHeader('Cache-Control', 'private, no-store');
   context.res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   const flag = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();

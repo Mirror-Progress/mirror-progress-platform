@@ -1,0 +1,33 @@
+import Link from 'next/link';
+import { CreditCardIcon, MoonIcon, SunIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { useTheme } from '../../hooks/useTheme';
+import terminalStyles from './StudioIqTerminal.module.css';
+import styles from './StudioIqSettings.module.css';
+
+export function StudioIqSettingsShell(props: {
+  accountName: string;
+  active: 'account' | 'billing';
+  canManageBilling: boolean;
+  children: React.ReactNode;
+}) {
+  const { theme, toggleTheme } = useTheme();
+  return <div className={terminalStyles.shell}>
+    <header className={styles.header}>
+      <Link className={styles.brand} href="/prospect" aria-label="Return to Prospect Discovery">
+        <div><strong>Prospect</strong><small>by Mirror Progress</small></div>
+      </Link>
+      <nav aria-label="Prospect account navigation">
+        <Link href="/prospect">Discovery</Link>
+        <Link className={props.active === 'account' ? styles.active : ''} href="/prospect/account"><UserCircleIcon />Account</Link>
+        {props.canManageBilling ? <Link className={props.active === 'billing' ? styles.active : ''} href="/prospect/billing"><CreditCardIcon />Billing</Link> : null}
+      </nav>
+      <div className={styles.actions}>
+        <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
+        <span>{props.accountName}</span>
+      </div>
+    </header>
+    <main className={styles.main}>{props.children}</main>
+  </div>;
+}

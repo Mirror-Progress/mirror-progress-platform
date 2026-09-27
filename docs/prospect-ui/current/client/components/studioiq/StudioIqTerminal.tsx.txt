@@ -306,7 +306,7 @@ export function StudioIqTerminal(props: {
       <header className={styles.header}>
         <Link
           className={styles.brand}
-          href="/apps/studioiq"
+          href="/prospect"
           aria-label="Prospect discovery home"
         >
           <span className={styles.brandMark} aria-hidden="true" />
@@ -339,11 +339,11 @@ export function StudioIqTerminal(props: {
                   <strong>{props.accountName}</strong>
                   <small>{props.organizationName}</small>
                 </div>
-                <Link href="/apps/studioiq" role="menuitem">
+                <Link href="/prospect" role="menuitem">
                   <GlobeAltIcon />
                   Discovery
                 </Link>
-                <Link href="/apps/studioiq/account" role="menuitem">
+                <Link href="/prospect/account" role="menuitem">
                   <UserCircleIcon />
                   Account information
                 </Link>
@@ -352,7 +352,7 @@ export function StudioIqTerminal(props: {
                   Replay walkthrough
                 </button>
                 {props.canManageBilling ? (
-                  <Link href="/apps/studioiq/billing" role="menuitem">
+                  <Link href="/prospect/billing" role="menuitem">
                     <CreditCardIcon />
                     Billing
                   </Link>
@@ -362,7 +362,7 @@ export function StudioIqTerminal(props: {
           </div>
           <Link
             className={styles.identity}
-            href="/apps/studioiq/account"
+            href="/prospect/account"
             aria-label={`Open ${props.accountName} account`}
             title="Account information"
           >

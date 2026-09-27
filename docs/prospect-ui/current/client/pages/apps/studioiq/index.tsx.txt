@@ -46,7 +46,7 @@ export default function StudioIqPage(props: PageProps) {
           <p className="text-xs uppercase tracking-[.24em] text-white/55">Prospect access</p>
           <h1 id="trial-expired-title" className="mt-4 text-3xl font-semibold">Your trial has ended</h1>
           <p className="mt-4 text-sm leading-6 text-white/70">Your account and workspace are still here. Update your billing to continue exploring projects.</p>
-          {props.canManageBilling ? <a href="/apps/studioiq/billing" className="mt-7 inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-6 text-sm font-semibold text-[#142430]">Update billing</a> : <p className="mt-6 text-sm text-white/70">Ask your workspace owner to update billing.</p>}
+          {props.canManageBilling ? <a href="/prospect/billing" className="mt-7 inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-6 text-sm font-semibold text-[#142430]">Update billing</a> : <p className="mt-6 text-sm text-white/70">Ask your workspace owner to update billing.</p>}
         </div>
       </div>}
     </div>
@@ -83,8 +83,8 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
     return {
       redirect: {
         destination: cognitoIsRequired()
-          ? `/api/auth/cognito/start?next=${encodeURIComponent('/apps/studioiq')}`
-          : `/?auth=login&next=${encodeURIComponent('/apps/studioiq')}`,
+          ? `/api/auth/cognito/start?next=${encodeURIComponent('/prospect')}`
+          : `/?auth=login&next=${encodeURIComponent('/prospect')}`,
         permanent: false,
       },
     };

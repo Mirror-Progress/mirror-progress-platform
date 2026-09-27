@@ -1,0 +1,150 @@
+import type { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { useState } from 'react';
+import { StudioIqSettingsShell } from '../../../components/studioiq/StudioIqSettingsShell';
+import styles from '../../../components/studioiq/StudioIqSettings.module.css';
+import { getSessionAccountFromContext } from '../../../lib/auth-guards';
+import { getDb } from '../../../lib/mongodb';
+import { getProductBillingProjection, type ProductBillingProjection } from '../../../lib/product-commercial';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { ensureStudioIqWorkspaceMembership } from '../../../lib/studioiq-collaboration';
+import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
+import { getStripeBillingAccount, stripeBillingConfiguration } from '../../../lib/stripe-billing';
+
+type PageProps = {
+  accountName: string;
+  organizationName: string;
+  billing: ProductBillingProjection;
+  stripe: {
+    enabled: boolean;
+    hasCustomer: boolean;
+    subscriptionStatus: string | null;
+    cadence: 'monthly' | 'annual' | null;
+  };
+};
+
+function dateLabel(value: string | null) {
+  if (!value) return 'Not scheduled';
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+}
+
+export default function StudioIqBillingPage(props: PageProps) {
+  const [requesting, setRequesting] = useState(false);
+  const [stripeAction, setStripeAction] = useState<'monthly' | 'annual' | 'portal' | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const requestProposal = async () => {
+    setRequesting(true);
+    setFeedback('');
+    try {
+      const response = await fetch('/api/products/studioiq/billing/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ idempotency_key: crypto.randomUUID(), message: 'Prospect billing and renewal request from the workspace billing page.' }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Unable to submit the billing request.');
+      setFeedback('Request received. Mirror Progress will follow up with the workspace billing contact.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to submit the billing request.');
+    } finally {
+      setRequesting(false);
+    }
+  };
+  const openStripe = async (action: 'monthly' | 'annual' | 'portal') => {
+    setStripeAction(action);
+    setFeedback('');
+    try {
+      const response = await fetch(`/api/products/studioiq/billing/${action === 'portal' ? 'portal' : 'checkout'}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(action === 'portal' ? {} : {
+          cadence: action,
+          idempotency_key: crypto.randomUUID(),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.url) throw new Error(body.error || 'Unable to open secure billing.');
+      window.location.assign(body.url);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to open secure billing.');
+      setStripeAction(null);
+    }
+  };
+  const agreement = props.billing.agreement;
+  const standardBilling = props.billing.entitlement.renewal_treatment === 'standard';
+  const hasActiveStripeSubscription = ['active', 'trialing', 'past_due', 'unpaid', 'paused'].includes(
+    props.stripe.subscriptionStatus ?? ''
+  );
+  return <StudioIqSettingsShell accountName={props.accountName} active="billing" canManageBilling>
+    <Head><title>Billing | Prospect</title><meta name="robots" content="noindex, nofollow" /></Head>
+    <section className={styles.intro}>
+      <div><span>Workspace billing</span><h1>{props.organizationName}</h1><p>Plan, trial credit, seat usage, and renewal status for this Prospect workspace.</p></div>
+      <strong className={styles.role}>{props.billing.entitlement.status.replaceAll('_', ' ')}</strong>
+    </section>
+    <section className={styles.metrics}>
+      <div className={styles.metric}><span>Current plan</span><strong>{props.billing.entitlement.plan_name}</strong></div>
+      <div className={styles.metric}><span>Due now</span><strong>{props.billing.amount_due_now.label}</strong></div>
+      <div className={styles.metric}><span>Trial remaining</span><strong>{props.billing.entitlement.days_remaining ?? '—'} days</strong></div>
+      <div className={styles.metric}><span>Seats</span><strong>{props.billing.seats.occupied} / {props.billing.seats.included}</strong></div>
+    </section>
+    {props.billing.credit ? <section className={styles.credit}>
+      <div><div><span className={styles.sectionLabel}>Applied credit</span><h2>{props.billing.credit.label}</h2><p>{props.billing.credit.description} · {props.billing.credit.status}</p></div><strong>{props.billing.credit.percentage ?? 0}%</strong></div>
+    </section> : null}
+    <section className={styles.billingGrid}>
+      <article className={`${styles.panel} ${styles.agreement}`}>
+        <span className={styles.sectionLabel}>Commercial terms</span><h2>Renewal and invoice status</h2>
+        <div className={styles.agreementRow}><span>Trial start</span><strong>{dateLabel(props.billing.entitlement.trial_starts_at)}</strong></div>
+        <div className={styles.agreementRow}><span>Trial end</span><strong>{dateLabel(props.billing.entitlement.trial_ends_at)}</strong></div>
+        <div className={styles.agreementRow}><span>Renewal</span><strong>{props.billing.entitlement.renewal_treatment === 'custom' ? 'Contact Mirror Progress' : 'Standard'}</strong></div>
+        <div className={styles.agreementRow}><span>Agreement</span><strong>{agreement?.status.replaceAll('_', ' ') ?? 'Not started'}</strong></div>
+        <div className={styles.agreementRow}><span>Invoice</span><strong>{agreement?.invoiceReference ?? 'Not issued'}</strong></div>
+      </article>
+      <article className={styles.panel}>
+        <span className={styles.sectionLabel}>Billing support</span><h2>Plan the next step</h2>
+        <p className={styles.notice}>Billing actions are available only to workspace owners and admins. Payment details are handled by Stripe and never stored in Prospect.</p>
+        {props.stripe.enabled && standardBilling ? <div className={styles.billingActions}>
+          {!hasActiveStripeSubscription ? <>
+            <button className={styles.contactButton} type="button" disabled={Boolean(stripeAction)} onClick={() => void openStripe('monthly')}>{stripeAction === 'monthly' ? 'Opening…' : 'Monthly · $2,500'}</button>
+            <button className={styles.secondaryButton} type="button" disabled={Boolean(stripeAction)} onClick={() => void openStripe('annual')}>{stripeAction === 'annual' ? 'Opening…' : 'Annual · $24,000'}</button>
+          </> : null}
+          {props.stripe.hasCustomer ? <button className={styles.secondaryButton} type="button" disabled={Boolean(stripeAction)} onClick={() => void openStripe('portal')}>{stripeAction === 'portal' ? 'Opening…' : 'Manage billing'}</button> : null}
+        </div> : <button className={styles.contactButton} type="button" disabled={requesting || !props.billing.can_request_proposal} onClick={() => void requestProposal()}>{requesting ? 'Sending…' : props.billing.can_request_proposal ? 'Request proposal' : 'Request submitted'}</button>}
+        {props.stripe.subscriptionStatus ? <p className={styles.paymentState}>Stripe subscription: <strong>{props.stripe.subscriptionStatus.replaceAll('_', ' ')}</strong>{props.stripe.cadence ? ` · ${props.stripe.cadence}` : ''}</p> : null}
+        {feedback ? <p className={styles.feedback} role="status">{feedback}</p> : null}
+      </article>
+    </section>
+  </StudioIqSettingsShell>;
+}
+
+function enabled() {
+  const value = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
+  if (value) return ['1', 'true', 'yes', 'on'].includes(value);
+  return process.env.NODE_ENV !== 'production';
+}
+
+export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
+  if (!enabled()) return { notFound: true };
+  const account = await getSessionAccountFromContext(context);
+  if (!account) return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent('/prospect/billing')}` : `/?auth=login&next=${encodeURIComponent('/prospect/billing')}`, permanent: false } };
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return { notFound: true };
+  const member = await ensureStudioIqWorkspaceMembership(access);
+  if (!['owner', 'admin'].includes(member.role)) return { notFound: true };
+  const [client, billing, stripeAccount] = await Promise.all([
+    getDb().then((db) => db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients').findOne({ id: access.mirrorClientId })),
+    getProductBillingProjection({ productId: 'studioiq', mirrorClientId: access.mirrorClientId, actorUserId: account.id }),
+    getStripeBillingAccount('studioiq', access.mirrorClientId),
+  ]);
+  const stripeConfig = stripeBillingConfiguration();
+  return { props: {
+    accountName: account.name || account.email,
+    organizationName: client?.companyName || client?.name || client?.company || account.company || 'Studio workspace',
+    billing,
+    stripe: {
+      enabled: stripeConfig.enabled && Boolean(stripeConfig.monthlyPriceId && stripeConfig.annualPriceId),
+      hasCustomer: Boolean(stripeAccount?.customerId),
+      subscriptionStatus: stripeAccount?.subscriptionStatus ?? null,
+      cadence: stripeAccount?.cadence ?? null,
+    },
+  } };
+};

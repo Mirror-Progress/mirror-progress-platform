@@ -1,0 +1,166 @@
+import crypto from 'crypto';
+import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
+import { createAuditEvent } from './audit-events';
+import { ensureMongoBootstrap } from './mongodb-bootstrap';
+import { getDb } from './mongodb';
+import { findProductEntitlement, type ProductEntitlement } from './product-commercial';
+
+interface CommercialNotificationDocument {
+  _id: string;
+  id: string;
+  entitlementId: string;
+  productId: string;
+  mirrorClientId: string;
+  type: string;
+  recipient: string;
+  status: string;
+  attempts: number;
+  failureReason?: string;
+  sentAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function reminderType(entitlement: ProductEntitlement) {
+  if (entitlement.status === 'trialing' && entitlement.trialEndsAt) {
+    const remaining = Math.ceil((Date.parse(entitlement.trialEndsAt) - Date.now()) / 86_400_000);
+    if (remaining <= 1) return 'trial_1_day';
+    if (remaining <= 7) return 'trial_7_days';
+  }
+  if (entitlement.status === 'grace_read_only') return 'trial_expired_grace';
+  if (entitlement.status === 'expired') return 'entitlement_expired';
+  return null;
+}
+
+function message(type: string, organization: string, entitlement: ProductEntitlement) {
+  const billingUrl = `${process.env.PLATFORM_BASE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'https://platform.mirrorprogress.com'}/prospect?view=billing`;
+  const copyByType: Record<string, string> = {
+    trial_activated: 'Your Prospect founder trial is active. The 30-day period has started and your workspace is ready.',
+    trial_7_days: 'Your Prospect founder trial has seven days or fewer remaining.',
+    trial_1_day: 'Your Prospect founder trial has one day or fewer remaining.',
+    trial_expired_grace: 'Your Prospect founder trial has ended. The workspace is now in its read-only grace period.',
+    entitlement_expired: 'Your Prospect workspace entitlement has expired. Your data is preserved and can be restored after renewal.',
+    agreement_ready: 'A Prospect commercial agreement update is ready for your review.',
+    invoice_sent: 'A Prospect invoice has been issued for your workspace.',
+    entitlement_activated: 'Your Prospect commercial entitlement is active and full workspace access is available.',
+  };
+  const copy = copyByType[type] ?? 'There is an update to your Prospect account.';
+  return {
+    subject: `Prospect account update for ${organization}`,
+    body: `${copy}\n\nPlan: ${entitlement.planName}\nReview account: ${billingUrl}\n\nReply to hello@mirrorprogress.com to discuss renewal.`,
+  };
+}
+
+async function deliverNotification(input: {
+  db: Awaited<ReturnType<typeof getDb>>;
+  notification: CommercialNotificationDocument;
+  entitlement: ProductEntitlement;
+  organization: string;
+}) {
+  const notifications = input.db.collection<CommercialNotificationDocument>('product_commercial_notifications');
+  const now = new Date().toISOString();
+  const claimed = await notifications.findOneAndUpdate(
+    { _id: input.notification._id, status: { $in: ['pending', 'failed'] } },
+    { $set: { status: 'sending', updatedAt: now }, $inc: { attempts: 1 } },
+    { returnDocument: 'after' }
+  );
+  if (!claimed) return null;
+  const content = message(input.notification.type, input.organization, input.entitlement);
+  try {
+    const fromEmail = `${process.env.PORTAL_FROM_EMAIL ?? ''}`.trim();
+    if (!fromEmail) throw new Error('PORTAL_FROM_EMAIL is not configured.');
+    await new SESv2Client({}).send(new SendEmailCommand({
+      FromEmailAddress: `Mirror Progress <${fromEmail}>`,
+      Destination: { ToAddresses: [input.notification.recipient] },
+      ReplyToAddresses: ['hello@mirrorprogress.com'],
+      Content: { Simple: {
+        Subject: { Data: content.subject, Charset: 'UTF-8' },
+        Body: { Text: { Data: content.body, Charset: 'UTF-8' } },
+      } },
+    }));
+    await notifications.updateOne(
+      { _id: input.notification._id },
+      { $set: { status: 'sent', sentAt: new Date().toISOString(), updatedAt: new Date().toISOString() } }
+    );
+    await createAuditEvent({
+      actorUserId: 'system:commercial-reminders',
+      action: `product_commercial_${input.notification.type}_sent`,
+      entityType: 'ProductEntitlement',
+      entityId: input.entitlement.id,
+      sourceSystem: 'platform',
+      metadata: { mirrorClientId: input.entitlement.mirrorClientId, recipient: input.notification.recipient },
+    });
+    return true;
+  } catch (error) {
+    await notifications.updateOne(
+      { _id: input.notification._id },
+      { $set: { status: 'failed', failureReason: error instanceof Error ? error.message.slice(0, 240) : 'Email failed.', updatedAt: new Date().toISOString() } }
+    );
+    return false;
+  }
+}
+
+export async function runProductCommercialReminders() {
+  await ensureMongoBootstrap();
+  const db = await getDb();
+  await db.collection<CommercialNotificationDocument>('product_commercial_notifications').updateMany(
+    { status: 'sending', updatedAt: { $lt: new Date(Date.now() - 30 * 60 * 1000).toISOString() } },
+    { $set: { status: 'failed', failureReason: 'Recovered an interrupted notification delivery.', updatedAt: new Date().toISOString() } }
+  );
+  const candidates = await db.collection<ProductEntitlement & { _id: string }>('product_entitlements')
+    .find({ productId: 'studioiq', status: { $in: ['trialing', 'grace_read_only', 'expired'] } }).toArray();
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const candidate of candidates) {
+    const entitlement = await findProductEntitlement({ productId: 'studioiq', mirrorClientId: candidate.mirrorClientId });
+    if (!entitlement) continue;
+    const type = reminderType(entitlement);
+    if (!type) { skipped += 1; continue; }
+    const [owner, pilot, organization] = await Promise.all([
+      db.collection<{ email: string }>('studioiq_workspace_memberships').findOne({ mirrorClientId: entitlement.mirrorClientId, role: 'owner', status: 'active' }),
+      db.collection<{ ownerEmail: string }>('studioiq_founder_pilots').findOne({ mirrorClientId: entitlement.mirrorClientId }),
+      db.collection<{ companyName?: string }>('clients').findOne({ id: entitlement.mirrorClientId }),
+    ]);
+    const recipient = owner?.email || pilot?.ownerEmail;
+    if (!recipient) { failed += 1; continue; }
+    const notifications = db.collection<CommercialNotificationDocument>('product_commercial_notifications');
+    const existing = await notifications.findOne({ entitlementId: entitlement.id, type, recipient });
+    if (existing?.status === 'sent') { skipped += 1; continue; }
+    const id = existing?._id ?? `commercial_notification_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    if (!existing) {
+      await notifications.insertOne({
+        _id: id, id, entitlementId: entitlement.id, productId: entitlement.productId,
+        mirrorClientId: entitlement.mirrorClientId, type, recipient, status: 'pending', attempts: 0,
+        createdAt: now, updatedAt: now,
+      });
+    }
+    const delivered = await deliverNotification({
+      db,
+      notification: existing ?? await notifications.findOne({ _id: id }) as CommercialNotificationDocument,
+      entitlement,
+      organization: organization?.companyName || 'your practice',
+    });
+    if (delivered === true) sent += 1; else if (delivered === false) failed += 1; else skipped += 1;
+  }
+  const queued = await db.collection<CommercialNotificationDocument>('product_commercial_notifications').find({
+    type: { $in: ['trial_activated', 'agreement_ready', 'invoice_sent', 'entitlement_activated'] },
+    status: { $in: ['pending', 'failed'] },
+  }).limit(500).toArray();
+  for (const notification of queued) {
+    const [entitlement, organization] = await Promise.all([
+      findProductEntitlement({ productId: 'studioiq', mirrorClientId: notification.mirrorClientId }),
+      db.collection<{ companyName?: string }>('clients').findOne({ id: notification.mirrorClientId }),
+    ]);
+    if (!entitlement) { failed += 1; continue; }
+    const delivered = await deliverNotification({
+      db,
+      notification,
+      entitlement,
+      organization: organization?.companyName || 'your practice',
+    });
+    if (delivered === true) sent += 1; else if (delivered === false) failed += 1; else skipped += 1;
+  }
+  return { generated_at: new Date().toISOString(), examined: candidates.length + queued.length, sent, skipped, failed };
+}

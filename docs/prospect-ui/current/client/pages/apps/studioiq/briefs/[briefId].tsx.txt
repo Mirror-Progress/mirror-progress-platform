@@ -1,0 +1,64 @@
+import type { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { BriefCanvasWorkspace } from '../../../../components/studioiq/BriefCanvasWorkspace';
+import { getSessionAccountFromContext } from '../../../../lib/auth-guards';
+import { getDb } from '../../../../lib/mongodb';
+import { cognitoIsRequired } from '../../../../lib/state-kernel/authorization/cognito';
+import { findStudioIqProductAccessForAccount } from '../../../../lib/studioiq-product-auth';
+
+type PageProps = {
+  briefId: string;
+  accountName: string;
+  organizationName: string;
+};
+
+function enabled() {
+  const value = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
+  if (value) return ['1', 'true', 'yes', 'on'].includes(value);
+  return process.env.NODE_ENV !== 'production';
+}
+
+export default function StudioIqBriefPage(props: PageProps) {
+  return <>
+    <Head>
+      <title>Prospect Pursuit Room</title>
+      <meta name="robots" content="noindex, nofollow" />
+      <meta name="description" content="Architecture pursuit intelligence, capture strategy, and proposal workspace." />
+    </Head>
+    <BriefCanvasWorkspace {...props} />
+  </>;
+}
+
+export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
+  if (!enabled()) return { notFound: true };
+  const briefId = typeof context.params?.briefId === 'string' ? context.params.briefId : '';
+  if (!briefId) return { notFound: true };
+
+  const account = await getSessionAccountFromContext(context);
+  if (!account) {
+    return {
+      redirect: {
+        destination: cognitoIsRequired()
+          ? `/api/auth/cognito/start?next=${encodeURIComponent(`/prospect/briefs/${briefId}`)}`
+          : `/?auth=login&next=${encodeURIComponent(`/prospect/briefs/${briefId}`)}`,
+        permanent: false,
+      },
+    };
+  }
+
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return { notFound: true };
+
+  const client = await getDb().then((db) =>
+    db.collection<{ id: string; companyName?: string; name?: string; company?: string }>('clients')
+      .findOne({ id: access.mirrorClientId })
+  );
+
+  return {
+    props: {
+      briefId,
+      accountName: account.name || account.email,
+      organizationName: client?.companyName || client?.name || client?.company || account.company || 'Studio workspace',
+    },
+  };
+};

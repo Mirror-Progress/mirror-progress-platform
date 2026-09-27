@@ -1,0 +1,109 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import crypto from 'node:crypto';
+import test from 'node:test';
+import ts from 'typescript';
+
+const root = path.resolve(import.meta.dirname, '..');
+const source = fs.readFileSync(path.join(root, 'pages/apps/studioiq/source-preview.tsx'), 'utf8');
+
+function harness({ enabled = 'true', account = null, access = null, accessError = false } = {}) {
+  const output = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
+  }).outputText;
+  let reads = 0;
+  const exports = {};
+  const dependencies = {
+    'node:fs/promises': { readFile: async () => { reads += 1; return '<!doctype html><html><div id="root"></div></html>'; } },
+    'node:path': path,
+    'node:crypto': crypto,
+    '../../../lib/auth-guards': { getSessionAccountFromContext: async () => account },
+    '../../../lib/state-kernel/authorization/cognito': { cognitoIsRequired: () => true },
+    '../../../lib/studioiq-product-auth': { findStudioIqProductAccessForAccount: async () => {
+      if (accessError) throw new Error('Unavailable');
+      return access;
+    } },
+  };
+  vm.runInNewContext(output, {
+    exports,
+    URLSearchParams,
+    require: (name) => { assert.ok(name in dependencies, `Unexpected dependency ${name}`); return dependencies[name]; },
+    process: { env: { NODE_ENV: 'production', STUDIOIQ_APP_ENABLED: enabled }, cwd: () => root },
+  });
+  const headers = {};
+  const response = { statusCode: 0, body: undefined, setHeader: (key, value) => { headers[key] = value; }, end: (body) => { response.body = body; } };
+  return { run: (context = {}) => exports.getServerSideProps({ res: response, ...context }), reads: () => reads, headers, response };
+}
+
+test('source preview is disabled in production when the product flag is off or unset', async () => {
+  for (const enabled of ['false', '']) {
+    const run = harness({ enabled, account: { id: 'member' }, access: { mirrorClientId: 'firm' } });
+    assert.equal((await run.run()).notFound, true);
+    assert.equal(run.reads(), 0);
+  }
+});
+
+test('source preview preserves the destination through sign-in without reading its document', async () => {
+  const run = harness();
+  const result = await run.run();
+  assert.equal(result.redirect.destination, '/api/auth/cognito/start?next=%2Fprospect%2Fsource-preview');
+  assert.equal(run.reads(), 0);
+  assert.equal(run.response.body, undefined);
+});
+
+test('source preview fails closed without active product access or if access lookup fails', async () => {
+  for (const accessError of [false, true]) {
+    const run = harness({ account: { id: 'member' }, accessError });
+    assert.equal((await run.run()).notFound, true);
+    assert.equal(run.reads(), 0);
+  }
+});
+
+test('an authorized member receives the standalone document with private cache headers', async () => {
+  const run = harness({ account: { id: 'member' }, access: { mirrorClientId: 'firm' } });
+  await run.run();
+  assert.equal(run.reads(), 1);
+  assert.equal(run.response.statusCode, 200);
+  assert.match(run.response.body, /^<!doctype html>/);
+  assert.equal(run.headers['Cache-Control'], 'private, no-store');
+  assert.equal(run.headers['X-Robots-Tag'], 'noindex, nofollow');
+  assert.equal(run.headers['Content-Type'], 'text/html; charset=utf-8');
+});
+
+test('the live source link keeps both project and evidence through authentication', async () => {
+  const run = harness();
+  const result = await run.run({ resolvedUrl: '/prospect/sources?opportunity=project-one&evidence=source-two', query: { opportunity: 'project-one', evidence: 'source-two' } });
+  assert.equal(decodeURIComponent(result.redirect.destination.split('next=')[1]), '/prospect/sources?opportunity=project-one&evidence=source-two');
+  assert.equal(run.reads(), 0);
+});
+test('section and language survive authentication in a shared document link',async()=>{
+  const run=harness();
+  const result=await run.run({resolvedUrl:'/prospect/sources',query:{opportunity:'project-one',evidence:'source-two',section:'scope',language:'side'}});
+  assert.equal(decodeURIComponent(result.redirect.destination.split('next=')[1]),'/prospect/sources?opportunity=project-one&evidence=source-two&section=scope&language=side');
+  assert.equal(run.reads(),0);
+});
+
+test('browser notes are separated by member and firm, and organization names are escaped', async () => {
+  const bodies = [];
+  for (const id of ['member-one', 'member-two']) {
+    const run = harness({ account: { id, company: 'A "quoted" <firm>' }, access: { mirrorClientId: 'firm' } });
+    await run.run();
+    bodies.push(run.response.body);
+    assert.match(run.response.body, /data-organization-name="A &quot;quoted&quot; &lt;firm&gt;"/);
+    assert.doesNotMatch(run.response.body, new RegExp(id));
+  }
+  assert.notEqual(bodies[0], bodies[1]);
+});
+
+test('preview assets resolve locally and its entry document is outside public assets', () => {
+  const html = fs.readFileSync(path.join(root, 'lib/studioiq-source-preview/index.html'), 'utf8');
+  const assets = [...html.matchAll(/(?:src|href)="(\/studioiq-source-preview\/assets\/[^" ]+)"/g)].map((match) => match[1]);
+  assert.equal(assets.length, 2);
+  for (const asset of assets) assert.ok(fs.existsSync(path.join(root, 'public', asset)));
+  assert.equal(fs.existsSync(path.join(root, 'public/studioiq-source-preview/index.html')), false);
+  const javascript = fs.readFileSync(path.join(root, 'public', assets.find((asset) => asset.endsWith('.js'))), 'utf8');
+  assert.match(javascript, /Prototype data only/);
+  assert.doesNotMatch(javascript, /localhost:3001|chatgpt\.site|@openai\/sites-vite-plugin/);
+});

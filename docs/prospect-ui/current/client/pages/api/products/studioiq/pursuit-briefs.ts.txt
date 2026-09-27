@@ -1,0 +1,42 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { listPublishedPursuitBriefs } from '../../../../lib/research-intelligence';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { hydrateStudioIqPortfolioPrecedents } from '../../../../lib/studioiq-collaboration';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
+  const access = await requireStudioIqProductAccess(req, res);
+  if (!access?.mirrorClientId) return;
+  try {
+    const result = await listPublishedPursuitBriefs(access.mirrorClientId);
+    const allPrecedentIds = [...new Set(result.briefs.flatMap((brief) => brief.precedentIds))];
+    const hydrated = await hydrateStudioIqPortfolioPrecedents({
+      access,
+      precedentIds: allPrecedentIds,
+    });
+    const byId = new Map(
+      hydrated.precedents.flatMap((precedent) => [
+        [precedent.precedent_id, precedent] as const,
+        [precedent.external_portfolio_project_id, precedent] as const,
+      ])
+    );
+    return res.status(200).json({
+      ...result,
+      briefs: result.briefs.map((brief) => ({
+        ...brief,
+        schema_version: brief.v2Research
+          ? 'studioiq-pursuit-brief-v2-research'
+          : 'studioiq-pursuit-brief-v1',
+        workspace_url: `/prospect/briefs/${encodeURIComponent(brief.id)}`,
+        precedents: brief.precedentIds
+          .map((id) => byId.get(id))
+          .filter(Boolean),
+        unresolvedPrecedentIds: brief.precedentIds.filter((id) => !byId.has(id)),
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unable to load Prospect pursuit briefs.',
+    });
+  }
+}

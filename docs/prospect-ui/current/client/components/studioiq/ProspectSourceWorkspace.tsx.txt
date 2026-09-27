@@ -117,7 +117,7 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
   const evidence = data?.sources.find((source) => source.evidenceId === active);
   const document = evidence?.document;
   const original = safeUrl(document?.documentUrl || document?.sourceUrl || evidence?.sourceUrl);
-  const back = previewData ? '/local/studioiq-globe?opportunity=sample-0&tab=sources' : projectId ? `/apps/studioiq?opportunity=${encodeURIComponent(projectId)}&tab=sources` : '/apps/studioiq';
+  const back = previewData ? '/local/studioiq-globe?opportunity=sample-0&tab=sources' : projectId ? `/prospect?opportunity=${encodeURIComponent(projectId)}&tab=sources` : '/prospect';
   const context = !previewData && projectId && active ? { opportunityId: projectId, evidenceId: active } : undefined;
   const counts = useMemo(() => ({ bookmarks: work.bookmarks.length, reviewed: work.reviewed.length, requirements: work.requirements.length, questions: work.questions.length }), [work]);
 
@@ -160,7 +160,7 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
       <button className={styles.themeToggle} type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}>{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</button>
       <button className={styles.mobileAsk} type="button" onClick={() => setChatOpen(true)} aria-label="Ask the Prospect assistant">Ask <span className={styles.mpMark} role="img" aria-label="MP" /></button>
     </header>
-    {error ? <main className={styles.unavailable}><DocumentTextIcon /><h1>Source workspace unavailable</h1><p role="alert">{error}</p><Link href="/apps/studioiq">Return to Prospect</Link></main>
+    {error ? <main className={styles.unavailable}><DocumentTextIcon /><h1>Source workspace unavailable</h1><p role="alert">{error}</p><Link href="/prospect">Return to Prospect</Link></main>
       : !data ? <main className={styles.unavailable} aria-busy="true"><DocumentTextIcon /><h1>Opening project evidence</h1><p>Loading the documents and your reading notes…</p></main>
       : <div ref={layoutRef} className={`${styles.layout} ${chatOpen ? styles.withChat : ''} ${resizingChat ? styles.resizing : ''}`} style={{ '--source-chat-width': `${chatWidth}px` } as CSSProperties}>
         <nav className={styles.sidebar} aria-label="Project sources">

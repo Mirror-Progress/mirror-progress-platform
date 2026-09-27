@@ -1,0 +1,477 @@
+import crypto from 'crypto';
+import Stripe from 'stripe';
+import { createAuditEvent } from './audit-events';
+import { createExternalReferencePlaceholder } from './external-references';
+import { getDb } from './mongodb';
+import {
+  applyExternalBillingEntitlementState,
+  findProductEntitlement,
+  updateCommercialAgreement,
+} from './product-commercial';
+import type { ProductId } from './product-access';
+
+export type StudioIqBillingCadence = 'monthly' | 'annual';
+
+export interface StripeBillingAccount {
+  id: string;
+  productId: ProductId;
+  mirrorClientId: string;
+  customerId: string;
+  subscriptionId: string | null;
+  checkoutSessionId: string | null;
+  priceId: string | null;
+  cadence: StudioIqBillingCadence | null;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StripeWebhookReceipt {
+  id: string;
+  eventId: string;
+  eventType: string;
+  status: 'processing' | 'processed' | 'failed';
+  attempts: number;
+  error: string | null;
+  mirrorClientId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  processedAt: string | null;
+}
+
+type Stored<T> = T & { _id: string };
+
+let stripeClient: Stripe | null = null;
+
+function requiredEnv(name: string) {
+  const value = `${process.env[name] ?? ''}`.trim();
+  if (!value) throw new Error(`${name} is not configured.`);
+  return value;
+}
+
+function optionalEnv(name: string) {
+  return `${process.env[name] ?? ''}`.trim();
+}
+
+function text(value: unknown) {
+  return `${value ?? ''}`.trim();
+}
+
+function isoFromUnix(value: unknown) {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1_000).toISOString() : null;
+}
+
+function objectId(value: unknown) {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'id' in value) return text((value as { id?: unknown }).id);
+  return '';
+}
+
+function stripeMetadata(value: unknown) {
+  if (!value || typeof value !== 'object') return {} as Record<string, string>;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, text(item)]));
+}
+
+function billingCollection() {
+  return getDb().then((db) => db.collection<Stored<StripeBillingAccount>>('stripe_billing_accounts'));
+}
+
+function webhookCollection() {
+  return getDb().then((db) => db.collection<Stored<StripeWebhookReceipt>>('stripe_webhook_receipts'));
+}
+
+export function getStripeClient() {
+  if (!stripeClient) stripeClient = new Stripe(requiredEnv('STRIPE_SECRET_KEY'));
+  return stripeClient;
+}
+
+export function stripeBillingConfiguration() {
+  const monthlyPriceId = optionalEnv('STRIPE_STUDIOIQ_MONTHLY_PRICE_ID');
+  const annualPriceId = optionalEnv('STRIPE_STUDIOIQ_ANNUAL_PRICE_ID');
+  return {
+    enabled: Boolean(optionalEnv('STRIPE_SECRET_KEY') && optionalEnv('STRIPE_WEBHOOK_SECRET')),
+    monthlyPriceId,
+    annualPriceId,
+    portalConfigurationId: optionalEnv('STRIPE_BILLING_PORTAL_CONFIGURATION_ID'),
+    automaticTax: ['1', 'true', 'yes', 'on'].includes(optionalEnv('STRIPE_AUTOMATIC_TAX_ENABLED').toLowerCase()),
+  };
+}
+
+export async function ensureStripeBillingIndexes() {
+  const db = await getDb();
+  await Promise.all([
+    db.collection('stripe_billing_accounts').createIndex(
+      { productId: 1, mirrorClientId: 1 },
+      { unique: true, name: 'stripe_billing_account_org_unique' }
+    ),
+    db.collection('stripe_billing_accounts').createIndex(
+      { customerId: 1 },
+      { unique: true, sparse: true, name: 'stripe_billing_customer_unique' }
+    ),
+    db.collection('stripe_billing_accounts').createIndex(
+      { subscriptionId: 1 },
+      { unique: true, sparse: true, name: 'stripe_billing_subscription_unique' }
+    ),
+    db.collection('stripe_webhook_receipts').createIndex(
+      { eventId: 1 },
+      { unique: true, name: 'stripe_webhook_event_unique' }
+    ),
+    db.collection('stripe_webhook_receipts').createIndex({ status: 1, updatedAt: 1 }),
+  ]);
+}
+
+export async function getStripeBillingAccount(productId: ProductId, mirrorClientId: string) {
+  await ensureStripeBillingIndexes();
+  return (await billingCollection()).findOne({ productId, mirrorClientId });
+}
+
+async function upsertBillingAccount(input: {
+  productId: ProductId;
+  mirrorClientId: string;
+  customerId: string;
+  subscriptionId?: string | null;
+  checkoutSessionId?: string | null;
+  priceId?: string | null;
+  cadence?: StudioIqBillingCadence | null;
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+}) {
+  const collection = await billingCollection();
+  const existing = await collection.findOne({ productId: input.productId, mirrorClientId: input.mirrorClientId });
+  const now = new Date().toISOString();
+  const record: StripeBillingAccount = {
+    id: existing?.id ?? `stripe_billing_${crypto.randomUUID()}`,
+    productId: input.productId,
+    mirrorClientId: input.mirrorClientId,
+    customerId: input.customerId || existing?.customerId || '',
+    subscriptionId: input.subscriptionId === undefined ? existing?.subscriptionId ?? null : input.subscriptionId,
+    checkoutSessionId: input.checkoutSessionId === undefined ? existing?.checkoutSessionId ?? null : input.checkoutSessionId,
+    priceId: input.priceId === undefined ? existing?.priceId ?? null : input.priceId,
+    cadence: input.cadence === undefined ? existing?.cadence ?? null : input.cadence,
+    subscriptionStatus: input.subscriptionStatus === undefined ? existing?.subscriptionStatus ?? null : input.subscriptionStatus,
+    currentPeriodEnd: input.currentPeriodEnd === undefined ? existing?.currentPeriodEnd ?? null : input.currentPeriodEnd,
+    cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? existing?.cancelAtPeriodEnd ?? false,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  await collection.updateOne(
+    { productId: input.productId, mirrorClientId: input.mirrorClientId },
+    { $set: record, $setOnInsert: { _id: record.id } },
+    { upsert: true }
+  );
+  return record;
+}
+
+async function ensureStripeCustomer(input: {
+  productId: ProductId;
+  mirrorClientId: string;
+  organizationName: string;
+  billingEmail: string;
+  actorUserId: string;
+}) {
+  await ensureStripeBillingIndexes();
+  const existing = await getStripeBillingAccount(input.productId, input.mirrorClientId);
+  if (existing?.customerId) return existing;
+  const customer = await getStripeClient().customers.create({
+    email: input.billingEmail || undefined,
+    name: input.organizationName,
+    metadata: {
+      mirror_product_id: input.productId,
+      mirror_client_id: input.mirrorClientId,
+    },
+  }, { idempotencyKey: `studioiq-customer:${input.mirrorClientId}` });
+  const record = await upsertBillingAccount({
+    productId: input.productId,
+    mirrorClientId: input.mirrorClientId,
+    customerId: customer.id,
+  });
+  await createExternalReferencePlaceholder({
+    ownerEntityType: 'Organization',
+    ownerEntityId: input.mirrorClientId,
+    provider: 'stripe',
+    externalType: 'product_account',
+    externalId: customer.id,
+    externalUrl: `https://dashboard.stripe.com/customers/${customer.id}`,
+    syncDirection: 'bidirectional',
+    lastSyncedAt: new Date().toISOString(),
+  });
+  await createAuditEvent({
+    actorUserId: input.actorUserId,
+    action: 'stripe_customer_created',
+    entityType: 'Organization',
+    entityId: input.mirrorClientId,
+    sourceSystem: 'stripe',
+    metadata: { productId: input.productId, stripeCustomerId: customer.id },
+  });
+  return record;
+}
+
+function configuredPrice(cadence: StudioIqBillingCadence) {
+  const config = stripeBillingConfiguration();
+  const priceId = cadence === 'annual' ? config.annualPriceId : config.monthlyPriceId;
+  if (!priceId) throw new Error(`Prospect ${cadence} Stripe price is not configured.`);
+  return priceId;
+}
+
+export async function createStudioIqCheckout(input: {
+  productId: ProductId;
+  mirrorClientId: string;
+  organizationName: string;
+  billingEmail: string;
+  actorUserId: string;
+  cadence: StudioIqBillingCadence;
+  idempotencyKey: string;
+  returnBaseUrl: string;
+}) {
+  const idempotencyKey = text(input.idempotencyKey);
+  if (!idempotencyKey) throw new Error('An idempotency key is required.');
+  const priceId = configuredPrice(input.cadence);
+  const account = await ensureStripeCustomer(input);
+  if (account.subscriptionId && ['active', 'trialing', 'past_due', 'unpaid', 'paused'].includes(account.subscriptionStatus ?? '')) {
+    throw new Error('This workspace already has a Stripe subscription. Open Manage billing to change it.');
+  }
+  const entitlement = await findProductEntitlement({ productId: input.productId, mirrorClientId: input.mirrorClientId });
+  const trialEnd = entitlement?.trialEndsAt ? Math.floor(Date.parse(entitlement.trialEndsAt) / 1_000) : 0;
+  const useTrialEnd = trialEnd > Math.floor(Date.now() / 1_000) + (48 * 60 * 60);
+  const baseUrl = new URL(input.returnBaseUrl).origin;
+  const session = await getStripeClient().checkout.sessions.create({
+    mode: 'subscription',
+    customer: account.customerId,
+    client_reference_id: input.mirrorClientId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    allow_promotion_codes: true,
+    automatic_tax: { enabled: stripeBillingConfiguration().automaticTax },
+    customer_update: { address: 'auto', name: 'auto' },
+    success_url: `${baseUrl}/prospect/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/prospect/billing?checkout=canceled`,
+    metadata: {
+      mirror_product_id: input.productId,
+      mirror_client_id: input.mirrorClientId,
+      mirror_actor_id: input.actorUserId,
+      billing_cadence: input.cadence,
+    },
+    subscription_data: {
+      ...(useTrialEnd ? { trial_end: trialEnd } : {}),
+      metadata: {
+        mirror_product_id: input.productId,
+        mirror_client_id: input.mirrorClientId,
+        billing_cadence: input.cadence,
+      },
+    },
+  }, { idempotencyKey: `studioiq-checkout:${input.mirrorClientId}:${idempotencyKey}` });
+  await upsertBillingAccount({
+    productId: input.productId,
+    mirrorClientId: input.mirrorClientId,
+    customerId: account.customerId,
+    checkoutSessionId: session.id,
+    priceId,
+    cadence: input.cadence,
+  });
+  await createAuditEvent({
+    actorUserId: input.actorUserId,
+    action: 'stripe_checkout_created',
+    entityType: 'ProductEntitlement',
+    entityId: entitlement?.id ?? input.mirrorClientId,
+    sourceSystem: 'stripe',
+    metadata: { stripeCheckoutSessionId: session.id, cadence: input.cadence },
+  });
+  if (!session.url) throw new Error('Stripe Checkout did not return a redirect URL.');
+  return { url: session.url };
+}
+
+export async function createStudioIqBillingPortal(input: {
+  productId: ProductId;
+  mirrorClientId: string;
+  returnBaseUrl: string;
+}) {
+  const account = await getStripeBillingAccount(input.productId, input.mirrorClientId);
+  if (!account?.customerId) throw new Error('No Stripe billing account exists for this workspace.');
+  const baseUrl = new URL(input.returnBaseUrl).origin;
+  const configuration = stripeBillingConfiguration().portalConfigurationId || undefined;
+  const session = await getStripeClient().billingPortal.sessions.create({
+    customer: account.customerId,
+    return_url: `${baseUrl}/prospect/billing`,
+    configuration,
+  });
+  return { url: session.url };
+}
+
+async function resolveMirrorClientId(input: {
+  metadata?: unknown;
+  customerId?: string;
+  subscriptionId?: string;
+}) {
+  const fromMetadata = stripeMetadata(input.metadata).mirror_client_id;
+  if (fromMetadata) return fromMetadata;
+  const collection = await billingCollection();
+  const account = await collection.findOne({
+    $or: [
+      ...(input.customerId ? [{ customerId: input.customerId }] : []),
+      ...(input.subscriptionId ? [{ subscriptionId: input.subscriptionId }] : []),
+    ],
+  });
+  return account?.mirrorClientId ?? '';
+}
+
+function subscriptionDetails(subscription: Stripe.Subscription) {
+  const item = subscription.items.data[0];
+  const interval = item?.price.recurring?.interval;
+  const cadence: StudioIqBillingCadence | null = interval === 'year' ? 'annual' : interval === 'month' ? 'monthly' : null;
+  return {
+    priceId: item?.price.id ?? null,
+    cadence,
+    currentPeriodEnd: isoFromUnix(item?.current_period_end),
+  };
+}
+
+async function processStripeEvent(event: Stripe.Event) {
+  const object = event.data.object as unknown as Record<string, unknown>;
+  const metadata = stripeMetadata(object.metadata);
+  const customerId = objectId(object.customer);
+  const subscriptionId = objectId(object.subscription) || objectId((object.parent as Record<string, unknown> | undefined)?.subscription_details);
+  const mirrorClientId = await resolveMirrorClientId({ metadata, customerId, subscriptionId });
+  if (!mirrorClientId && event.type !== 'customer.updated') {
+    throw new Error(`Stripe event ${event.type} is not mapped to a Mirror organization.`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const mappedClientId = stripeMetadata(session.metadata).mirror_client_id || mirrorClientId;
+    await upsertBillingAccount({
+      productId: 'studioiq',
+      mirrorClientId: mappedClientId,
+      customerId: objectId(session.customer),
+      subscriptionId: objectId(session.subscription) || null,
+      checkoutSessionId: session.id,
+      cadence: stripeMetadata(session.metadata).billing_cadence as StudioIqBillingCadence || null,
+      subscriptionStatus: session.payment_status,
+    });
+    return mappedClientId;
+  }
+
+  if (event.type.startsWith('customer.subscription.')) {
+    const subscription = event.data.object as Stripe.Subscription;
+    const mappedClientId = stripeMetadata(subscription.metadata).mirror_client_id || mirrorClientId;
+    const details = subscriptionDetails(subscription);
+    await upsertBillingAccount({
+      productId: 'studioiq',
+      mirrorClientId: mappedClientId,
+      customerId: objectId(subscription.customer),
+      subscriptionId: subscription.id,
+      subscriptionStatus: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      ...details,
+    });
+    if (event.type === 'customer.subscription.deleted' || subscription.status === 'canceled') {
+      await applyExternalBillingEntitlementState({
+        productId: 'studioiq', mirrorClientId: mappedClientId, status: 'canceled', source: 'stripe', externalEventId: event.id,
+      });
+    } else if (['past_due', 'unpaid', 'paused'].includes(subscription.status)) {
+      await applyExternalBillingEntitlementState({
+        productId: 'studioiq', mirrorClientId: mappedClientId, status: 'grace_read_only', source: 'stripe', externalEventId: event.id,
+      });
+    }
+    return mappedClientId;
+  }
+
+  if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice;
+    const invoiceRecord = invoice as unknown as Record<string, unknown>;
+    const parent = invoiceRecord.parent as Record<string, unknown> | undefined;
+    const parentSubscription = parent?.subscription_details as Record<string, unknown> | undefined;
+    const invoiceSubscriptionId = objectId(invoiceRecord.subscription) || objectId(parentSubscription?.subscription);
+    const mappedClientId = await resolveMirrorClientId({
+      metadata: invoice.metadata,
+      customerId: objectId(invoice.customer),
+      subscriptionId: invoiceSubscriptionId,
+    });
+    if (!mappedClientId) throw new Error('Stripe invoice is not mapped to a Mirror organization.');
+    await updateCommercialAgreement({
+      productId: 'studioiq',
+      mirrorClientId: mappedClientId,
+      actorUserId: 'stripe-webhook',
+      status: event.type === 'invoice.paid' ? 'paid' : 'invoice_sent',
+      pricingTreatment: 'standard',
+      currency: invoice.currency,
+      amountMinor: event.type === 'invoice.paid' ? invoice.amount_paid : invoice.amount_due,
+      invoiceReference: invoice.number || invoice.id,
+      invoiceUrl: invoice.hosted_invoice_url || undefined,
+      invoiceDueAt: isoFromUnix(invoice.due_date) || undefined,
+      paidAt: event.type === 'invoice.paid' ? isoFromUnix(invoice.status_transitions.paid_at) || new Date().toISOString() : undefined,
+      activateEntitlement: event.type === 'invoice.paid',
+    });
+    if (event.type === 'invoice.payment_failed') {
+      await applyExternalBillingEntitlementState({
+        productId: 'studioiq', mirrorClientId: mappedClientId, status: 'grace_read_only', source: 'stripe', externalEventId: event.id,
+      });
+    }
+    return mappedClientId;
+  }
+
+  if (event.type === 'customer.updated') return mirrorClientId;
+  return mirrorClientId;
+}
+
+export function constructStripeEvent(rawBody: Buffer, signature: string) {
+  return getStripeClient().webhooks.constructEvent(rawBody, signature, requiredEnv('STRIPE_WEBHOOK_SECRET'));
+}
+
+export async function reconcileStripeEvent(event: Stripe.Event) {
+  await ensureStripeBillingIndexes();
+  const collection = await webhookCollection();
+  const now = new Date().toISOString();
+  const existing = await collection.findOne({ eventId: event.id });
+  if (existing?.status === 'processed') return { duplicate: true, mirrorClientId: existing.mirrorClientId };
+  const receipt: StripeWebhookReceipt = {
+    id: existing?.id ?? `stripe_event_${crypto.randomUUID()}`,
+    eventId: event.id,
+    eventType: event.type,
+    status: 'processing',
+    attempts: (existing?.attempts ?? 0) + 1,
+    error: null,
+    mirrorClientId: existing?.mirrorClientId ?? null,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    processedAt: null,
+  };
+  try {
+    await collection.updateOne(
+      { eventId: event.id },
+      { $set: receipt, $setOnInsert: { _id: receipt.id } },
+      { upsert: true }
+    );
+  } catch (error) {
+    if ((error as { code?: number }).code === 11000) {
+      const raced = await collection.findOne({ eventId: event.id });
+      if (raced?.status === 'processed' || raced?.status === 'processing') {
+        return { duplicate: true, mirrorClientId: raced.mirrorClientId };
+      }
+    }
+    throw error;
+  }
+  try {
+    const mirrorClientId = await processStripeEvent(event);
+    await collection.updateOne({ eventId: event.id }, {
+      $set: { status: 'processed', mirrorClientId: mirrorClientId || null, processedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), error: null },
+    });
+    await createAuditEvent({
+      actorUserId: 'stripe-webhook',
+      action: 'stripe_webhook_processed',
+      entityType: 'Integration',
+      entityId: event.id,
+      sourceSystem: 'stripe',
+      metadata: { eventType: event.type, mirrorClientId },
+    });
+    return { duplicate: false, mirrorClientId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Stripe webhook processing failed.';
+    await collection.updateOne({ eventId: event.id }, {
+      $set: { status: 'failed', error: message.slice(0, 1_000), updatedAt: new Date().toISOString() },
+    });
+    throw error;
+  }
+}

@@ -1220,7 +1220,7 @@ export function StudioIqDiscovery(props: {
                             <ProspectMotionLink
                               href={props.localPreview && selected.opportunity_id === 'sample-0'
                                 ? `/local/prospect-source?evidence=${encodeURIComponent(evidence.evidence_id)}`
-                                : `/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(evidence.evidence_id)}`}
+                                : `/prospect/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(evidence.evidence_id)}`}
                               aria-label={`Open ${evidence.source_authority} source`}
                             >
                               Read in Prospect <ArrowTopRightOnSquareIcon />
@@ -1246,7 +1246,7 @@ export function StudioIqDiscovery(props: {
                   <ProspectMotionLink
                     href={props.localPreview && selected.opportunity_id === 'sample-0'
                       ? `/local/prospect-source?evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`
-                      : `/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`}
+                      : `/prospect/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`}
                   >
                     Open source workspace
                     <ArrowTopRightOnSquareIcon />

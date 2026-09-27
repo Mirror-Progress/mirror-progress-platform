@@ -1,0 +1,164 @@
+import crypto from 'crypto';
+import { ensureMongoBootstrap } from './mongodb-bootstrap';
+import { getDb } from './mongodb';
+
+export type ProductId = 'studioiq';
+export type ProductAccessStatus = 'active' | 'invited' | 'disabled';
+
+export interface ProductAccessRecord {
+  id: string;
+  productId: ProductId;
+  mirrorAccountId: string;
+  mirrorClientId: string | null;
+  externalUserId: string | null;
+  externalOrganizationId: string | null;
+  status: ProductAccessStatus;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, string>;
+}
+
+interface ProductAccessDocument extends ProductAccessRecord {
+  _id: string;
+}
+
+function asString(value: unknown) {
+  return `${value ?? ''}`.trim();
+}
+
+function normalizeMetadata(metadata?: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(metadata ?? {})
+      .map(([key, value]) => [key, asString(value)])
+      .filter(([, value]) => value.length > 0)
+  );
+}
+
+function productAccessCollection() {
+  return getDb().then((db) =>
+    db.collection<ProductAccessDocument>('product_access')
+  );
+}
+
+function toProductAccess(document: ProductAccessDocument | null) {
+  if (!document) {
+    return null;
+  }
+
+  return {
+    id: document.id,
+    productId: document.productId,
+    mirrorAccountId: document.mirrorAccountId,
+    mirrorClientId: document.mirrorClientId,
+    externalUserId: document.externalUserId,
+    externalOrganizationId: document.externalOrganizationId,
+    status: document.status,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt,
+    metadata: document.metadata ?? {},
+  };
+}
+
+export async function upsertProductAccess(input: {
+  productId: ProductId;
+  mirrorAccountId: string;
+  mirrorClientId?: string | null;
+  externalUserId?: string | null;
+  externalOrganizationId?: string | null;
+  status?: ProductAccessStatus;
+  metadata?: Record<string, unknown>;
+}) {
+  await ensureMongoBootstrap();
+  const collection = await productAccessCollection();
+  const productId = input.productId;
+  const mirrorAccountId = asString(input.mirrorAccountId);
+
+  if (!mirrorAccountId) {
+    throw new Error('Mirror account ID is required for product access.');
+  }
+
+  const now = new Date().toISOString();
+  const existing = await collection.findOne({ productId, mirrorAccountId });
+  const patch: Omit<ProductAccessRecord, 'id' | 'createdAt'> = {
+    productId,
+    mirrorAccountId,
+    mirrorClientId: asString(input.mirrorClientId) || null,
+    externalUserId: asString(input.externalUserId) || null,
+    externalOrganizationId: asString(input.externalOrganizationId) || null,
+    status: input.status ?? 'active',
+    updatedAt: now,
+    metadata: normalizeMetadata(input.metadata),
+  };
+
+  if (existing) {
+    await collection.updateOne(
+      { _id: existing._id },
+      {
+        $set: patch,
+      }
+    );
+
+    return toProductAccess({
+      ...existing,
+      ...patch,
+    }) as ProductAccessRecord;
+  }
+
+  const record: ProductAccessRecord = {
+    id: crypto.randomUUID(),
+    createdAt: now,
+    ...patch,
+  };
+
+  await collection.insertOne({
+    _id: record.id,
+    ...record,
+  });
+
+  return record;
+}
+
+export async function findProductAccess(input: {
+  productId: ProductId;
+  mirrorAccountId?: string;
+  externalUserId?: string;
+  externalOrganizationId?: string;
+  mirrorClientId?: string;
+}) {
+  await ensureMongoBootstrap();
+  const collection = await productAccessCollection();
+  const query: Partial<ProductAccessRecord> = {
+    productId: input.productId,
+  };
+
+  if (input.mirrorAccountId) {
+    query.mirrorAccountId = input.mirrorAccountId;
+  }
+
+  if (input.externalUserId) {
+    query.externalUserId = input.externalUserId;
+  }
+
+  if (input.externalOrganizationId) {
+    query.externalOrganizationId = input.externalOrganizationId;
+  }
+
+  if (input.mirrorClientId) {
+    query.mirrorClientId = input.mirrorClientId;
+  }
+
+  return toProductAccess(await collection.findOne(query));
+}
+
+export async function listProductAccessForAccount(mirrorAccountId: string) {
+  await ensureMongoBootstrap();
+  const collection = await productAccessCollection();
+  const records = await collection.find({ mirrorAccountId, status: 'active' }).sort({ productId: 1 }).toArray();
+  return records.map((record) => toProductAccess(record) as ProductAccessRecord);
+}
+
+export async function resolveProductLandingRoute(mirrorAccountId: string, fallback = '/workspace') {
+  const access = await listProductAccessForAccount(mirrorAccountId);
+  if (access.length === 1 && access[0].productId === 'studioiq') return '/prospect';
+  return fallback;
+}

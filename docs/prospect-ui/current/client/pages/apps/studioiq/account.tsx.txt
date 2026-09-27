@@ -2,6 +2,7 @@ import type { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import Link from 'next/link';
 import { StudioIqSettingsShell } from '../../../components/studioiq/StudioIqSettingsShell';
+import { ProjectAlertSetting } from '../../../components/studioiq/ProjectAlertSetting';
 import styles from '../../../components/studioiq/StudioIqSettings.module.css';
 import { getSessionAccountFromContext } from '../../../lib/auth-guards';
 import { getDb } from '../../../lib/mongodb';
@@ -25,6 +26,7 @@ export default function StudioIqAccountPage(props: PageProps) {
       <strong className={styles.role}>{props.role}</strong>
     </section>
     <section className={styles.grid}>
+      <ProjectAlertSetting email={props.email} />
       <article className={styles.panel}>
         <span className={styles.sectionLabel}>Profile</span><h2>Account information</h2>
         <dl className={styles.details}>
@@ -37,7 +39,7 @@ export default function StudioIqAccountPage(props: PageProps) {
       <article className={styles.panel}>
         <span className={styles.sectionLabel}>Getting started</span><h2>Prospect walkthrough</h2>
         <p className={styles.notice}>Revisit the globe, filters, project evidence, and assistant at any time.</p>
-        <Link href="/apps/studioiq?tour=1">Replay walkthrough →</Link>
+        <Link href="/prospect?tour=1">Replay walkthrough →</Link>
       </article>
       <article className={styles.panel}>
         <span className={styles.sectionLabel}>Security</span><h2>Mirror Progress identity</h2>
@@ -60,7 +62,7 @@ function enabled() {
 export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
   if (!enabled()) return { notFound: true };
   const account = await getSessionAccountFromContext(context);
-  if (!account) return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent('/apps/studioiq/account')}` : `/?auth=login&next=${encodeURIComponent('/apps/studioiq/account')}`, permanent: false } };
+  if (!account) return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent('/prospect/account')}` : `/?auth=login&next=${encodeURIComponent('/prospect/account')}`, permanent: false } };
   const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
   if (!access?.mirrorClientId) return { notFound: true };
   const [client, member] = await Promise.all([
