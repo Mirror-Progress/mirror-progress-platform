@@ -43,6 +43,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
   const [saveError, setSaveError] = useState(false);
   const [rememberedContext, setRememberedContext] = useState<SourceContext | undefined>();
   const scroller = useRef<HTMLDivElement>(null);
+  const followOutput = useRef(true);
   const composerField = useRef<HTMLTextAreaElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -107,6 +108,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
         : await fetch(`/api/products/studioiq/chats?id=${encodeURIComponent(id)}`, { cache: 'no-store' }).then((response) => response.ok ? response.json() as Promise<SavedChat> : undefined);
       if (!chat) throw new Error('Chat not found.');
       setConversationId(chat.id);
+      followOutput.current = true;
       window.sessionStorage.setItem(activeChatKey, chat.id);
       setMessages(chat.messages);
       setRememberedContext(chat.sourceContext);
@@ -119,6 +121,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
   function newChat() {
     if (busy) return;
     setConversationId(null);
+    followOutput.current = true;
     window.sessionStorage.removeItem(activeChatKey);
     setMessages([]);
     setRememberedContext(sourceContext);
@@ -134,6 +137,11 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
     field.style.height = `${Math.min(field.scrollHeight, 116)}px`;
   }, [draft]);
 
+  useEffect(() => {
+    const viewport = scroller.current;
+    if (viewport && followOutput.current) viewport.scrollTop = viewport.scrollHeight;
+  }, [messages, expanded]);
+
   async function ask(question: string) {
     const clean = question.trim();
     if (!clean || busy || !historyReady) return;
@@ -145,6 +153,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
     window.sessionStorage.setItem(activeChatKey, id);
     const history = messages.slice(-8).map((entry) => ({ ...entry, text: entry.text.slice(0, 12000) }));
     const nextMessages: Entry[] = [...messages, { role: 'user', text: clean }];
+    followOutput.current = true;
     setMessages(nextMessages);
     setDraft('');
     setActivities([]);
@@ -192,7 +201,6 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
             setMessages((current) => current.at(-1)?.role === 'assistant'
               ? [...current.slice(0, -1), { role: 'assistant', text: next }]
               : [...current, { role: 'assistant', text: next }]);
-            scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
           } else if (event.type === 'ui_action' && event.action?.type === 'show_workflow_scene') {
             if (event.action.workflow === activeProspectWorkflow.id && event.action.version === activeProspectWorkflow.version && availableScenes.includes(event.action.scene)) onShowScene(event.action.scene);
           } else if (event.type === 'ui_action' && event.action?.type === 'show_workflow_sequence') {
@@ -224,7 +232,10 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
       {busy ? <div className={styles.progressTrack} role="progressbar" aria-label="Assistant is working"><span /></div> : null}
       {activityOpen ? <div className={styles.activityList} aria-live="polite">{activities.length === 0 ? <span className={styles.idle}>Ask a question to explore your projects.</span> : activities.map((item, index) => <div className={styles.activityItem} key={index}><span className={item.state === 'error' ? styles.errorDot : styles.stepDot} /><div><strong>{activityLabel(item.label)}</strong>{item.detail && !item.detail.includes('Bedrock') && !item.detail.includes(' tool') ? <small>{item.detail}</small> : null}</div></div>)}</div> : null}
     </div>
-    <div className={styles.messages} ref={scroller} aria-live="polite">
+    <div className={styles.messages} ref={scroller} aria-live="polite" onScroll={(event) => {
+      const viewport = event.currentTarget;
+      followOutput.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 72;
+    }}>
       {messages.length === 0 ? <div className={styles.empty}><div className={styles.icon}><span className={styles.emptyMark} aria-hidden="true" /></div><h3>{sourceContext ? 'Ask about this source.' : 'Ask about any project.'}</h3><p>{sourceContext ? 'The assistant can read the captured document, explain requirements, and connect it to your other Prospect projects.' : 'Search Prospect, compare opportunities, and ask for an interactive guide to any part of the screen.'}</p><div className={styles.prompts}>{availableScenes.includes('intro') ? <button type="button" onClick={() => availableScenes.length >= 2 ? onShowSequence(availableScenes) : onShowScene('intro')}>Guide me through Prospect</button> : null}{availableScenes.includes('sources') ? <button type="button" onClick={() => onShowScene('sources')}>Show me project sources</button> : null}{(sourceContext ? ['Summarize this source and its limitations', 'What requirements and deadlines are stated here?', 'What should we verify before pursuing this project?'] : [...prospectAgentGuideExamples, 'Show me all projects', 'Which projects need attention?', 'Compare opportunities by location']).map((prompt) => <button key={prompt} type="button" onClick={() => void ask(prompt)}>{prompt}</button>)}</div></div> : messages.map((entry, index) => <div className={`${styles.message} ${entry.role === 'user' ? styles.user : styles.assistant}`} key={index}><span>{entry.role === 'user' ? 'You' : <span className={styles.messageMark} role="img" aria-label="MP" />}</span><div className={styles.messageBody}>{entry.role === 'assistant' ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>, pre: ({ children }) => <pre className={styles.codeBlock}>{children}</pre> }}>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}</div></div>)}
     </div>
     <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void ask(draft); }}><textarea ref={composerField} aria-label="Ask the Prospect assistant about projects" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(draft); } }} placeholder={sourceContext ? "Ask about this source…" : "Ask about a project…"} rows={1} maxLength={2000} /><button type="submit" disabled={busy || !draft.trim() || !historyReady} aria-label="Send message" title={busy ? 'Wait for the current answer' : 'Send message'}><ArrowUpIcon aria-hidden="true" /></button></form>

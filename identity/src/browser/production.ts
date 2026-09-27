@@ -4,6 +4,8 @@ import { safeResumePath } from "../core/policy.js";
 
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
 let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
+const logoutRequested = new URLSearchParams(location.search).get("logout") === "1";
+const signedOutView = new URLSearchParams(location.search).get("signedOut") === "1";
 const manageRequested = location.hash === "#manage" || new URLSearchParams(location.search).get("manage") === "1";
 const devicesRequested = location.hash === "#devices";
 const hash = new URLSearchParams(location.hash.slice(1));
@@ -16,8 +18,8 @@ const resetPattern = /^[A-Za-z0-9_-]{24,128}$/;
 let resetToken = hash.get("reset");
 if (!resetToken || !resetPattern.test(resetToken)) resetToken = null;
 let resetActive = Boolean(resetToken);
-const openPlatform = () => {
-  if (location.origin === "https://accounts.mirrorprogress.com" && !manageRequested && !devicesRequested && !setupActive && !resetActive)
+const openPlatform = (afterSignIn = false) => {
+  if (location.origin === "https://accounts.mirrorprogress.com" && (afterSignIn || (!logoutRequested && !signedOutView)) && !manageRequested && !devicesRequested && !setupActive && !resetActive)
     location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
 };
 const storageKey = "mirror-identity-setup-invitation";
@@ -57,6 +59,13 @@ const userError = (error: unknown): string => {
   if (/^passkey_[A-Z_0-9-]{1,80}$/.test(code)) return `Passkey could not be completed (${code.slice(8)}).`;
   return "The request failed. Please try again.";
 };
+async function signOutToLogin(): Promise<void> {
+  const response = await fetch("/api/auth/sign-out", {
+    method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: "{}",
+  });
+  if (!response.ok && response.status !== 401) throw new Error("sign_out_failed");
+  location.replace("/?signedOut=1");
+}
 async function api(path: string, body?: unknown): Promise<Record<string, unknown>> {
   const response = await fetch(path, { method: body === undefined ? "GET" : "POST", credentials: "same-origin",
     headers: body === undefined ? {} : { "content-type": "application/json" },
@@ -173,7 +182,7 @@ async function authenticatePasskey(): Promise<void> {
   if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
   show(manageRequested ? "Signed in. You can manage invitations below." : devicesRequested ? "Signed in. Add a passkey for your phone or iPad below." : "Signed in. Opening Mirror Progress…");
   await loadInvitations();
-  openPlatform();
+  openPlatform(true);
 }
 async function finishRemoteEnrollment(): Promise<void> {
   if (!remoteEnrollRequested || !remoteToken) throw new Error("remote_enrollment_link_used_or_expired");
@@ -359,6 +368,12 @@ submit("invite-person", async values => {
   inviteForm.reset(); accountType.dispatchEvent(new Event("change"));
   await loadInvitations();
 });
-node<HTMLButtonElement>("signout").addEventListener("click", () => { void api("/api/auth/sign-out", {}).then(() => location.reload()).catch(error => show(userError(error), true)); });
-node<HTMLButtonElement>("global-logout").addEventListener("click", () => { void api("/api/identity/global-logout", {}).then(() => location.reload()).catch(error => show(userError(error), true)); });
-void refresh();
+node<HTMLButtonElement>("signout").addEventListener("click", () => { void signOutToLogin().catch(() => show("We couldn't finish signing out. Please try again.", true)); });
+node<HTMLButtonElement>("global-logout").addEventListener("click", () => { void api("/api/identity/global-logout", {}).then(signOutToLogin).catch(error => show(userError(error), true)); });
+if (logoutRequested) {
+  void signOutToLogin()
+    .catch(() => show("We couldn't finish signing out. Please try again.", true));
+} else {
+  if (signedOutView) show("You've signed out. Sign in to continue.");
+  void refresh();
+}

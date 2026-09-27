@@ -17,5 +17,7 @@ test("remote enrollment link and grant are bound to one account and session", ()
   assert.equal(verifyRemoteGrant(secret, cookie, "owner", "other-session", now), null);
   assert.equal(verifyRemoteGrant(secret, cookie, "owner", "phone-session", now + REMOTE_GRANT_MS), null);
   assert.equal(verifyRemoteGrant(randomBytes(48).toString("hex"), cookie, "owner", "phone-session", now), null);
-  assert.equal(verifyRemoteGrant(secret, cookie.slice(0, -1) + "x", "owner", "phone-session", now), null);
+  const [payload, signature] = cookie.split(".");
+  const alteredSignature = `${signature![0] === "A" ? "B" : "A"}${signature!.slice(1)}`;
+  assert.equal(verifyRemoteGrant(secret, `${payload}.${alteredSignature}`, "owner", "phone-session", now), null);
 });

@@ -14,6 +14,8 @@ import { ProductionIdentityFoundation, validateProductionFoundationConfig, type 
 export interface ProductionServiceConfig extends ProductionFoundationConfig {
   publicSubnetIds: [string, string]; publicSubnetCidrs: [string, string];
   hostedZoneId: string; imageDigest: string; desiredCount: 0 | 1 | 2;
+  /** Microsoft 365 app credential, provisioned only after hello mailbox send access is verified. */
+  graphMailClientSecretArn?: string;
 }
 const hostname = 'accounts.mirrorprogress.com';
 /** Fresh production service. Bootstrap at zero; start after schema initialization. */
@@ -23,6 +25,7 @@ export class ProductionIdentityService extends Stack {
   constructor(scope: Construct, id: string, config: ProductionServiceConfig, foundation: ProductionIdentityFoundation, props: StackProps = {}) {
     validateProductionFoundationConfig(config);
     if (!/^sha256:[a-f0-9]{64}$/.test(config.imageDigest) || !/^Z[A-Z0-9]+$/.test(config.hostedZoneId) ||
+        (config.graphMailClientSecretArn && !new RegExp(`^arn:aws:secretsmanager:${config.region}:${config.account}:secret:mirror-identity/production/graph-mail-client-[A-Za-z0-9]{6}$`).test(config.graphMailClientSecretArn)) ||
         ![0, 1, 2].includes(config.desiredCount) || config.publicSubnetIds.length !== 2 || new Set(config.publicSubnetIds).size !== 2 ||
         config.publicSubnetIds.some(s => !/^subnet-[a-f0-9]{8,17}$/.test(s) || [...config.privateSubnetIds, ...config.isolatedSubnetIds].includes(s)) ||
         config.publicSubnetCidrs.length !== 2 || new Set(config.publicSubnetCidrs).size !== 2 ||
@@ -38,15 +41,28 @@ export class ProductionIdentityService extends Stack {
     // Import secret handles without keys: grants belong to these execution roles, never back-reference this stack in foundation key policies.
     const injected = (name: string, secret: sm.ISecret) => ecs.Secret.fromSecretsManager(sm.Secret.fromSecretCompleteArn(this, name, secret.secretArn));
     const environment = {
-      IDENTITY_MODE: 'production', IDENTITY_ACCOUNT_MODE: 'fresh', IDENTITY_MAIL_DELIVERY: 'ses', IDENTITY_MAIL_FROM: 'identity@mirrorprogress.com', IDENTITY_TRANSPORT: 'alb', IDENTITY_BIND_HOST: '0.0.0.0',
+      IDENTITY_MODE: 'production', IDENTITY_ACCOUNT_MODE: 'fresh',
+      IDENTITY_MAIL_DELIVERY: config.graphMailClientSecretArn ? 'graph' : 'ses',
+      IDENTITY_MAIL_FROM: 'hello@mirrorprogress.com',
+      ...(config.graphMailClientSecretArn ? {
+        IDENTITY_GRAPH_TENANT_ID: 'cd1b4d15-ba3e-41b9-a0ec-f7a9ed1027f5',
+        IDENTITY_GRAPH_CLIENT_ID: '4de476ef-b1df-4777-b45b-241ec6722627',
+        IDENTITY_GRAPH_DELIVERY_VERIFIED: '1',
+      } : {}),
+      IDENTITY_TRANSPORT: 'alb', IDENTITY_BIND_HOST: '0.0.0.0',
       IDENTITY_ORIGIN: `https://${hostname}`, IDENTITY_RP_ID: hostname,
       IDENTITY_OIDC_CLIENT_ID: 'mirror-production', IDENTITY_REDIRECT_URIS: '["https://platform.mirrorprogress.com/api/auth/callback"]',
       IDENTITY_ALB_SUBNET_CIDRS: config.publicSubnetCidrs.join(','), IDENTITY_DATABASE_HOST: foundation.database.dbInstanceEndpointAddress,
     };
-    const secrets = { IDENTITY_RUNTIME_CREDENTIALS: injected('RuntimeSecret', foundation.runtimeCredentials),
+    const baseSecrets = { IDENTITY_RUNTIME_CREDENTIALS: injected('RuntimeSecret', foundation.runtimeCredentials),
       BETTER_AUTH_SECRET: injected('AuthSecret', foundation.authSecret),
       IDENTITY_SESSION_STATUS_SECRET: injected('StatusSecret', foundation.statusSecret),
       IDENTITY_DELIVERY_SEED: injected('DeliverySeed', foundation.deliverySeed) };
+    const secrets = { ...baseSecrets,
+      ...(config.graphMailClientSecretArn ? {
+        IDENTITY_GRAPH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(sm.Secret.fromSecretCompleteArn(
+          this, 'GraphMailSecret', config.graphMailClientSecretArn)),
+      } : {}) };
     const definition = (name: string) => new ecs.FargateTaskDefinition(this, name, { cpu: 512, memoryLimitMiB: 1024,
       runtimePlatform: { operatingSystemFamily: ecs.OperatingSystemFamily.LINUX, cpuArchitecture: ecs.CpuArchitecture.ARM64 } });
     const task = definition('RuntimeTask'); task.addVolume({ name: 'ephemeral-tls' });
@@ -58,11 +74,13 @@ export class ProductionIdentityService extends Stack {
     container.addMountPoints({ sourceVolume: 'ephemeral-tls', containerPath: '/run/identity', readOnly: false });
     container.linuxParameters!.dropCapabilities(ecs.Capability.ALL);
     this.migration = definition('MigrationTask');
-    task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:SendEmail'], resources: [`arn:aws:ses:${config.region}:${config.account}:identity/mirrorprogress.com`], conditions: { StringEquals: { 'ses:FromAddress': 'identity@mirrorprogress.com' } } }));
-    task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:GetAccount'], resources: ['*'] }));
+    if (!config.graphMailClientSecretArn) {
+      task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:SendEmail'], resources: [`arn:aws:ses:${config.region}:${config.account}:identity/mirrorprogress.com`], conditions: { StringEquals: { 'ses:FromAddress': 'identity@mirrorprogress.com' } } }));
+      task.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ['ses:GetAccount'], resources: ['*'] }));
+    }
     const migration = this.migration.addContainer('Migration', { image, user: '1000:1000', readonlyRootFilesystem: true,
       command: ['node', 'dist/scripts/migrate-production-container.js'], environment,
-      secrets: { ...secrets, IDENTITY_OWNER_CREDENTIALS: injected('OwnerSecret', foundation.database.secret!) },
+      secrets: { ...baseSecrets, IDENTITY_OWNER_CREDENTIALS: injected('OwnerSecret', foundation.database.secret!) },
       logging: ecs.LogDrivers.awsLogs({ logGroup: foundation.serviceLogs, streamPrefix: 'migration', mode: ecs.AwsLogDriverMode.BLOCKING }),
       linuxParameters: new ecs.LinuxParameters(this, 'MigrationLinux', { initProcessEnabled: true }) });
     migration.linuxParameters!.dropCapabilities(ecs.Capability.ALL);

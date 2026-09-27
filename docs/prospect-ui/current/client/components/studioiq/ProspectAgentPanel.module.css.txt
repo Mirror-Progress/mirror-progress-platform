@@ -161,9 +161,10 @@
 :global(:root[data-theme='light']) .messageBody blockquote{color:#506854;border-color:#76a87b}
 :global(:root[data-theme='light']) .tableScroll,:global(:root[data-theme='light']) .codeBlock{border-color:#c7d9c3}
 :global(:root[data-theme='light']) .tableScroll th,:global(:root[data-theme='light']) .codeBlock{background:#edf4eb;color:#264b31}
-:global(:root[data-theme='light']) .composer,:global(:root[data-theme='light']) .composer:focus-within{background:linear-gradient(150deg,rgba(255,255,255,.97),rgba(236,246,234,.96));border-color:#adc8ad;box-shadow:0 8px 20px rgba(31,70,36,.12),inset 0 1px #fff}
-:global(:root[data-theme='light']) .composer input{color:#173821}
-:global(:root[data-theme='light']) .composer input::placeholder{color:#708774}
+:global(:root[data-theme='light']) .composer{background:linear-gradient(150deg,#e5ece4,#dce7db);border-color:#a8bfa9;box-shadow:0 8px 20px rgba(31,70,36,.12),inset 0 1px rgba(255,255,255,.78)}
+:global(:root[data-theme='light']) .composer:focus-within{background:linear-gradient(150deg,#e8efe7,#e0eadf);border-color:#578d61;box-shadow:0 10px 24px rgba(31,70,36,.15),0 0 0 3px rgba(70,125,80,.14),inset 0 1px rgba(255,255,255,.85)}
+:global(:root[data-theme='light']) .composer textarea{color:#173821;caret-color:#286439}
+:global(:root[data-theme='light']) .composer textarea::placeholder{color:#526c58;opacity:1}
 :global(:root[data-theme='light']) .composer button{background:#346d43;color:#fff}
 :global(:root[data-theme='light']) .history{background:rgba(250,253,249,.98);border-color:#bfd2bd;box-shadow:0 18px 38px rgba(29,62,35,.14)}
 :global(:root[data-theme='light']) .historyHeading,:global(:root[data-theme='light']) .historyItem{color:#2b5938}

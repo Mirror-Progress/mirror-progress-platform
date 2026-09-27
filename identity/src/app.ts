@@ -13,7 +13,7 @@ import type { MirrorAuth } from "./auth.js";
 import { Store } from "./db.js";
 import type { SessionIdentity } from "./db.js";
 import { StagingStore } from "./staging/store.js";
-import { invitationRecipientDeliverable } from "./core/ses-delivery.js";
+import { invitationRecipientDeliverable } from "./core/mail-delivery.js";
 import { REMOTE_ENROLL_EMAIL, REMOTE_GRANT_MS, REMOTE_LINK_MS, remoteGrantKey, remoteIssueKey,
   signRemoteGrant, verifyRemoteGrant } from "./core/remote-enrollment.js";
 import { opaqueToken } from "./core/tokens.js";
@@ -358,7 +358,16 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const identity = await getSession(request.headers);
       if (!identity) return new Response(null, { status: 303,
         headers: { location: `/?resume=${encodeURIComponent(url.pathname + url.search)}` } });
-      await store.authorize(identity.session.id, identity.user.id);
+      try {
+        await store.authorize(identity.session.id, identity.user.id);
+      } catch (error) {
+        if (error instanceof PolicyError && ["mfa_expired", "mfa_required", "session_required"].includes(error.code)) {
+          // This endpoint is a browser navigation. A stale session must return to
+          // sign-in, rather than render a raw API error as the entire page.
+          return new Response(null, { status: 303, headers: { location: "/?logout=1" } });
+        }
+        throw error;
+      }
       return invoke(request, url.pathname + url.search);
     }
     if (request.method === "POST" && url.pathname === "/api/auth/oauth2/token") {

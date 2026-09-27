@@ -138,9 +138,17 @@ test("caller-supplied identity and role fields are rejected",async()=>{
 });
 test("password-only session cannot authorize OIDC or forge passkey evidence",async()=>{
   const f=await enrolledBrowser(),{params}=authorizationQuery();
-  const denied=await f.browser.request("/api/auth/oauth2/authorize?"+params);assert.equal(denied.status,401);
+  const denied=await f.browser.request("/api/auth/oauth2/authorize?"+params);
+  assert.equal(denied.status,303);assert.equal(denied.headers.get("location"),"/?logout=1");
   const forged=await f.browser.request("/api/auth/passkey/verify-authentication",{verified:true,userVerified:true,response:{}});assert.ok(forged.status>=400);
   const state=await f.browser.request("/api/identity/session");assert.equal((await state.json() as {mfaCompleted:boolean}).mfaCompleted,false);
+});
+test("expired MFA on browser authorization returns to sign-in instead of showing JSON",{timeout:90_000},async()=>{
+  const f=await withTotp();await completeTotp(f);
+  await owner.query("UPDATE mirror_assurance SET expires_at=now()-interval '1 second' WHERE user_id=(SELECT user_id FROM mirror_binding WHERE principal_id=$1)",[f.id]);
+  const denied=await f.browser.request("/api/auth/oauth2/authorize?"+authorizationQuery().params);
+  assert.equal(denied.status,303);assert.equal(denied.headers.get("location"),"/?logout=1");
+  assert.equal(await denied.text(),"");
 });
 test("TOTP enrollment alone is insufficient; fresh password/TOTP permits OIDC, then epoch revocation blocks issuance",{timeout:90_000},async()=>{
   const f=await withTotp();await completeTotp(f);
@@ -163,7 +171,8 @@ test("TOTP enrollment alone is insufficient; fresh password/TOTP permits OIDC, t
   assert.ok(assurance.verified_at<=Date.now()/1000);
   const replay=await tokenRequest();assert.ok(replay.status>=400);
   await owner.query("UPDATE mirror_principal SET authorization_epoch=authorization_epoch+1 WHERE id=$1",[f.id]);
-  const blocked=await f.browser.request("/api/auth/oauth2/authorize?"+authorizationQuery().params);assert.equal(blocked.status,401);
+  const blocked=await f.browser.request("/api/auth/oauth2/authorize?"+authorizationQuery().params);
+  assert.equal(blocked.status,303);assert.equal(blocked.headers.get("location"),"/?logout=1");
 });
 test("recovery code consumption revokes sessions and queues invalidation, never upgrades assurance",{timeout:60_000},async()=>{
   const f=await withTotp();

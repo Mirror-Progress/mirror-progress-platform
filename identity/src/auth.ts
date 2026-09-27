@@ -7,7 +7,7 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import type { Config } from "./core/config.js";
 import { Store } from "./db.js";
 import { verifiedFactor } from "./core/policy.js";
-import { invitationRecipientDeliverable, sendPasswordResetEmail } from "./core/ses-delivery.js";
+import { invitationRecipientDeliverable, sendPasswordResetEmail } from "./core/mail-delivery.js";
 
 export function emailIdentityClaims(user: { email: string; emailVerified: boolean }, scopes: readonly string[]) {
   return scopes.includes("email") ? { email: user.email, email_verified: user.emailVerified === true } : {};

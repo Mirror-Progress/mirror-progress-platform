@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeftIcon, ArrowTopRightOnSquareIcon, BookmarkIcon, CheckIcon, ClipboardDocumentIcon, DocumentTextIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { ProspectAgentPanel } from './ProspectAgentPanel';
 import type { StudioIqSourceDocument } from '../../lib/studioiq-source-document';
@@ -39,11 +39,44 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
   const [active, setActive] = useState('');
   const [mode, setMode] = useState<ReadingMode>('english');
   const [chatOpen, setChatOpen] = useState(true);
+  const [chatWidth, setChatWidth] = useState(360);
+  const [resizingChat, setResizingChat] = useState(false);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [work, setWork] = useState<SavedWork>(emptyWork);
   const [loadedWorkKey, setLoadedWorkKey] = useState('');
   const [status, setStatus] = useState('');
   const projectId = data?.project.id ?? '';
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem('prospect:source-chat-width'));
+    if (Number.isFinite(saved) && saved >= 300) setChatWidth(saved);
+  }, []);
+  function saveChatWidth(width: number) {
+    const available = layoutRef.current?.clientWidth ?? window.innerWidth;
+    const sidebar = available <= 1250 ? 190 : 224;
+    const next = Math.round(Math.max(300, Math.min(width, Math.min(720, available - sidebar - 280))));
+    setChatWidth(next);
+    try { window.localStorage.setItem('prospect:source-chat-width', String(next)); } catch { /* Resizing still works without storage. */ }
+  }
+  function resizeChat(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    setResizingChat(true);
+    const move = (next: PointerEvent) => {
+      const edge = layoutRef.current?.getBoundingClientRect().right ?? window.innerWidth;
+      saveChatWidth(edge - next.clientX);
+    };
+    const end = () => {
+      setResizingChat(false);
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
   useEffect(() => {
     if (previewData || !projectId) return;
     recordProspectUsage('source_open', { screen: 'source', projectId });
@@ -129,7 +162,7 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
     </header>
     {error ? <main className={styles.unavailable}><DocumentTextIcon /><h1>Source workspace unavailable</h1><p role="alert">{error}</p><Link href="/apps/studioiq">Return to Prospect</Link></main>
       : !data ? <main className={styles.unavailable} aria-busy="true"><DocumentTextIcon /><h1>Opening project evidence</h1><p>Loading the documents and your reading notes…</p></main>
-      : <div className={`${styles.layout} ${chatOpen ? styles.withChat : ''}`}>
+      : <div ref={layoutRef} className={`${styles.layout} ${chatOpen ? styles.withChat : ''} ${resizingChat ? styles.resizing : ''}`} style={{ '--source-chat-width': `${chatWidth}px` } as CSSProperties}>
         <nav className={styles.sidebar} aria-label="Project sources">
           <div className={styles.sideIntro}><span>PROJECT EVIDENCE</span><h1>Read the sources</h1><p>Select a document, then inspect its captured text and source details.</p></div>
           <div className={styles.mobileSelect}><label htmlFor="source-picker">Document</label><select id="source-picker" value={active} onChange={(event) => chooseEvidence(event.target.value)}>{data.sources.map((source, index) => <option key={source.evidenceId} value={source.evidenceId}>{index + 1}. {source.document?.title || host(source.sourceUrl)}</option>)}</select></div>
@@ -154,6 +187,7 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
           </> : <div className={styles.coverage}><strong>Captured excerpt</strong><p>{evidence?.sourceUrl ? 'A structured reading layer is unavailable for this source. Open the original or ask the assistant about the project evidence.' : 'No source is selected.'}</p></div>}
           {status ? <p className={styles.status} role="status">{status}</p> : null}
         </main>
+        {chatOpen ? <div className={styles.chatResize} role="separator" aria-label="Resize evidence and chat" aria-orientation="vertical" aria-valuenow={chatWidth} aria-valuemin={300} aria-valuemax={720} tabIndex={0} onPointerDown={resizeChat} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); saveChatWidth(chatWidth + (event.key === 'ArrowLeft' ? 24 : -24)); } }} onDoubleClick={() => saveChatWidth(360)} /> : null}
         <aside className={`${styles.chat} ${chatOpen ? '' : styles.chatClosed}`} aria-label="Prospect assistant chat" aria-hidden={!chatOpen}><ProspectAgentPanel endpoint={previewData ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(previewData)} expanded={false} canExpand={false} onToggleExpand={() => undefined} onClose={() => setChatOpen(false)} availableScenes={[]} onShowScene={() => undefined} onShowSequence={() => undefined} sourceContext={context} /></aside>
       </div>}
   </div>;
