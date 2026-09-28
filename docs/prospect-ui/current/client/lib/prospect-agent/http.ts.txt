@@ -1,24 +1,23 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { runProspectAgent, type AgentEvent } from './run';
 import type { ProspectCatalog } from './catalog';
-import { activeProspectWorkflow, type ProspectTourScene } from '../studioiq-walkthrough';
+import type { PrivateProjectDraft } from '../prospect-private-projects';
+import { activeProspectScenes, type ProspectTourScene } from '../studioiq-walkthrough';
 
 type ChatTurn = { role: 'user' | 'assistant'; text: string };
 type SourceContext = { opportunityId: string; evidenceId: string };
 
-export async function streamProspectAgent(req: NextApiRequest, res: NextApiResponse, catalog: ProspectCatalog, onToolUse?: (name: string, input: Record<string, unknown>) => Promise<boolean>, savePrivateProject?: (input: { title: string; sourceUrl: string; description?: string; country?: string; city?: string; projectType?: string; deadline?: string; fieldEvidence?: Record<string, string>; sourceTitle: string; sourceText: string; sourcePublishedDate?: string }) => Promise<{ id: string; title: string }>) {
+export async function streamProspectAgent(req: NextApiRequest, res: NextApiResponse, catalog: ProspectCatalog, onToolUse?: (name: string, input: Record<string, unknown>) => Promise<boolean>, savePrivateProject?: (input: PrivateProjectDraft) => Promise<{ id: string; title: string }>, savedSearches?: { list: () => Promise<Array<{ id: string; name: string; query: string }>>; save?: (name: string, query: string) => Promise<{ id: string; name: string; query: string }> }, onAnswer?: (answer: string) => Promise<void>) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   if (!question || question.length > 2000) return res.status(400).json({ error: 'Enter a question under 2,000 characters.' });
   const history: ChatTurn[] = Array.isArray(req.body?.history)
-    ? req.body.history.slice(-8).filter((turn: unknown): turn is ChatTurn =>
+    ? req.body.history.slice(-100).filter((turn: unknown): turn is ChatTurn =>
       Boolean(turn && typeof turn === 'object' && 'role' in turn && 'text' in turn &&
         (turn.role === 'user' || turn.role === 'assistant') && typeof turn.text === 'string' && turn.text.length <= 12000))
     : [];
   const requestedScenes = Array.isArray(req.body?.availableScenes) ? req.body.availableScenes.slice(0, 12) : [];
-  const availableScenes = activeProspectWorkflow.status === 'active'
-    ? activeProspectWorkflow.steps.map((step) => step.id).filter((scene): scene is ProspectTourScene => requestedScenes.includes(scene))
-    : [];
+  const availableScenes: ProspectTourScene[] = activeProspectScenes(requestedScenes);
   const rawContext = req.body?.sourceContext;
   const sourceContext: SourceContext | undefined = rawContext && typeof rawContext === 'object' &&
     typeof rawContext.opportunityId === 'string' && /^opportunity_[a-zA-Z0-9-]+$/.test(rawContext.opportunityId) &&
@@ -30,11 +29,14 @@ export async function streamProspectAgent(req: NextApiRequest, res: NextApiRespo
     connection: 'keep-alive',
     'x-accel-buffering': 'no',
   });
+  let answer = '';
   const emit = (event: AgentEvent | { type: 'error'; error: string }) => {
+    if (event.type === 'token') answer += event.text;
     if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
   try {
-    await runProspectAgent({ question, history, catalog, emit, availableScenes, sourceContext, onToolUse, savePrivateProject });
+    await runProspectAgent({ question, history, catalog, emit, availableScenes, sourceContext, onToolUse, savePrivateProject, savedSearches });
+    if (answer.trim()) await onAnswer?.(answer);
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') console.error('[prospect-agent]', error);
     const name = error instanceof Error ? error.name : '';

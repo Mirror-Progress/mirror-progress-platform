@@ -1,7 +1,7 @@
-export const PROSPECT_WALKTHROUGH_VERSION = 1;
+export const PROSPECT_WALKTHROUGH_VERSION = 2;
 export const PROSPECT_WALKTHROUGH_ID = 'project-discovery';
 
-export type ProspectTourScene = 'intro' | 'globe' | 'filters' | 'favorites' | 'overview' | 'practice' | 'sources' | 'agent';
+export type ProspectTourScene = 'intro' | 'globe' | 'filters' | 'favorites' | 'overview' | 'practice' | 'sources' | 'portfolio' | 'agent' | 'source_documents' | 'source_reading' | 'source_notes' | 'source_agent' | 'portfolio_upload' | 'portfolio_review';
 
 export type ProspectTourStep = {
   id: ProspectTourScene;
@@ -11,6 +11,7 @@ export type ProspectTourStep = {
   description: string;
   requiresProject?: boolean;
   requiresFavoriteAccess?: boolean;
+  requiresPortfolioManagement?: boolean;
 };
 
 // Stable IDs are shared by the screen guide and future approved agent actions.
@@ -28,8 +29,10 @@ export const prospectTourSteps: readonly ProspectTourStep[] = [
   { id: 'practice', anchor: 'practice', eyebrow: '05 / CONNECT', title: 'See the practice fit.',
     description: 'Practice fit connects a project to relevant firm work when verified precedents are available.', requiresProject: true },
   { id: 'sources', anchor: 'sources', eyebrow: '06 / VERIFY', title: 'Trace every signal.',
-    description: 'Sources shows where the information came from and when it was checked, so you can inspect the evidence yourself.', requiresProject: true },
-  { id: 'agent', anchor: 'agent', eyebrow: '07 / ASK', title: 'Ask about the work.',
+    description: 'Sources shows where the information came from and when it was checked. Open the Evidence workspace to inspect documents, compare translations, save notes, and ask MP about the exact source.', requiresProject: true },
+  { id: 'portfolio', anchor: 'portfolio-link', eyebrow: '07 / YOUR PRACTICE', title: 'Bring your firm’s work into Prospect.',
+    description: 'In Portfolio, your firm can upload project files, review the extracted details, and choose which projects become approved practice precedents. Prospect can then connect your work to new opportunities.', requiresPortfolioManagement: true },
+  { id: 'agent', anchor: 'agent', eyebrow: '08 / ASK', title: 'Ask about the work.',
     description: 'Ask the Mirror Progress agent for a quick answer or a detailed comparison across your Prospect projects.' },
 ] as const;
 
@@ -47,24 +50,49 @@ export const activeProspectWorkflow: ProspectWorkflow = {
   steps: prospectTourSteps,
 };
 
-export function availableProspectTourSteps(input: { hasProjects: boolean; canFavorite: boolean }) {
+export const sourceEvidenceWorkflow: ProspectWorkflow = {
+  id: 'source-evidence', version: 1, status: 'active', steps: [
+    { id: 'source_documents', anchor: 'source-documents', eyebrow: '01 / SELECT', title: 'Choose the evidence.', description: 'Switch between the captured documents behind this project. The selected source stays in the URL so you can return to it.' },
+    { id: 'source_reading', anchor: 'source-reading', eyebrow: '02 / READ', title: 'Inspect the original meaning.', description: 'Read the captured sections, switch between English and original text, and open the original source to verify important claims.' },
+    { id: 'source_notes', anchor: 'source-notes', eyebrow: '03 / KEEP', title: 'Save what matters.', description: 'Bookmark or mark a section reviewed, save requirements, and draft questions in your source notebook.' },
+    { id: 'source_agent', anchor: 'source-agent', eyebrow: '04 / ASK', title: 'Ask about this source.', description: 'Ask the same Prospect agent questions about this document. Your conversation continues across Discovery and Evidence.' },
+  ],
+};
+
+export const portfolioImportWorkflow: ProspectWorkflow = {
+  id: 'portfolio-import', version: 1, status: 'active', steps: [
+    { id: 'portfolio_upload', anchor: 'portfolio-import', eyebrow: '01 / UPLOAD', title: 'Bring in your firm’s projects.', description: 'Upload your architecture practice’s project files. MP extracts project details into a draft for review; the file alone does not publish anything.' },
+    { id: 'portfolio_review', anchor: 'portfolio-review', eyebrow: '02 / APPROVE', title: 'Review before adding.', description: 'Correct names, locations, dates, and project types, then approve the projects you want in your firm portfolio. These precedents help contextualize new opportunities.' },
+  ],
+};
+
+export const activeProspectWorkflows = [activeProspectWorkflow, sourceEvidenceWorkflow, portfolioImportWorkflow] as const;
+
+export function activeProspectScenes(requested: unknown): ProspectTourScene[] {
+  if (!Array.isArray(requested)) return [];
+  const active = new Set(activeProspectWorkflows.filter((workflow) => workflow.status === 'active').flatMap((workflow) => workflow.steps.map((step) => step.id)));
+  return requested.filter((scene): scene is ProspectTourScene => typeof scene === 'string' && active.has(scene as ProspectTourScene));
+}
+
+export function availableProspectTourSteps(input: { hasProjects: boolean; canFavorite: boolean; canManagePortfolio?: boolean }) {
   if (activeProspectWorkflow.status !== 'active') return [];
   return activeProspectWorkflow.steps.filter((step) =>
-    (!step.requiresProject || input.hasProjects) && (!step.requiresFavoriteAccess || input.canFavorite));
+    (!step.requiresProject || input.hasProjects) && (!step.requiresFavoriteAccess || input.canFavorite) && (!step.requiresPortfolioManagement || input.canManagePortfolio));
 }
 
 export function resolveActiveProspectScene(requested: unknown, availableScenes: readonly ProspectTourScene[]): ProspectTourScene | null {
-  if (activeProspectWorkflow.status !== 'active' || typeof requested !== 'string') return null;
-  if (!activeProspectWorkflow.steps.some((step) => step.id === requested)) return null;
+  if (typeof requested !== 'string') return null;
+  if (!activeProspectWorkflows.some((workflow) => workflow.status === 'active' && workflow.steps.some((step) => step.id === requested))) return null;
   return availableScenes.includes(requested as ProspectTourScene) ? requested as ProspectTourScene : null;
 }
 
 // Screen actions are driven by the active workflow, never by arbitrary DOM selectors
 // supplied by the model. Retired or unavailable scenes cannot enter a guided path.
 export function resolveActiveProspectSequence(requested: unknown, availableScenes: readonly ProspectTourScene[]): ProspectTourScene[] | null {
-  if (activeProspectWorkflow.status !== 'active' || !Array.isArray(requested) || requested.length < 2 || requested.length > 8) return null;
+  if (!Array.isArray(requested) || requested.length < 2 || requested.length > 8) return null;
   const scenes = requested.map((scene) => resolveActiveProspectScene(scene, availableScenes));
   if (scenes.some((scene) => scene === null) || new Set(scenes).size !== scenes.length) return null;
+  if (!activeProspectWorkflows.some((workflow) => workflow.status === 'active' && scenes.every((scene) => workflow.steps.some((step) => step.id === scene)))) return null;
   return scenes as ProspectTourScene[];
 }
 

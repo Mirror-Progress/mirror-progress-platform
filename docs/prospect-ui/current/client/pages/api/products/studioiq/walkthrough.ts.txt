@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthenticatedAccountFromRequest } from '../../../../lib/auth-guards';
 import { getDb } from '../../../../lib/mongodb';
 import { findStudioIqProductAccessForAccount } from '../../../../lib/studioiq-product-auth';
-import { activeProspectWorkflow } from '../../../../lib/studioiq-walkthrough';
+import { activeProspectWorkflow, activeProspectWorkflows } from '../../../../lib/studioiq-walkthrough';
 
 type Progress = { _id: string; version: number; status: 'completed' | 'skipped'; updatedAt: string };
 
@@ -13,20 +13,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!account) return res.status(401).json({ error: 'Sign in to Prospect.' });
   const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
   if (!access) return res.status(403).json({ error: 'Prospect access required.' });
+  const requested = req.method === 'GET' ? req.query.workflow : req.body?.workflow;
+  const workflow = requested === undefined ? activeProspectWorkflow : activeProspectWorkflows.find((item) => item.id === requested);
+  if (!workflow || workflow.status !== 'active') return res.status(400).json({ error: 'Unknown walkthrough.' });
   const collection = (await getDb()).collection<Progress>('studioiq_walkthrough_progress');
-  const id = `prospect:${account.id}:${activeProspectWorkflow.id}:v${activeProspectWorkflow.version}`;
+  const id = `prospect:${account.id}:${workflow.id}:v${workflow.version}`;
   if (req.method === 'GET') {
     const progress = await collection.findOne({ _id: id });
-    return res.status(200).json({ workflow: activeProspectWorkflow.id, version: activeProspectWorkflow.version,
-      active: activeProspectWorkflow.status === 'active', status: progress?.status ?? 'new' });
+    return res.status(200).json({ workflow: workflow.id, version: workflow.version,
+      active: true, status: progress?.status ?? 'new' });
   }
-  if (Object.keys(req.body ?? {}).length !== 1 || !['completed', 'skipped'].includes(req.body?.status)) {
+  if (Object.keys(req.body ?? {}).some((key) => !['workflow', 'status'].includes(key)) || !['completed', 'skipped'].includes(req.body?.status)) {
     return res.status(400).json({ error: 'Invalid walkthrough status.' });
   }
   await collection.updateOne({ _id: id }, { $set: {
-    version: activeProspectWorkflow.version,
+    version: workflow.version,
     status: req.body.status as Progress['status'],
     updatedAt: new Date().toISOString(),
   } }, { upsert: true });
-  return res.status(200).json({ workflow: activeProspectWorkflow.id, version: activeProspectWorkflow.version, status: req.body.status });
+  return res.status(200).json({ workflow: workflow.id, version: workflow.version, status: req.body.status });
 }

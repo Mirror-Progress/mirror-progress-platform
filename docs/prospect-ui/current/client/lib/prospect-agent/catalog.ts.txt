@@ -122,8 +122,8 @@ export async function loadWorkspaceProspectCatalog(access: StudioIqProductAccess
     updatedAt: item.updated_at,
   }));
   const saved: ProspectProject[] = privateProjects.map((item) => ({ id: item.id, kind: 'opportunity', title: item.title,
-    description: item.description, stage: 'private_unverified', buyer: null,
-    location: [item.city, item.country].filter(Boolean).join(', ') || null, deadline: null,
+    description: item.description, stage: item.stage ?? 'private_unverified', buyer: item.buyerName ?? null,
+    location: [item.city, item.country].filter(Boolean).join(', ') || null, deadline: item.deadline ?? null,
     projectType: item.projectType, score: null, summary: null, risks: ['Unverified public web project'],
     nextActions: [], evidence: [{ summary: item.description, sourceUrl: item.sourceUrl, authority: 'Public web' }],
     sourceUrl: item.sourceUrl, updatedAt: item.updatedAt }));

@@ -5,15 +5,43 @@ import { streamProspectAgent } from '../../../../lib/prospect-agent/http';
 import { getDb } from '../../../../lib/mongodb';
 import { redactSearchText } from '../../../../lib/prospect-usage';
 import { savePrivateProject } from '../../../../lib/prospect-private-projects';
+import { listProspectSavedSearches, saveProspectSearch } from '../../../../lib/prospect-saved-searches';
 import { ensureLegacyProductEntitlement, productAccessMode } from '../../../../lib/product-commercial';
 
 let quotaIndexReady: Promise<string> | undefined;
+const validChatId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
   const access = await requireStudioIqProductAccess(req, res, { readOnlyAction: true });
   if (!access?.mirrorClientId) return;
   try {
+    const chatId = typeof req.body?.conversationId === 'string' && validChatId.test(req.body.conversationId) ? req.body.conversationId : null;
+    const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+    const accountId = access.mirrorAccountId;
+    const chatCollection = chatId && accountId ? (await getDb()).collection<{
+      _id: string; accountId: string; conversationId: string; title: string;
+      messages: Array<{ role: 'user' | 'assistant'; text: string }>;
+      sourceContext?: { opportunityId: string; evidenceId: string } | null;
+      createdAt: string; updatedAt: string;
+    }>('studioiq_chat_sessions') : null;
+    // The server owns a durable copy of the user's turn. It can finish saving
+    // the answer even when a page navigation closes the SSE connection.
+    let baseMessages: Array<{ role: 'user' | 'assistant'; text: string }> | null = null;
+    if (chatCollection && chatId && accountId && question && question.length <= 2000) {
+      const key = `${accountId}:${chatId}`;
+      const existing = await chatCollection.findOne({ _id: key, accountId });
+      baseMessages = existing?.messages ?? [];
+      if (baseMessages.at(-1)?.role !== 'user' || baseMessages.at(-1)?.text !== question) {
+        baseMessages = [...baseMessages, { role: 'user', text: question }];
+        const now = new Date().toISOString();
+        await chatCollection.updateOne({ _id: key, accountId }, {
+          $set: { messages: baseMessages, title: baseMessages.find((entry) => entry.role === 'user')?.text.slice(0, 80) || 'New chat', updatedAt: now },
+          $setOnInsert: { accountId, conversationId: chatId, createdAt: now },
+        }, { upsert: true });
+      }
+      req.body.history = baseMessages.slice(0, -1);
+    }
     const canSave = access.mirrorAccountId && productAccessMode((await ensureLegacyProductEntitlement({
       productId: 'studioiq', mirrorClientId: access.mirrorClientId, actorUserId: access.mirrorAccountId,
     })).status) === 'write';
@@ -39,6 +67,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }, canSave && access.mirrorAccountId && access.mirrorClientId ? async (project) => {
       const saved = await savePrivateProject({ ...project, accountId: access.mirrorAccountId!, organizationId: access.mirrorClientId! });
       return { id: saved.id, title: saved.title };
+    } : undefined, access.mirrorAccountId && access.mirrorClientId ? {
+      list: async () => listProspectSavedSearches(access.mirrorAccountId!, access.mirrorClientId!),
+      ...(canSave ? { save: async (name: string, query: string) => saveProspectSearch({
+        accountId: access.mirrorAccountId!, organizationId: access.mirrorClientId!, name, query,
+      }) } : {}),
+    } : undefined, chatCollection && chatId && accountId && baseMessages ? async (answer: string) => {
+      const key = `${accountId}:${chatId}`;
+      const current = await chatCollection.findOne({ _id: key, accountId });
+      if (!current) return;
+      const alreadySaved = current.messages.at(-1)?.role === 'assistant' && current.messages.at(-1)?.text === answer;
+      if (alreadySaved) return;
+      const prefixMatches = baseMessages!.every((entry, index) => current.messages[index]?.role === entry.role && current.messages[index]?.text === entry.text);
+      if (!prefixMatches) return;
+      await chatCollection.updateOne({ _id: key, accountId, updatedAt: current.updatedAt }, {
+        $set: { messages: [...baseMessages!, { role: 'assistant', text: answer }], updatedAt: new Date().toISOString() },
+      });
     } : undefined);
   } catch {
     return res.status(503).json({ error: 'Prospect projects are temporarily unavailable.' });

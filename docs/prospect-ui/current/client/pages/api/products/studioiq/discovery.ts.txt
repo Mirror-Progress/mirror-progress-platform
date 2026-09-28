@@ -13,6 +13,9 @@ import {
 import { projectStudioIqOpportunity } from '../../../../lib/studioiq-intelligence-projection';
 import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
 import { listPrivateProjects, projectPrivateDiscovery } from '../../../../lib/prospect-private-projects';
+import { getDb } from '../../../../lib/mongodb';
+import { rankStudioIqPortfolioMatches } from '../../../../lib/studioiq-portfolio-matching';
+import type { StudioIqPortfolioPrecedent } from '../../../../lib/studioiq-collaboration-types';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -20,13 +23,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!access?.mirrorClientId) return;
 
   try {
-    const [result, member] = await Promise.all([
+    const [result, member, precedents] = await Promise.all([
       listPublishedStudioIqIntelligence({
         mirrorClientId: access.mirrorClientId,
         externalOrganizationId: access.externalOrganizationId,
       }),
       ensureStudioIqWorkspaceMembership(access),
+      getDb().then((db) => db.collection<StudioIqPortfolioPrecedent>('studioiq_portfolio_precedents').find({
+        mirrorClientId: access.mirrorClientId, externalOrganizationId: access.externalOrganizationId,
+        status: 'active', verificationStatus: { $in: ['firm_approved', 'firm_source_verified', 'public_verified'] },
+      }).toArray()),
     ]);
+    const portfolioCount = precedents.length;
+    const precedentById = new Map(precedents.map((precedent) => [precedent.id, precedent]));
     const now = Date.now();
     const currentOpportunities = result.opportunities.filter((item) =>
       isCurrentStudioIqDiscovery(item.candidate, now)
@@ -39,11 +48,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       listStudioIqOpportunityCollaborationSummaries({ access, opportunityCandidateIds: candidateIds }),
       hydrateStudioIqPortfolioPrecedentsByOpportunity({ access, opportunityPrecedentIds }),
     ]);
-    const publishedOpportunities = currentOpportunities.map((item) => projectStudioIqOpportunity({
-      ...item,
-      collaboration: collaborationByCandidate.get(item.candidate.id),
-      hydratedPrecedents: precedentsByCandidate.get(item.candidate.id),
-    }));
+    const publishedOpportunities = currentOpportunities.map((item) => {
+      const projected = projectStudioIqOpportunity({
+        ...item,
+        collaboration: collaborationByCandidate.get(item.candidate.id),
+        hydratedPrecedents: precedentsByCandidate.get(item.candidate.id),
+      });
+      const matches = rankStudioIqPortfolioMatches(item.candidate, precedents, 60).slice(0, 3);
+      return { ...projected, portfolio_context: matches.length ? {
+        match_score: matches[0].relevanceScore,
+        summary: `${item.candidate.title} relates to documented firm experience through ${matches.map((match) => precedentById.get(match.precedentId)?.name).filter(Boolean).join(', ')}.`,
+        strategic_rationale: matches.flatMap((match) => match.matchReasons.slice(0, 1)),
+        precedent_matches: matches.map((match) => ({ precedentId: match.precedentId, matchReasons: match.matchReasons,
+          relationshipType: match.relationshipType, evidenceIds: match.evidenceIds })),
+        precedents: matches.flatMap((match) => {
+          const precedent = precedentById.get(match.precedentId);
+          return precedent ? [{ precedent_id: precedent.id, name: precedent.name, summary: precedent.summary,
+            location: precedent.location, featured_image_url: precedent.featuredImageUrl,
+            verification_status: precedent.verificationStatus, source_status: precedent.sourceStatus,
+            source_url: precedent.sourceUrl }] : [];
+        }),
+      } : null };
+    });
     const privateProjects = access.mirrorAccountId ? await listPrivateProjects(access.mirrorAccountId) : [];
     const opportunities = [...publishedOpportunities, ...privateProjects.map(projectPrivateDiscovery)];
     const countries = new Set(opportunities.map((item) => item.country).filter(Boolean));
@@ -53,6 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       total: opportunities.length,
       can_favorite: canStudioIqWorkspaceRole(member.role, 'flag'),
       private_saved_count: privateProjects.length,
+      portfolio_count: portfolioCount,
       summary: {
         total: publishedOpportunities.length,
         favorites: opportunities.filter((item) => item.collaboration?.current_user_flagged).length,

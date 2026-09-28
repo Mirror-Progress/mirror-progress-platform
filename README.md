@@ -1,5 +1,7 @@
 # Mirror Progress Platform
 
+> **Prospect source note (September 2026):** The public `client/` tree described below is an older baseline. The live Prospect application at [platform.mirrorprogress.com/prospect](https://platform.mirrorprogress.com/prospect) is built from a private release checkout. For its product goals, business context, architecture, current source snapshots, and QA status, start with [the Prospect source record](docs/prospect-ui/current/README.md). Do not deploy the root `client/` as the live Prospect service.
+
 Mirror Progress is currently implemented as a one-page Next.js site with two authenticated product layers inside the same application:
 
 - Client Workspace

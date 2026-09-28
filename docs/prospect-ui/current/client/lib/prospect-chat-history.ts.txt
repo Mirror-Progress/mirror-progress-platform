@@ -1,0 +1,11 @@
+export type ProspectChatMessage = { role: 'user' | 'assistant'; text: string };
+
+/** A stale tab must never replace a longer or different saved transcript. */
+export function extendsChat(existing: ProspectChatMessage[], proposed: ProspectChatMessage[]): boolean {
+  return existing.every((entry, index) => proposed[index]?.role === entry.role && proposed[index]?.text === entry.text);
+}
+
+export function unansweredQuestion(messages: ProspectChatMessage[]): string | null {
+  const last = messages.at(-1);
+  return last?.role === 'user' ? last.text : null;
+}

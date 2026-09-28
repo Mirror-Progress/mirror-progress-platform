@@ -1,0 +1,26 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { ensureLegacyProductEntitlement, productAccessMode } from '../../../../lib/product-commercial';
+import { listProspectSavedSearches, removeProspectSavedSearch, saveProspectSearch } from '../../../../lib/prospect-saved-searches';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!['GET', 'POST', 'DELETE'].includes(req.method ?? '')) return res.status(405).json({ error: 'Method Not Allowed' });
+  const access = await requireStudioIqProductAccess(req, res, { readOnlyAction: true });
+  if (!access?.mirrorAccountId || !access.mirrorClientId) return;
+  const scope = { accountId: access.mirrorAccountId, organizationId: access.mirrorClientId };
+  if (req.method === 'GET') return res.status(200).json({ searches: await listProspectSavedSearches(scope.accountId, scope.organizationId) });
+  const entitlement = await ensureLegacyProductEntitlement({ productId: 'studioiq', mirrorClientId: scope.organizationId, actorUserId: scope.accountId });
+  if (productAccessMode(entitlement.status) !== 'write') return res.status(403).json({ error: 'Write access is required.' });
+  try {
+    if (req.method === 'POST') {
+      const search = await saveProspectSearch({ ...scope, name: req.body?.name, query: req.body?.query });
+      return res.status(201).json({ search });
+    }
+    const id = typeof req.body?.id === 'string' ? req.body.id : '';
+    if (!/^search_[a-f0-9-]{36}$/.test(id)) return res.status(400).json({ error: 'A valid search ID is required.' });
+    return res.status(200).json({ removed: await removeProspectSavedSearch({ ...scope, id }) });
+  } catch (error) {
+    return res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update saved searches.' });
+  }
+}

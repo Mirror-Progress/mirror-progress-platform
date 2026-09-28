@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, ChevronDownIcon, ClockIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownRightIcon, ArrowUpIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, ChevronDownIcon, ClockIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import styles from './ProspectAgentPanel.module.css';
-import { activeProspectWorkflow, prospectAgentGuideExamples, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
+import { activeProspectWorkflows, prospectAgentGuideExamples, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
 import { recordProspectUsage } from '../../lib/prospect-usage';
 
 type Entry = { role: 'user' | 'assistant'; text: string };
@@ -14,6 +14,19 @@ type ChatSummary = { id: string; title: string; updatedAt: string };
 type SavedChat = ChatSummary & { messages: Entry[]; sourceContext?: SourceContext };
 const localChatsKey = 'prospect-local-chats-v1';
 const activeChatKey = 'prospect-active-chat-v1';
+const inFlightChats = new Set<string>();
+const chatWorkEvent = 'prospect:chat-work-state';
+export function useProspectChatWorking(): boolean {
+  const [working, setWorking] = useState(() => inFlightChats.size > 0);
+  useEffect(() => {
+    const refresh = () => setWorking(inFlightChats.size > 0);
+    window.addEventListener(chatWorkEvent, refresh);
+    refresh();
+    return () => window.removeEventListener(chatWorkEvent, refresh);
+  }, []);
+  return working;
+}
+const saveQueues = new Map<string, Promise<void>>();
 type Activity = { label: string; detail?: string; state: 'running' | 'done' | 'error' };
 
 type AgentEvent = { type: 'activity' | 'token' | 'error' | 'done' | 'ui_action' | 'private_project_saved' | 'session_project_found'; label?: string; detail?: string; text?: string; error?: string; projectId?: string; project?: unknown; action?: { type: 'show_workflow_scene'; workflow: string; version: number; scene: ProspectTourScene } | { type: 'show_workflow_sequence'; workflow: string; version: number; scenes: ProspectTourScene[] } | { type: 'focus_project'; projectId: string } };
@@ -30,7 +43,7 @@ function activityLabel(label: string): string {
   return legacy[label] ?? label;
 }
 
-export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canExpand = true, onToggleExpand, onClose, availableScenes, onShowScene, onShowSequence, sourceContext }: { endpoint: string; localLab?: boolean; expanded: boolean; canExpand?: boolean; onToggleExpand: () => void; onClose: () => void; availableScenes: ProspectTourScene[]; onShowScene: (scene: ProspectTourScene) => void; onShowSequence: (scenes: ProspectTourScene[]) => void; sourceContext?: SourceContext }) {
+export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canExpand = true, onToggleExpand, onClose, availableScenes, onShowScene, onShowSequence, sourceContext, floating = false, onDock }: { endpoint: string; localLab?: boolean; expanded: boolean; canExpand?: boolean; onToggleExpand: () => void; onClose: () => void; availableScenes: ProspectTourScene[]; onShowScene: (scene: ProspectTourScene) => void; onShowSequence: (scenes: ProspectTourScene[]) => void; sourceContext?: SourceContext; floating?: boolean; onDock?: () => void }) {
   const [messages, setMessages] = useState<Entry[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [draft, setDraft] = useState('');
@@ -47,7 +60,8 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
   const composerField = useRef<HTMLTextAreaElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
-  useEffect(() => () => activeRequest.current?.abort(), []);
+  // Keep a request alive when the panel closes or navigation remounts it.
+  // Its completion still writes the transcript and announces the update.
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +71,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
           const saved = JSON.parse(window.localStorage.getItem(localChatsKey) || '[]') as SavedChat[];
           if (cancelled) return;
           setRecentChats(saved.map(({ id, title, updatedAt }) => ({ id, title, updatedAt })));
-          const selected = saved.find((chat) => chat.id === window.sessionStorage.getItem(activeChatKey)) ?? saved[0];
+          const selected = saved.find((chat) => chat.id === window.localStorage.getItem(activeChatKey)) ?? saved[0];
           if (selected) { setConversationId(selected.id); setMessages(selected.messages); setRememberedContext(selected.sourceContext); }
         } else {
           const response = await fetch('/api/products/studioiq/chats', { cache: 'no-store' });
@@ -65,7 +79,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
           const { chats } = await response.json() as { chats: ChatSummary[] };
           if (cancelled) return;
           setRecentChats(chats);
-          const selected = chats.find((chat) => chat.id === window.sessionStorage.getItem(activeChatKey)) ?? chats[0];
+          const selected = chats.find((chat) => chat.id === window.localStorage.getItem(activeChatKey)) ?? chats[0];
           if (selected) {
             const chatResponse = await fetch(`/api/products/studioiq/chats?id=${encodeURIComponent(selected.id)}`, { cache: 'no-store' });
             if (chatResponse.ok && !cancelled) {
@@ -73,6 +87,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
               setConversationId(chat.id);
               setMessages(chat.messages);
               setRememberedContext(chat.sourceContext);
+              setBusy(inFlightChats.has(chat.id));
             }
           }
         }
@@ -83,21 +98,45 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
     return () => { cancelled = true; };
   }, [localLab]);
 
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      if (!id || id !== conversationId) return;
+      setBusy(inFlightChats.has(id));
+      if (!inFlightChats.has(id) && localLab) {
+        const chat = (JSON.parse(window.localStorage.getItem(localChatsKey) || '[]') as SavedChat[]).find((item) => item.id === id);
+        if (chat) { setMessages(chat.messages); setRememberedContext(chat.sourceContext); }
+      }
+      if (!inFlightChats.has(id) && !localLab) void fetch(`/api/products/studioiq/chats?id=${encodeURIComponent(id)}`, { cache: 'no-store' })
+        .then((response) => response.ok ? response.json() as Promise<SavedChat> : undefined)
+        .then((chat) => { if (chat) { setMessages(chat.messages); setRememberedContext(chat.sourceContext); } });
+    };
+    window.addEventListener('prospect:chat-updated', refresh);
+    return () => window.removeEventListener('prospect:chat-updated', refresh);
+  }, [conversationId, localLab]);
+
   async function saveChat(id: string, entries: Entry[], context?: SourceContext) {
     const title = entries.find((entry) => entry.role === 'user')?.text.trim().slice(0, 80) || 'New chat';
     const updatedAt = new Date().toISOString();
-    try {
+    const previous = saveQueues.get(id) ?? Promise.resolve();
+    const operation = previous.catch(() => undefined).then(async () => {
       if (localLab) {
         const saved = JSON.parse(window.localStorage.getItem(localChatsKey) || '[]') as SavedChat[];
-        const next = [{ id, title, updatedAt, messages: entries, sourceContext: context }, ...saved.filter((chat) => chat.id !== id)].slice(0, 30);
+        const next = [{ id, title, updatedAt, messages: entries, sourceContext: context }, ...saved.filter((chat) => chat.id !== id)];
         window.localStorage.setItem(localChatsKey, JSON.stringify(next));
       } else {
         const response = await fetch('/api/products/studioiq/chats', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, messages: entries, sourceContext: context }) });
         if (!response.ok) throw new Error('Chat could not be saved.');
       }
-      setRecentChats((current) => [{ id, title, updatedAt }, ...current.filter((chat) => chat.id !== id)].slice(0, 30));
+    });
+    saveQueues.set(id, operation);
+    try {
+      await operation;
+      setRecentChats((current) => [{ id, title, updatedAt }, ...current.filter((chat) => chat.id !== id)]);
       setSaveError(false);
+      window.dispatchEvent(new CustomEvent('prospect:chat-updated', { detail: { id } }));
     } catch { setSaveError(true); }
+    finally { if (saveQueues.get(id) === operation) saveQueues.delete(id); }
   }
 
   async function openChat(id: string) {
@@ -109,7 +148,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
       if (!chat) throw new Error('Chat not found.');
       setConversationId(chat.id);
       followOutput.current = true;
-      window.sessionStorage.setItem(activeChatKey, chat.id);
+      window.localStorage.setItem(activeChatKey, chat.id);
       setMessages(chat.messages);
       setRememberedContext(chat.sourceContext);
       setActivities([]);
@@ -122,7 +161,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
     if (busy) return;
     setConversationId(null);
     followOutput.current = true;
-    window.sessionStorage.removeItem(activeChatKey);
+    window.localStorage.removeItem(activeChatKey);
     setMessages([]);
     setRememberedContext(sourceContext);
     setActivities([]);
@@ -142,23 +181,26 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
     if (viewport && followOutput.current) viewport.scrollTop = viewport.scrollHeight;
   }, [messages, expanded]);
 
-  async function ask(question: string) {
+  async function ask(question: string, retryUnanswered = false) {
     const clean = question.trim();
-    if (!clean || busy || !historyReady) return;
+    if (!clean || busy || !historyReady || (conversationId && inFlightChats.has(conversationId))) return;
     if (!localLab) recordProspectUsage('agent_question', { screen: sourceContext ? 'source' : 'agent' });
     const id = conversationId ?? crypto.randomUUID();
     const context = sourceContext ?? rememberedContext;
     if (context) setRememberedContext(context);
     if (!conversationId) setConversationId(id);
-    window.sessionStorage.setItem(activeChatKey, id);
-    const history = messages.slice(-8).map((entry) => ({ ...entry, text: entry.text.slice(0, 12000) }));
-    const nextMessages: Entry[] = [...messages, { role: 'user', text: clean }];
+    window.localStorage.setItem(activeChatKey, id);
+    const canRetry = retryUnanswered && messages.at(-1)?.role === 'user' && messages.at(-1)?.text === clean;
+    const history = (canRetry ? messages.slice(0, -1) : messages).slice(-100).map((entry) => ({ ...entry, text: entry.text.slice(0, 5000) }));
+    const nextMessages: Entry[] = canRetry ? messages : [...messages, { role: 'user', text: clean }];
     followOutput.current = true;
     setMessages(nextMessages);
     setDraft('');
     setActivities([]);
     setActivityOpen(true);
     setBusy(true);
+    inFlightChats.add(id);
+    window.dispatchEvent(new Event(chatWorkEvent));
     const controller = new AbortController();
     activeRequest.current = controller;
     let answer = '';
@@ -166,7 +208,7 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
       await saveChat(id, nextMessages, context);
       const response = await fetch(endpoint, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ question: clean, history, availableScenes, sourceContext: context }),
+        body: JSON.stringify({ conversationId: id, question: clean, history, availableScenes, sourceContext: context }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {
@@ -202,9 +244,11 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
               ? [...current.slice(0, -1), { role: 'assistant', text: next }]
               : [...current, { role: 'assistant', text: next }]);
           } else if (event.type === 'ui_action' && event.action?.type === 'show_workflow_scene') {
-            if (event.action.workflow === activeProspectWorkflow.id && event.action.version === activeProspectWorkflow.version && availableScenes.includes(event.action.scene)) onShowScene(event.action.scene);
+            const action = event.action;
+            if (activeProspectWorkflows.some((workflow) => workflow.id === action.workflow && workflow.version === action.version && workflow.steps.some((step) => step.id === action.scene)) && availableScenes.includes(action.scene)) onShowScene(action.scene);
           } else if (event.type === 'ui_action' && event.action?.type === 'show_workflow_sequence') {
-            if (event.action.workflow === activeProspectWorkflow.id && event.action.version === activeProspectWorkflow.version && event.action.scenes.length >= 2 && event.action.scenes.every((scene) => availableScenes.includes(scene))) onShowSequence(event.action.scenes);
+            const action = event.action;
+            if (activeProspectWorkflows.some((workflow) => workflow.id === action.workflow && workflow.version === action.version && action.scenes.every((scene) => workflow.steps.some((step) => step.id === scene))) && action.scenes.length >= 2 && action.scenes.every((scene) => availableScenes.includes(scene))) onShowSequence(action.scenes);
           } else if (event.type === 'ui_action' && event.action?.type === 'focus_project') {
             window.dispatchEvent(new CustomEvent('prospect:focus-project', { detail: { id: event.action.projectId } }));
           } else if (event.type === 'private_project_saved') {
@@ -221,28 +265,32 @@ export function ProspectAgentPanel({ endpoint, localLab = false, expanded, canEx
       setActivityOpen(false);
       await saveChat(id, [...nextMessages, { role: 'assistant', text: answer }], context);
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (answer) await saveChat(id, [...nextMessages, { role: 'assistant', text: answer }], context);
       setActivities((current) => [...current.map((item) => ({ ...item, state: 'done' as const })),
         { label: 'Stopped', detail: error instanceof Error ? error.message : 'Unknown error', state: 'error' }]);
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
-      if (!controller.signal.aborted) setBusy(false);
+      inFlightChats.delete(id);
+      window.dispatchEvent(new Event(chatWorkEvent));
+      setBusy(false);
+      window.dispatchEvent(new CustomEvent('prospect:chat-updated', { detail: { id } }));
     }
   }
 
   return <section className={styles.panel} aria-label="Prospect assistant chat">
-    <header className={styles.header}><div className={styles.identity}><span className={styles.avatar} aria-hidden="true"><span className={styles.avatarMark} /></span><div><span className={styles.kicker}>PROSPECT</span><h2>Your assistant</h2></div></div><div className={styles.headerActions}><button className={styles.expand} type="button" onClick={newChat} disabled={busy} aria-label="New chat" title="New chat"><PlusIcon aria-hidden="true" /></button><button className={styles.expand} type="button" onClick={() => setHistoryOpen((current) => !current)} disabled={busy} aria-label="Previous chats" aria-expanded={historyOpen} title="Previous chats"><ClockIcon aria-hidden="true" /></button>{canExpand ? <button className={styles.expand} type="button" onClick={onToggleExpand} aria-label={expanded ? 'Compact chat' : 'Expand chat canvas'} title={expanded ? 'Compact chat' : 'Expand canvas'}>{expanded ? <ArrowsPointingInIcon aria-hidden="true" /> : <ArrowsPointingOutIcon aria-hidden="true" />}</button> : null}<button className={styles.close} type="button" onClick={onClose} aria-label="Close chat" title="Close chat"><XMarkIcon aria-hidden="true" /></button></div></header>
+    <header className={styles.header}><div className={styles.identity}><span className={styles.avatar} aria-hidden="true"><span className={styles.avatarMark} /></span><div><span className={styles.kicker}>PROSPECT</span><h2>Your assistant</h2></div></div><div className={styles.headerActions}>{floating && onDock ? <button className={styles.expand} type="button" onClick={onDock} aria-label="Return chat to corner" title="Return to corner"><ArrowDownRightIcon aria-hidden="true" /></button> : null}<button className={styles.expand} type="button" onClick={newChat} disabled={busy} aria-label="New chat" title="New chat"><PlusIcon aria-hidden="true" /></button><button className={styles.expand} type="button" onClick={() => setHistoryOpen((current) => !current)} disabled={busy} aria-label="Previous chats" aria-expanded={historyOpen} title="Previous chats"><ClockIcon aria-hidden="true" /></button>{canExpand ? <button className={styles.expand} type="button" onClick={onToggleExpand} aria-label={expanded ? 'Compact chat' : 'Expand chat canvas'} title={expanded ? 'Compact chat' : 'Expand canvas'}>{expanded ? <ArrowsPointingInIcon aria-hidden="true" /> : <ArrowsPointingOutIcon aria-hidden="true" />}</button> : null}<button className={styles.close} type="button" onClick={onClose} aria-label="Close chat" title="Close chat"><XMarkIcon aria-hidden="true" /></button></div></header>
     {historyOpen ? <div className={styles.history} aria-label="Previous chats"><div className={styles.historyHeading}>Previous chats</div>{recentChats.length ? recentChats.map((chat) => <button className={styles.historyItem} type="button" key={chat.id} onClick={() => void openChat(chat.id)} aria-current={chat.id === conversationId ? 'true' : undefined}><span>{chat.title}</span><small>{new Date(chat.updatedAt).toLocaleDateString()}</small></button>) : <p>No previous chats yet.</p>}</div> : null}
     <div className={`${styles.activity} ${busy ? styles.activityBusy : ''}`}>
       <button type="button" className={styles.activityToggle} onClick={() => setActivityOpen((current) => !current)} aria-expanded={activityOpen}>{activities.length && !busy ? <>What <span className={styles.inlineMark} role="img" aria-label="MP" /> checked</> : <><span className={styles.inlineMark} role="img" aria-label="MP" /> {busy ? 'is working' : 'is ready'}</>} <ChevronDownIcon className={styles.chevron} aria-hidden="true" /></button>
       {busy ? <div className={styles.progressTrack} role="progressbar" aria-label="Assistant is working"><span /></div> : null}
       {activityOpen ? <div className={styles.activityList} aria-live="polite">{activities.length === 0 ? <span className={styles.idle}>Ask a question to explore your projects.</span> : activities.map((item, index) => <div className={styles.activityItem} key={index}><span className={item.state === 'error' ? styles.errorDot : styles.stepDot} /><div><strong>{activityLabel(item.label)}</strong>{item.detail && !item.detail.includes('Bedrock') && !item.detail.includes(' tool') ? <small>{item.detail}</small> : null}</div></div>)}</div> : null}
     </div>
+    {!busy && messages.at(-1)?.role === 'user' ? <div className={styles.recovery} role="status"><span>This answer was interrupted. Your question is saved.</span><button type="button" onClick={() => void ask(messages.at(-1)!.text, true)}>Continue answer</button></div> : null}
     <div className={styles.messages} ref={scroller} aria-live="polite" onScroll={(event) => {
       const viewport = event.currentTarget;
       followOutput.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 72;
     }}>
-      {messages.length === 0 ? <div className={styles.empty}><div className={styles.icon}><span className={styles.emptyMark} aria-hidden="true" /></div><h3>{sourceContext ? 'Ask about this source.' : 'Ask about any project.'}</h3><p>{sourceContext ? 'The assistant can read the captured document, explain requirements, and connect it to your other Prospect projects.' : 'Search Prospect, compare opportunities, and ask for an interactive guide to any part of the screen.'}</p><div className={styles.prompts}>{availableScenes.includes('intro') ? <button type="button" onClick={() => availableScenes.length >= 2 ? onShowSequence(availableScenes) : onShowScene('intro')}>Guide me through Prospect</button> : null}{availableScenes.includes('sources') ? <button type="button" onClick={() => onShowScene('sources')}>Show me project sources</button> : null}{(sourceContext ? ['Summarize this source and its limitations', 'What requirements and deadlines are stated here?', 'What should we verify before pursuing this project?'] : [...prospectAgentGuideExamples, 'Show me all projects', ...(!localLab ? ['Find a new project and show it on the globe'] : []), 'Which projects need attention?', 'Compare opportunities by location']).map((prompt) => <button key={prompt} type="button" onClick={() => void ask(prompt)}>{prompt}</button>)}</div></div> : messages.map((entry, index) => <div className={`${styles.message} ${entry.role === 'user' ? styles.user : styles.assistant}`} key={index}><span>{entry.role === 'user' ? 'You' : <span className={styles.messageMark} role="img" aria-label="MP" />}</span><div className={styles.messageBody}>{entry.role === 'assistant' ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: ({ href, children }) => /^\/prospect(?:\?|\/|$)/.test(href ?? '') ? <a href={href}>{children}</a> : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>, pre: ({ children }) => <pre className={styles.codeBlock}>{children}</pre> }}>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}</div></div>)}
+      {messages.length === 0 ? <div className={styles.empty}><div className={styles.icon}><span className={styles.emptyMark} aria-hidden="true" /></div><h3>{sourceContext ? 'Ask about this source.' : 'Ask about any project.'}</h3><p>{sourceContext ? 'The assistant can read the captured document, explain requirements, and connect it to your other Prospect projects.' : localLab ? 'Search Prospect, compare opportunities, and ask for an interactive guide to any part of the screen.' : 'Search Prospect, compare opportunities, save a search for later, and ask for an interactive guide to any part of the screen.'}</p><div className={styles.prompts}>{availableScenes.includes('intro') ? <button type="button" onClick={() => availableScenes.length >= 2 ? onShowSequence(availableScenes) : onShowScene('intro')}>Guide me through Prospect</button> : null}{availableScenes.includes('sources') ? <button type="button" onClick={() => onShowScene('sources')}>Show me project sources</button> : null}{availableScenes.includes('source_documents') ? <button type="button" onClick={() => availableScenes.length >= 2 ? onShowSequence(availableScenes) : onShowScene('source_documents')}>Guide me through this evidence</button> : null}{(sourceContext ? ['Summarize this source and its limitations', 'What requirements and deadlines are stated here?', 'What should we verify before pursuing this project?'] : [...prospectAgentGuideExamples, 'Show me all projects', ...(!localLab ? ['Find a new project and show it on the globe', 'How do I save and revisit a search?'] : []), 'Which projects need attention?', 'Compare opportunities by location']).map((prompt) => <button key={prompt} type="button" onClick={() => void ask(prompt)}>{prompt}</button>)}</div></div> : messages.map((entry, index) => <div className={`${styles.message} ${entry.role === 'user' ? styles.user : styles.assistant}`} key={index}><span>{entry.role === 'user' ? 'You' : <span className={styles.messageMark} role="img" aria-label="MP" />}</span><div className={styles.messageBody}>{entry.role === 'assistant' ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: ({ href, children }) => /^\/prospect(?:\?|\/|$)/.test(href ?? '') ? <a href={href}>{children}</a> : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>, pre: ({ children }) => <pre className={styles.codeBlock}>{children}</pre> }}>{entry.text}</ReactMarkdown> : <p>{entry.text}</p>}</div></div>)}
     </div>
     <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void ask(draft); }}><textarea ref={composerField} aria-label="Ask the Prospect assistant about projects" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(draft); } }} placeholder={sourceContext ? "Ask about this source…" : "Ask about a project…"} rows={1} maxLength={2000} /><button type="submit" disabled={busy || !draft.trim() || !historyReady} aria-label="Send message" title={busy ? 'Wait for the current answer' : 'Send message'}><ArrowUpIcon aria-hidden="true" /></button></form>
     {saveError ? <p className={styles.saveError} role="status">Chat history could not be saved. Your current chat stays open.</p> : null}

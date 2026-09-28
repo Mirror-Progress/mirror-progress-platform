@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeftIcon, ArrowTopRightOnSquareIcon, BookmarkIcon, CheckIcon, ClipboardDocumentIcon, DocumentTextIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { ProspectAgentPanel } from './ProspectAgentPanel';
 import type { StudioIqSourceDocument } from '../../lib/studioiq-source-document';
@@ -8,6 +8,8 @@ import styles from './ProspectSourceWorkspace.module.css';
 import { ProspectMotionLink } from './ProspectMotionLink';
 import { useTheme } from '../../hooks/useTheme';
 import { recordProspectUsage } from '../../lib/prospect-usage';
+import { sourceEvidenceWorkflow, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
+import { useProspectPageGuide } from './useProspectPageGuide';
 
 type Project = { id: string; title: string; description: string; buyer: string | null; city: string | null; country: string | null; deadline: string | null };
 type Evidence = { evidenceId: string; sourceUrl: string; document: StudioIqSourceDocument | null };
@@ -16,6 +18,7 @@ type SavedWork = { bookmarks: string[]; reviewed: string[]; requirements: Array<
 type ReadingMode = 'english' | 'original' | 'side';
 
 const emptyWork: SavedWork = { bookmarks: [], reviewed: [], requirements: [], questions: [], flagged: [], savedContacts: [], savedPrecedents: [], partners: {}, recent: [], positions: {}, activeSource: '' };
+const excerptGuideScenes: ProspectTourScene[] = ['source_documents', 'source_notes', 'source_agent'];
 function host(url: string) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'Source'; } }
 function date(value: string | null | undefined) { const timestamp = Date.parse(value || ''); return Number.isFinite(timestamp) ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(timestamp) : 'Date unavailable'; }
 function safeUrl(url: string | null | undefined) { try { const value = new URL(url || ''); return ['https:', 'http:'].includes(value.protocol) ? value.href : null; } catch { return null; } }
@@ -116,6 +119,8 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
   useEffect(() => { if (storageKey && loadedWorkKey === storageKey) { try { window.localStorage.setItem(storageKey, JSON.stringify(work)); } catch { /* Optional device notes. */ } } }, [storageKey, loadedWorkKey, work]);
   const evidence = data?.sources.find((source) => source.evidenceId === active);
   const document = evidence?.document;
+  const onGuideScene = useCallback((scene: ProspectTourScene) => { if (scene === 'source_agent') setChatOpen(true); }, []);
+  const guide = useProspectPageGuide(sourceEvidenceWorkflow, { localPreview: Boolean(previewData), ready: Boolean(data && active && !error), enabledScenes: document ? undefined : excerptGuideScenes, onScene: onGuideScene });
   const original = safeUrl(document?.documentUrl || document?.sourceUrl || evidence?.sourceUrl);
   const back = previewData ? '/local/studioiq-globe?opportunity=sample-0&tab=sources' : projectId ? `/prospect?opportunity=${encodeURIComponent(projectId)}&tab=sources` : '/prospect';
   const context = !previewData && projectId && active ? { opportunityId: projectId, evidenceId: active } : undefined;
@@ -157,6 +162,7 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
     <header className={styles.topbar}>
       <ProspectMotionLink href={back} className={styles.back} aria-label="Return to Prospect project"><ArrowLeftIcon /></ProspectMotionLink>
       <div className={styles.brand}><span>PROSPECT / EVIDENCE</span><strong>{data?.project.title || 'Source workspace'}</strong></div>
+      {data ? <button className={styles.guideButton} type="button" onClick={guide.replay}>Guide</button> : null}
       <button className={styles.themeToggle} type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}>{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</button>
       <button className={styles.mobileAsk} type="button" onClick={() => setChatOpen(true)} aria-label="Ask the Prospect assistant">Ask <span className={styles.mpMark} role="img" aria-label="MP" /></button>
     </header>
@@ -165,16 +171,16 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
       : <div ref={layoutRef} className={`${styles.layout} ${chatOpen ? styles.withChat : ''} ${resizingChat ? styles.resizing : ''}`} style={{ '--source-chat-width': `${chatWidth}px` } as CSSProperties}>
         <nav className={styles.sidebar} aria-label="Project sources">
           <div className={styles.sideIntro}><span>PROJECT EVIDENCE</span><h1>Read the sources</h1><p>Select a document, then inspect its captured text and source details.</p></div>
-          <div className={styles.mobileSelect}><label htmlFor="source-picker">Document</label><select id="source-picker" value={active} onChange={(event) => chooseEvidence(event.target.value)}>{data.sources.map((source, index) => <option key={source.evidenceId} value={source.evidenceId}>{index + 1}. {source.document?.title || host(source.sourceUrl)}</option>)}</select></div>
-          <div className={styles.sourceList}>{data.sources.map((source, index) => <button key={source.evidenceId} type="button" className={source.evidenceId === active ? styles.selectedSource : ''} onClick={() => chooseEvidence(source.evidenceId)} aria-current={source.evidenceId === active ? 'true' : undefined}><span className={styles.sourceNumber}>{String(index + 1).padStart(2, '0')}</span><span><strong>{source.document?.title || host(source.sourceUrl)}</strong><small>{host(source.sourceUrl)} · {source.document ? `${source.document.sections.length} sections` : 'Captured excerpt'}</small></span></button>)}</div>
-          <button className={styles.notebookToggle} type="button" onClick={() => setNotebookOpen((value) => !value)} aria-expanded={notebookOpen}><BookmarkIcon /> Notebook <span>{counts.bookmarks + counts.requirements + counts.questions}</span></button>
+          <div className={styles.mobileSelect} data-tour-anchor="source-documents"><label htmlFor="source-picker">Document</label><select id="source-picker" value={active} onChange={(event) => chooseEvidence(event.target.value)}>{data.sources.map((source, index) => <option key={source.evidenceId} value={source.evidenceId}>{index + 1}. {source.document?.title || host(source.sourceUrl)}</option>)}</select></div>
+          <div className={styles.sourceList} data-tour-anchor="source-documents">{data.sources.map((source, index) => <button key={source.evidenceId} type="button" className={source.evidenceId === active ? styles.selectedSource : ''} onClick={() => chooseEvidence(source.evidenceId)} aria-current={source.evidenceId === active ? 'true' : undefined}><span className={styles.sourceNumber}>{String(index + 1).padStart(2, '0')}</span><span><strong>{source.document?.title || host(source.sourceUrl)}</strong><small>{host(source.sourceUrl)} · {source.document ? `${source.document.sections.length} sections` : 'Captured excerpt'}</small></span></button>)}</div>
+          <button className={styles.notebookToggle} data-tour-anchor="source-notes" type="button" onClick={() => setNotebookOpen((value) => !value)} aria-expanded={notebookOpen}><BookmarkIcon /> Notebook <span>{counts.bookmarks + counts.requirements + counts.questions}</span></button>
           {notebookOpen ? <div className={styles.notebook}><p>{counts.bookmarks} bookmarks · {counts.reviewed} reviewed</p><h3>Requirements</h3>{work.requirements.length ? work.requirements.map((item) => <article key={item.id}>{item.text}</article>) : <p>Save a requirement as you read.</p>}<h3>Questions</h3>{work.questions.length ? work.questions.map((item) => <article key={item.id}>{item.text}</article>) : <p>Questions you save will appear here.</p>}</div> : null}
         </nav>
         <main className={styles.reader} id="source-reader">
           <div className={styles.readerTop}><div><span className={styles.eyebrow}>SOURCE {Math.max(1, data.sources.findIndex((source) => source.evidenceId === active) + 1)} OF {data.sources.length}</span><h2>{document?.title || host(evidence?.sourceUrl || '')}</h2><p>{data.project.title}</p></div><div className={styles.readerActions}>{original ? <a href={original} target="_blank" rel="noopener noreferrer"><ArrowTopRightOnSquareIcon /> Original source</a> : null}<button type="button" onClick={() => setChatOpen(true)} aria-label="Ask the Prospect assistant">Ask <span className={styles.mpMark} role="img" aria-label="MP" /></button></div></div>
           <div className={styles.sourceFacts}><span>{document?.coverage.replaceAll('_', ' ') || 'Captured excerpt'}</span><span>{document?.sourceLanguage || 'Language unknown'}</span><span>Captured {date(document?.capturedAt)}</span></div>
           {document ? <>
-            <div className={styles.readingControls}><div className={styles.modeTabs} role="group" aria-label="Reading language">{(['english', 'original', 'side'] as ReadingMode[]).map((value) => <button type="button" key={value} aria-pressed={mode === value} onClick={() => setReadingMode(value)}>{value === 'side' ? 'Side by side' : value === 'english' ? 'English' : 'Original'}</button>)}</div><span>{document.translation.status === 'not_required' ? 'English original' : `Translation: ${document.translation.status.replaceAll('_', ' ')}`}</span></div>
+            <div className={styles.readingControls} data-tour-anchor="source-reading"><div className={styles.modeTabs} role="group" aria-label="Reading language">{(['english', 'original', 'side'] as ReadingMode[]).map((value) => <button type="button" key={value} aria-pressed={mode === value} onClick={() => setReadingMode(value)}>{value === 'side' ? 'Side by side' : value === 'english' ? 'English' : 'Original'}</button>)}</div><span>{document.translation.status === 'not_required' ? 'English original' : `Translation: ${document.translation.status.replaceAll('_', ' ')}`}</span></div>
             <div className={styles.coverage}><strong>What this document covers</strong><p>{document.coverageNote}</p><details><summary>Source integrity and reuse</summary><p>{document.reuse.reference}</p><p>Source SHA-256: {document.sourceHash}</p></details></div>
             <div className={styles.outline} aria-label="In this document">{document.sections.map((section) => <a href={`#source-${section.id}`} key={section.id}>{section.title}</a>)}</div>
             {document.sections.map((section) => {
@@ -188,7 +194,8 @@ export function ProspectSourceWorkspace({ workspaceKey, previewData, initialData
           {status ? <p className={styles.status} role="status">{status}</p> : null}
         </main>
         {chatOpen ? <div className={styles.chatResize} role="separator" aria-label="Resize evidence and chat" aria-orientation="vertical" aria-valuenow={chatWidth} aria-valuemin={300} aria-valuemax={720} tabIndex={0} onPointerDown={resizeChat} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); saveChatWidth(chatWidth + (event.key === 'ArrowLeft' ? 24 : -24)); } }} onDoubleClick={() => saveChatWidth(360)} /> : null}
-        <aside className={`${styles.chat} ${chatOpen ? '' : styles.chatClosed}`} aria-label="Prospect assistant chat" aria-hidden={!chatOpen}><ProspectAgentPanel endpoint={previewData ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(previewData)} expanded={false} canExpand={false} onToggleExpand={() => undefined} onClose={() => setChatOpen(false)} availableScenes={[]} onShowScene={() => undefined} onShowSequence={() => undefined} sourceContext={context} /></aside>
+        <aside className={`${styles.chat} ${chatOpen ? '' : styles.chatClosed}`} data-tour-anchor={chatOpen ? 'source-agent' : undefined} aria-label="Prospect assistant chat" aria-hidden={!chatOpen}><ProspectAgentPanel endpoint={previewData ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(previewData)} expanded={false} canExpand={false} onToggleExpand={() => undefined} onClose={() => setChatOpen(false)} availableScenes={guide.availableScenes} onShowScene={guide.showScene} onShowSequence={guide.showSequence} sourceContext={context} /></aside>
       </div>}
+    {guide.element}
   </div>;
 }

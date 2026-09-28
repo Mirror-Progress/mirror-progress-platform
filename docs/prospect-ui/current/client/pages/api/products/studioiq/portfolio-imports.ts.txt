@@ -1,0 +1,29 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { commitPortfolioImport, createPortfolioImport, listPortfolioImports } from '../../../../lib/studioiq-portfolio-import';
+
+export const config = { api: { bodyParser: { sizeLimit: '6mb' } } };
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (!['GET', 'POST', 'PATCH'].includes(req.method || '')) return res.status(405).json({ error: 'Method Not Allowed' });
+  const origin = req.headers.origin;
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.headers.host) return res.status(403).json({ error: 'Invalid request origin.' });
+    } catch { return res.status(403).json({ error: 'Invalid request origin.' }); }
+  }
+  const access = await requireStudioIqProductAccess(req, res, { requireWrite: req.method !== 'GET' });
+  if (!access) return;
+  try {
+    if (req.method === 'GET') return res.status(200).json({ imports: await listPortfolioImports(access) });
+    if (req.method === 'PATCH') return res.status(200).json(await commitPortfolioImport({
+      access, importId: String(req.body?.import_id || ''), projects: req.body?.projects,
+    }));
+    const encoded = req.body?.data;
+    if (typeof encoded !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new Error('A valid file is required.');
+    const bytes = Buffer.from(encoded, 'base64');
+    return res.status(201).json(await createPortfolioImport({ access, filename: String(req.body?.filename || ''), bytes }));
+  } catch (error) {
+    return res.status(400).json({ error: error instanceof Error ? error.message : 'Portfolio import failed.' });
+  }
+}

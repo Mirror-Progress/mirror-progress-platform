@@ -126,6 +126,7 @@ export type DiscoveryOpportunity = {
       source_url?: string | null;
     }>;
   } | null;
+  portfolio_context?: DiscoveryOpportunity['pursuit_brief'];
   private_saved?: boolean;
   session_preview?: boolean;
   source_url?: string;
@@ -151,16 +152,19 @@ const filters: Array<[Filter, string]> = [
 
 function priorityScore(item: DiscoveryOpportunity) {
   if (item.private_saved || item.session_preview) return 30 + Math.max(0, 15 - (Date.now() - (Date.parse(item.saved_at ?? '') || Date.now())) / 86_400_000);
-  const match = item.pursuit_brief?.match_score ?? 0;
+  const match = practiceBrief(item)?.match_score ?? 0;
   const published = Date.parse(item.first_published_at ?? '') || 0;
   const ageDays = published
     ? Math.max(0, (Date.now() - published) / 86_400_000)
     : 45;
-  return (
-    item.value_score * 0.55 +
-    match * 0.35 +
-    Math.max(0, 100 - ageDays * 2.2) * 0.1
-  );
+  const recency = Math.max(0, 100 - ageDays * 2.2);
+  return practiceBrief(item)?.match_score == null
+    ? item.value_score * 0.85 + recency * 0.15
+    : item.value_score * 0.55 + match * 0.35 + recency * 0.1;
+}
+
+function practiceBrief(item: DiscoveryOpportunity) {
+  return item.portfolio_context !== undefined ? item.portfolio_context : item.pursuit_brief;
 }
 
 function relativeTime(value: string | null) {
@@ -205,6 +209,7 @@ export function StudioIqDiscovery(props: {
   tourScene?: import('../../lib/studioiq-walkthrough').ProspectTourScene | null;
   agentFocus?: { id: string; sequence: number } | null;
   onDismissSessionProject?: (id: string) => void;
+  portfolioCount?: number;
 }) {
   const [dossierTab, setDossierTab] = useState<DossierTab>('overview');
   const dossierId = useId();
@@ -434,10 +439,10 @@ export function StudioIqDiscovery(props: {
         buyer: item.buyer_name,
         coordinateMethod: item.location?.coordinate_method,
         coordinateConfidence: item.location?.coordinate_confidence,
-        precedents: (item.pursuit_brief?.precedents ?? []).flatMap(
+        precedents: (practiceBrief(item)?.precedents ?? []).flatMap(
           (precedent): GlobePrecedent[] => {
             const location = resolvePortfolioGlobeLocation(precedent.location);
-            const match = item.pursuit_brief?.precedent_matches?.find(
+            const match = practiceBrief(item)?.precedent_matches?.find(
               (m) => m.precedentId === precedent.precedent_id
             );
             if (
@@ -805,8 +810,8 @@ export function StudioIqDiscovery(props: {
                           </span>
                           <strong>{item.title}</strong>
                           <small>
-                            {item.pursuit_brief?.precedents[0]
-                              ? `Matches ${item.pursuit_brief.precedents[0].name}`
+                            {practiceBrief(item)?.precedents[0]
+                              ? `Matches ${practiceBrief(item)?.precedents[0]?.name}`
                               : displayLabel(item.project_type)}
                           </small>
                           <span className={styles.tags}>
@@ -820,7 +825,7 @@ export function StudioIqDiscovery(props: {
                         </div>
                         {!item.private_saved && !item.session_preview ? <span className={styles.fit}>
                           {Math.round(
-                            item.pursuit_brief?.match_score ?? item.value_score
+                            practiceBrief(item)?.match_score ?? item.value_score
                           )}
                           <small>Score</small>
                         </span> : null}
@@ -913,7 +918,7 @@ export function StudioIqDiscovery(props: {
                   <strong>{selected.title}</strong>
                   <small>
                     {selected.private_saved || selected.session_preview ? 'Unverified project' : <>{Math.round(
-                      selected.pursuit_brief?.match_score ??
+                      practiceBrief(selected)?.match_score ??
                         selected.value_score
                     )}{' '}Prospect score</>}
                   </small>
@@ -996,7 +1001,7 @@ export function StudioIqDiscovery(props: {
                     <dt>Prospect score</dt>
                     <dd>
                       {Math.round(
-                        selected.pursuit_brief?.match_score ??
+                        practiceBrief(selected)?.match_score ??
                           selected.value_score
                       )}
                     </dd>
@@ -1073,15 +1078,15 @@ export function StudioIqDiscovery(props: {
                       )}
                       <ExpandableText
                         text={
-                          selected.pursuit_brief?.summary ||
+                          practiceBrief(selected)?.summary ||
                           selected.description ||
                           'A project summary is not available yet.'
                         }
                       />
-                      {selected.pursuit_brief?.summary &&
+                      {practiceBrief(selected)?.summary &&
                         selected.description &&
                         selected.description !==
-                          selected.pursuit_brief.summary && (
+                          practiceBrief(selected)?.summary && (
                           <details className={styles.explanation}>
                             <summary>Full project description</summary>
                             <p>{selected.description}</p>
@@ -1094,7 +1099,7 @@ export function StudioIqDiscovery(props: {
                       <ul>
                         {(selected.value_reasons.length
                           ? selected.value_reasons
-                          : (selected.pursuit_brief?.strategic_rationale ?? [])
+                          : (practiceBrief(selected)?.strategic_rationale ?? [])
                         ).map((reason) => (
                           <li key={reason}>{reason}</li>
                         ))}
@@ -1139,7 +1144,7 @@ export function StudioIqDiscovery(props: {
                   <section>
                     <span>Relevant firm work</span>
                     <h3>Practice match</h3>
-                    {selected.pursuit_brief?.precedents.map((precedent) => (
+                    {practiceBrief(selected)?.precedents.map((precedent) => (
                       <article
                         className={styles.precedent}
                         key={precedent.precedent_id}
@@ -1219,9 +1224,11 @@ export function StudioIqDiscovery(props: {
                           )}
                       </div>
                     )}
-                    {!selected.pursuit_brief?.precedents.length ? (
+                    {!practiceBrief(selected)?.precedents.length ? (
                       <p className={styles.muted}>
-                        A verified portfolio match is still being resolved.
+                        {props.portfolioCount === 0
+                          ? 'Add your firm’s projects in Portfolio to see practice matches. You can still explore every opportunity and its sources.'
+                          : 'No verified portfolio match is available for this opportunity yet.'}
                       </p>
                     ) : null}
                   </section>

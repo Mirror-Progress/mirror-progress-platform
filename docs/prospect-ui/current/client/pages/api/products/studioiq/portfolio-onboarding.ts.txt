@@ -1,0 +1,14 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { ensureStudioIqWorkspaceMembership } from '../../../../lib/studioiq-collaboration';
+import { skipPortfolioOnboarding } from '../../../../lib/studioiq-portfolio-onboarding';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const access = await requireStudioIqProductAccess(req, res, { requireWrite: true });
+  if (!access) return;
+  const member = await ensureStudioIqWorkspaceMembership(access);
+  if (!['owner', 'admin'].includes(member.role)) return res.status(403).json({ error: 'Firm portfolio setup requires an admin.' });
+  await skipPortfolioOnboarding(access);
+  return res.status(200).json({ status: 'skipped' });
+}

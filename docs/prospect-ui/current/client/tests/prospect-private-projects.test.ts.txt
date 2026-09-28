@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { canonicalProjectUrl, normalizePrivateProject, privateProjectId } from '../lib/prospect-private-projects';
+import { validateWebProjectDraft } from '../lib/prospect-agent/project-normalization';
 
 test('private project normalization preserves evidence and rejects unsupported fields', () => {
   const record = normalizePrivateProject({
@@ -36,4 +37,38 @@ test('private IDs deduplicate per owner and do not reuse another account’s ID'
   assert.equal(url, 'https://example.org/project');
   assert.equal(privateProjectId('account-a', url!), privateProjectId('account-a', url!));
   assert.notEqual(privateProjectId('account-a', url!), privateProjectId('account-b', url!));
+});
+
+test('Bedrock draft separates a street address from the clean project title before storage', () => {
+  const source = { title: '7240 H Street, Sacramento — Central Station Renewal | Bid Portal',
+    text: 'Central Station Renewal is a transit project in Sacramento, United States. The buyer is Regional Transit. Applications close October 15, 2026.',
+    url: 'https://example.org/projects/central-station', publishedDate: '2026-09-27' };
+  const draft = validateWebProjectDraft(source, { title: 'Central Station Renewal',
+    description: 'Central Station Renewal is a transit project in Sacramento, United States.',
+    streetAddress: '7240 H Street', city: 'Sacramento', country: 'United States',
+    projectType: 'transit', buyerName: 'Regional Transit', deadline: '2026-10-15',
+    fieldEvidence: { title: 'Central Station Renewal',
+      description: 'Central Station Renewal is a transit project in Sacramento, United States.',
+      streetAddress: '7240 H Street', city: 'Sacramento', country: 'United States',
+      projectType: 'transit project', buyerName: 'Regional Transit', deadline: 'October 15, 2026' } });
+  const record = normalizePrivateProject({ ...draft, accountId: 'account-a', organizationId: 'org-a' });
+  assert.equal(record.title, 'Central Station Renewal');
+  assert.equal(record.streetAddress, '7240 H Street');
+  assert.equal(record.city, 'Sacramento');
+  assert.equal(record.country, 'United States');
+  assert.equal(record.buyerName, 'Regional Transit');
+  assert.equal(record.deadline, '2026-10-15');
+  assert.equal(record.normalizationVersion, 2);
+});
+
+test('unsupported or address-contaminated Bedrock titles cannot become saved projects', () => {
+  const source = { title: '7240 H Street, Sacramento — Central Station Renewal',
+    text: 'Central Station Renewal is in Sacramento.', url: 'https://example.org/projects/central-station' };
+  assert.throws(() => validateWebProjectDraft(source, { title: '7240 H Street, Sacramento',
+    fieldEvidence: { title: '7240 H Street, Sacramento' } }), /clean project title/);
+  assert.throws(() => validateWebProjectDraft(source, { title: 'Imaginary International Airport',
+    fieldEvidence: { title: 'Central Station Renewal' } }), /clean project title/);
+  const draft = validateWebProjectDraft(source, { title: 'Central Station Renewal', city: 'Chicago',
+    fieldEvidence: { title: 'Central Station Renewal', city: 'Chicago' } });
+  assert.equal(draft.city, undefined);
 });

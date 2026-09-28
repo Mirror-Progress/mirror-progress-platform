@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activeProspectWorkflow, availableProspectTourSteps, resolveActiveProspectScene, resolveActiveProspectSequence } from '../lib/studioiq-walkthrough';
+import { activeProspectWorkflow, activeProspectScenes, availableProspectTourSteps, portfolioImportWorkflow, sourceEvidenceWorkflow, resolveActiveProspectScene, resolveActiveProspectSequence } from '../lib/studioiq-walkthrough';
 
 test('active Prospect walkthrough has stable, unique scenes and anchors', () => {
   assert.equal(activeProspectWorkflow.status, 'active');
@@ -23,14 +23,27 @@ test('agent guided paths require distinct active scenes that exist on this scree
   assert.equal(resolveActiveProspectSequence(['globe', 'billing'], available), null);
   assert.equal(resolveActiveProspectSequence(['globe', 'globe'], available), null);
   assert.equal(resolveActiveProspectSequence(['globe'], available), null);
+  assert.equal(resolveActiveProspectSequence(['globe', 'source_reading'], ['globe', 'source_reading']), null);
 });
 
 test('project detail scenes are omitted when no projects are available', () => {
   const empty = availableProspectTourSteps({ hasProjects: false, canFavorite: false }).map((step) => step.id);
-  const populated = availableProspectTourSteps({ hasProjects: true, canFavorite: true }).map((step) => step.id);
+  const populated = availableProspectTourSteps({ hasProjects: true, canFavorite: true, canManagePortfolio: true }).map((step) => step.id);
   assert.deepEqual(empty, ['intro', 'globe', 'filters', 'agent']);
   assert.ok(populated.includes('favorites'));
   assert.ok(populated.includes('overview'));
   assert.ok(populated.includes('practice'));
   assert.ok(populated.includes('sources'));
+  assert.ok(populated.includes('portfolio'));
+});
+
+test('portfolio and source guides contain only distinct active scenes', () => {
+  for (const workflow of [sourceEvidenceWorkflow, portfolioImportWorkflow]) {
+    assert.equal(workflow.status, 'active');
+    assert.equal(new Set(workflow.steps.map((step) => step.id)).size, workflow.steps.length);
+    assert.ok(workflow.steps.every((step) => step.anchor));
+  }
+  assert.equal(resolveActiveProspectScene('source_reading', ['source_reading']), 'source_reading');
+  assert.equal(resolveActiveProspectScene('portfolio_upload', ['portfolio_upload']), 'portfolio_upload');
+  assert.deepEqual(activeProspectScenes(['source_documents', 'retired', 'portfolio_upload']), ['source_documents', 'portfolio_upload']);
 });

@@ -22,7 +22,7 @@ export function ProspectWalkthrough(props: {
   unavailableRef.current = props.onUnavailable;
 
   useEffect(() => {
-    setReady(false);
+    // Retain the previous spotlight until the next anchor is measured, so it can travel between scenes.
     let frame = 0;
     let retries = 0;
     let cancelled = false;
@@ -51,7 +51,7 @@ export function ProspectWalkthrough(props: {
         right: Math.max(...rectangles.map((item) => item.right)),
         bottom: Math.max(...rectangles.map((item) => item.bottom)),
       } : rectangles[0];
-      const pad = props.step.id === 'globe' ? 6 : 9;
+      const pad = props.step.id === 'globe' ? 6 : props.step.id === 'portfolio' ? 3 : 9;
       setBox({
         top: Math.max(6, rect.top - pad),
         left: Math.max(6, rect.left - pad),
@@ -106,9 +106,9 @@ export function ProspectWalkthrough(props: {
       <div className={styles.mask} style={{ top: spotlight.top, left: 0, width: spotlight.left, height: spotlight.height }} />
       <div className={styles.mask} style={{ top: spotlight.top, left: spotlight.left + spotlight.width, right: 0, height: spotlight.height }} />
       <div className={styles.mask} style={{ top: spotlight.top + spotlight.height, left: 0, right: 0, bottom: 0 }} />
-      <div className={styles.focusRing} style={spotlight} aria-hidden="true" />
+      <div className={`${styles.focusRing} ${props.step.id === 'portfolio' ? styles.portfolioFocusRing : ''}`} style={spotlight} aria-hidden="true" />
     </> : <div className={styles.fullMask} />}
-    {ready ? <div ref={cardRef} className={`${styles.card} ${intro ? styles.intro : ''} ${props.step.id === 'agent' ? styles.agentCard : ''}`} style={cardStyle}>
+    {ready ? <div ref={cardRef} className={`${styles.card} ${intro ? styles.intro : ''} ${props.step.id === 'agent' || props.step.id === 'source_agent' ? styles.agentCard : ''}`} style={cardStyle}>
       <div className={styles.topline}><span className={styles.brand}>PROSPECT <i /> FIELD GUIDE</span><button type="button" onClick={props.onSkip} className={styles.skip}>Skip tour</button></div>
       <div className={styles.scene}>{props.step.eyebrow.replace(/^\d{2}(?= \/)/, String(props.index).padStart(2, '0'))}</div>
       <h2>{props.step.title}</h2>

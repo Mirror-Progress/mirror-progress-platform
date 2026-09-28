@@ -10,6 +10,7 @@ import {
   MoonIcon,
   QuestionMarkCircleIcon,
   SunIcon,
+  Squares2X2Icon,
   UserCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -20,7 +21,7 @@ import {
   type DiscoverySummary,
 } from './StudioIqDiscovery';
 import styles from './StudioIqTerminal.module.css';
-import { ProspectAgentPanel } from './ProspectAgentPanel';
+import { ProspectAgentPanel, useProspectChatWorking } from './ProspectAgentPanel';
 import type { MarketSnapshot, MarketSnapshotItem } from '../../lib/prospect-agent/market-snapshot';
 import { activeProspectWorkflow, availableProspectTourSteps, type ProspectTourScene } from '../../lib/studioiq-walkthrough';
 import { ProspectWalkthrough } from './ProspectWalkthrough';
@@ -29,6 +30,7 @@ type DiscoveryResponse = {
   generated_at_utc: string;
   total: number;
   can_favorite: boolean;
+  portfolio_count?: number;
   summary: DiscoverySummary;
   opportunities: DiscoveryOpportunity[];
 };
@@ -51,7 +53,7 @@ export function StudioIqTerminal(props: {
   canManageBilling: boolean;
   localPreview?: boolean;
   trialLocked?: boolean;
-  initialDiscovery?: Pick<DiscoveryResponse, 'opportunities' | 'summary' | 'can_favorite'>;
+  initialDiscovery?: Pick<DiscoveryResponse, 'opportunities' | 'summary' | 'can_favorite' | 'portfolio_count'>;
 }) {
   const { theme, toggleTheme } = useTheme();
   const [items, setItems] = useState<DiscoveryOpportunity[]>(props.initialDiscovery?.opportunities ?? []);
@@ -59,9 +61,22 @@ export function StudioIqTerminal(props: {
   const displayedItems = useMemo(() => [...items, ...sessionProjects], [items, sessionProjects]);
   const [summary, setSummary] = useState<DiscoverySummary | null>(props.initialDiscovery?.summary ?? null);
   const [canFavorite, setCanFavorite] = useState(props.initialDiscovery?.can_favorite ?? false);
+  const [portfolioCount, setPortfolioCount] = useState<number | undefined>(props.initialDiscovery?.portfolio_count);
   const [loading, setLoading] = useState(!props.initialDiscovery);
-  const [agentOpen, setAgentOpen] = useState(true);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const chatWorking = useProspectChatWorking();
+  const [chatAnswerReady, setChatAnswerReady] = useState(false);
+  const chatWasWorking = useRef(false);
+  useEffect(() => {
+    if (chatWorking) setChatAnswerReady(false);
+    else if (chatWasWorking.current && !agentOpen) setChatAnswerReady(true);
+    if (agentOpen) setChatAnswerReady(false);
+    chatWasWorking.current = chatWorking;
+  }, [agentOpen, chatWorking]);
   const [agentExpanded, setAgentExpanded] = useState(false);
+  const [chatFloating, setChatFloating] = useState(false);
+  const [chatPosition, setChatPosition] = useState<{ x: number; y: number } | null>(null);
+  const agentDockRef = useRef<HTMLElement>(null);
   const [agentFocus, setAgentFocus] = useState<{ id: string; sequence: number } | null>(null);
   const [pendingScene, setPendingScene] = useState<ProspectTourScene | null>(null);
   const [pendingSequence, setPendingSequence] = useState<ProspectTourScene[] | null>(null);
@@ -84,7 +99,7 @@ export function StudioIqTerminal(props: {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const tourChecked = useRef(false);
-  const tourSteps = availableProspectTourSteps({ hasProjects: items.length > 0, canFavorite });
+  const tourSteps = availableProspectTourSteps({ hasProjects: items.length > 0, canFavorite, canManagePortfolio: props.canManageBilling });
   const activeTourSteps = tourSequence ? tourSequence.map((scene) => tourSteps.find((step) => step.id === scene)).filter((step): step is (typeof tourSteps)[number] => Boolean(step)) : tourSteps;
   const tourScene = tourIndex === null ? null : activeTourSteps[tourIndex]?.id ?? null;
   const expandedLayout = agentOpen && agentExpanded && tourScene === null;
@@ -106,6 +121,7 @@ export function StudioIqTerminal(props: {
   }, [loading, props.localPreview, props.trialLocked]);
   useEffect(() => {
     if (tourScene === 'agent') { setAgentOpen(true); setAgentExpanded(false); }
+    if (tourScene === 'portfolio') setAccountMenuOpen(true);
   }, [tourScene]);
   const finishTour = useCallback((status: 'completed' | 'skipped') => {
     setTourIndex(null);
@@ -216,6 +232,7 @@ export function StudioIqTerminal(props: {
       setItems(props.initialDiscovery.opportunities);
       setSummary(props.initialDiscovery.summary);
       setCanFavorite(props.initialDiscovery.can_favorite);
+      setPortfolioCount(props.initialDiscovery.portfolio_count);
       setLoading(false);
       return;
     }
@@ -228,6 +245,7 @@ export function StudioIqTerminal(props: {
       setItems(result.opportunities);
       setSummary(result.summary);
       setCanFavorite(result.can_favorite);
+      setPortfolioCount(result.portfolio_count);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -275,6 +293,13 @@ export function StudioIqTerminal(props: {
   useEffect(() => {
     const saved = Number(window.localStorage.getItem('prospect-chat-share-v1'));
     if (saved >= 0.2 && saved <= 0.65) setChatShare(saved);
+    try {
+      const floating = JSON.parse(window.localStorage.getItem('prospect-chat-position-v1') || 'null') as { x?: number; y?: number } | null;
+      if (floating && Number.isFinite(floating.x) && Number.isFinite(floating.y)) {
+        setChatPosition({ x: floating.x!, y: floating.y! });
+        setChatFloating(true);
+      }
+    } catch { /* A corrupt preference should never hide the chat. */ }
     const observer = new ResizeObserver(([entry]) => setLayoutWidth(entry.contentRect.width));
     if (layoutRef.current) observer.observe(layoutRef.current);
     return () => observer.disconnect();
@@ -312,13 +337,76 @@ export function StudioIqTerminal(props: {
     }
   };
   const chatWidth = Math.max(320, Math.min(700, layoutWidth * chatShare, layoutWidth - 650));
+  const floatingChat = chatFloating && !expandedLayout && tourScene === null;
+  const clampChatPosition = useCallback((x: number, y: number) => {
+    const width = agentDockRef.current?.offsetWidth || Math.min(360, window.innerWidth - 20);
+    const height = agentDockRef.current?.offsetHeight || Math.min(480, window.innerHeight - 86);
+    return { x: Math.max(0, Math.min(x, window.innerWidth - width)), y: Math.max(0, Math.min(y, window.innerHeight - height)) };
+  }, []);
+  const saveChatPosition = useCallback((position: { x: number; y: number }) => {
+    const next = clampChatPosition(position.x, position.y);
+    setChatPosition(next);
+    window.localStorage.setItem('prospect-chat-position-v1', JSON.stringify(next));
+  }, [clampChatPosition]);
+  useEffect(() => {
+    if (!chatFloating) return;
+    const keepVisible = () => setChatPosition((current) => current ? clampChatPosition(current.x, current.y) : current);
+    keepVisible();
+    window.addEventListener('resize', keepVisible);
+    return () => window.removeEventListener('resize', keepVisible);
+  }, [chatFloating, clampChatPosition]);
+  const dragChat = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || tourScene || expandedLayout) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+    const rect = agentDockRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const dx = event.clientX - rect.left;
+    const dy = event.clientY - rect.top;
+    let dragging = false;
+    const onMove = (move: PointerEvent) => {
+      if ((move.buttons & 1) === 0) { onEnd(move); return; }
+      if (!dragging && Math.hypot(move.clientX - startX, move.clientY - startY) < 6) return;
+      if (!dragging) {
+        dragging = true;
+        setChatFloating(true);
+        setChatPosition(clampChatPosition(rect.left, rect.top));
+        document.body.style.userSelect = 'none';
+      }
+      setChatPosition(clampChatPosition(move.clientX - dx, move.clientY - dy));
+    };
+    const onEnd = (end: PointerEvent) => {
+      if (dragging) saveChatPosition({ x: end.clientX - dx, y: end.clientY - dy });
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+  };
+  const moveChatWithKeys = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    const movement = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] }[event.key];
+    if (!movement || tourScene) return;
+    event.preventDefault();
+    const rect = agentDockRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setChatFloating(true);
+    saveChatPosition({ x: rect.left + movement[0], y: rect.top + movement[1] });
+  };
 
   useEffect(() => {
     const closeAccountMenu = (event: PointerEvent) => {
+      if (tourScene === 'portfolio') return;
       if (!accountMenuRef.current?.contains(event.target as Node))
         setAccountMenuOpen(false);
     };
     const closeAccountMenuWithKeyboard = (event: globalThis.KeyboardEvent) => {
+      if (tourScene === 'portfolio') return;
       if (event.key === 'Escape') setAccountMenuOpen(false);
     };
     document.addEventListener('pointerdown', closeAccountMenu);
@@ -327,7 +415,7 @@ export function StudioIqTerminal(props: {
       document.removeEventListener('pointerdown', closeAccountMenu);
       document.removeEventListener('keydown', closeAccountMenuWithKeyboard);
     };
-  }, []);
+  }, [tourScene]);
 
   return (
     <div className={styles.shell} style={{ '--prospect-top-offset': '102px' } as CSSProperties}>
@@ -350,6 +438,7 @@ export function StudioIqTerminal(props: {
               className={styles.menuToggle}
               type="button"
               aria-label="Open Prospect menu"
+              data-tour-anchor="portfolio-menu"
               aria-haspopup="menu"
               aria-expanded={accountMenuOpen}
               onClick={() => setAccountMenuOpen((current) => !current)}
@@ -361,6 +450,7 @@ export function StudioIqTerminal(props: {
                 className={styles.accountPopover}
                 role="menu"
                 aria-label="Prospect navigation"
+                data-tour-active={tourScene === 'portfolio' ? 'true' : undefined}
               >
                 <div>
                   <span>Signed in</span>
@@ -374,6 +464,10 @@ export function StudioIqTerminal(props: {
                 <Link href="/prospect/account" role="menuitem">
                   <UserCircleIcon />
                   Account information
+                </Link>
+                <Link href="/prospect/portfolio" role="menuitem" data-tour-anchor="portfolio-link">
+                  <Squares2X2Icon />
+                  Firm Portfolio
                 </Link>
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); startTourScene('intro'); }}>
                   <QuestionMarkCircleIcon />
@@ -477,6 +571,7 @@ export function StudioIqTerminal(props: {
           items={displayedItems}
           summary={summary}
           canFavorite={canFavorite}
+          portfolioCount={portfolioCount}
           loading={loading}
           theme={theme}
           localPreview={props.localPreview}
@@ -486,9 +581,10 @@ export function StudioIqTerminal(props: {
           onDismissSessionProject={(id) => setSessionProjects((current) => current.filter((item) => item.opportunity_id !== id))}
         /></div>
         {expandedLayout ? <div className={styles.workspaceResize} role="separator" aria-label="Resize Prospect and chat" aria-orientation="vertical" aria-valuenow={Math.round(chatShare * 100)} aria-valuemin={20} aria-valuemax={65} tabIndex={0} onPointerDown={resizeChat} onKeyDown={onChatResizeKey} onDoubleClick={() => setChatShareSaved(0.34)} /> : null}
-        <aside className={`${styles.agentDock} ${expandedLayout ? styles.agentDockExpanded : ''} ${!agentOpen || (tourScene && tourScene !== 'agent') ? styles.agentDockTourHidden : ''}`} data-tour-anchor={agentOpen ? 'agent' : undefined} aria-label="Prospect assistant chat" aria-hidden={!agentOpen || Boolean(tourScene && tourScene !== 'agent')}><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={expandedLayout} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={closeAgent} availableScenes={tourSteps.map((step) => step.id)} onShowScene={showTourScene} onShowSequence={showTourSequence} /></aside>
+        <aside ref={agentDockRef} className={`${styles.agentDock} ${expandedLayout ? styles.agentDockExpanded : ''} ${floatingChat ? styles.agentDockFloating : ''} ${!agentOpen || (tourScene && tourScene !== 'agent') ? styles.agentDockTourHidden : ''}`} style={floatingChat && chatPosition ? { left: `${chatPosition.x}px`, top: `${chatPosition.y}px` } : undefined} data-tour-anchor={agentOpen ? 'agent' : undefined} aria-label="Prospect assistant chat" aria-hidden={!agentOpen || Boolean(tourScene && tourScene !== 'agent')} tabIndex={agentOpen && !expandedLayout ? 0 : -1} onPointerDown={dragChat} onKeyDown={moveChatWithKeys}><ProspectAgentPanel endpoint={props.localPreview ? '/api/local/prospect-agent' : '/api/products/studioiq/agent'} localLab={Boolean(props.localPreview)} expanded={expandedLayout} floating={floatingChat} onDock={() => { setChatFloating(false); setChatPosition(null); window.localStorage.removeItem('prospect-chat-position-v1'); }} onToggleExpand={() => setAgentExpanded((current) => !current)} onClose={closeAgent} availableScenes={tourSteps.map((step) => step.id)} onShowScene={showTourScene} onShowSequence={showTourSequence} /></aside>
+        {!agentOpen ? <button className={styles.agentWorkBadge} type="button" onClick={() => { setAgentOpen(true); setChatAnswerReady(false); }} aria-label={chatWorking ? 'MP is working. Open chat' : chatAnswerReady ? 'MP answer ready. Open chat' : 'Open Prospect assistant chat'} aria-live={chatWorking || chatAnswerReady ? 'polite' : undefined}><span className={`${styles.agentWorkMark} ${chatWorking ? styles.agentWorkMarkActive : chatAnswerReady ? styles.agentWorkMarkReady : ''}`} aria-hidden="true" />{chatWorking || chatAnswerReady ? <span className={styles.agentWorkDots} aria-hidden="true"><i /><i /><i /></span> : null}</button> : null}
       </div>
-      {tourIndex !== null && activeTourSteps[tourIndex] ? <ProspectWalkthrough key={activeTourSteps[tourIndex].id} step={activeTourSteps[tourIndex]} index={tourIndex} total={activeTourSteps.length} onNext={nextTourStep} onBack={() => setTourIndex((current) => current === null ? null : Math.max(0, current - 1))} onSkip={() => finishTour('skipped')} onUnavailable={nextTourStep} /> : null}
+      {tourIndex !== null && activeTourSteps[tourIndex] ? <ProspectWalkthrough step={activeTourSteps[tourIndex]} index={tourIndex} total={activeTourSteps.length} onNext={nextTourStep} onBack={() => setTourIndex((current) => current === null ? null : Math.max(0, current - 1))} onSkip={() => finishTour('skipped')} onUnavailable={nextTourStep} /> : null}
     </div>
   );
 }

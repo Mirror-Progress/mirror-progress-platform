@@ -8,6 +8,7 @@ import { ensureStudioIqWorkspaceMembership } from '../../../lib/studioiq-collabo
 import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
 import { isAdminRole } from '../../../lib/accounts';
 import { findProductEntitlement } from '../../../lib/product-commercial';
+import { portfolioOnboardingDismissed, shouldPromptForPortfolio } from '../../../lib/studioiq-portfolio-onboarding';
 import { useEffect, useState } from 'react';
 import { loadLocalProspectCatalog } from '../../../lib/prospect-agent/catalog';
 import type { DiscoveryOpportunity, DiscoverySummary } from '../../../components/studioiq/StudioIqDiscovery';
@@ -38,7 +39,7 @@ export default function StudioIqPage(props: PageProps) {
       <meta name="description" content="New project discovery for design-led practices." />
     </Head>
     <div className="relative min-h-screen">
-      <div inert={locked} aria-hidden={locked} className={locked ? 'pointer-events-none select-none blur-[18px] saturate-50' : ''}>
+      <div inert={locked ? true : undefined} aria-hidden={locked} className={locked ? 'pointer-events-none select-none blur-[18px] saturate-50' : ''}>
         <StudioIqTerminal {...props} />
       </div>
       {locked && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#09131b]/80 p-5 backdrop-blur-[22px]" role="dialog" aria-modal="true" aria-labelledby="trial-expired-title">
@@ -99,6 +100,18 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
     ensureStudioIqWorkspaceMembership(access),
     findProductEntitlement({ productId: 'studioiq', mirrorClientId: access.mirrorClientId }),
   ]);
+  if (['owner', 'admin'].includes(member.role) && (!entitlement || ['active', 'trialing'].includes(entitlement.status))) {
+    const [portfolioCount, dismissed] = await Promise.all([
+      getDb().then((db) => db.collection('studioiq_portfolio_precedents').countDocuments({
+        mirrorClientId: access.mirrorClientId, externalOrganizationId: access.externalOrganizationId,
+        status: 'active', verificationStatus: { $in: ['firm_approved', 'firm_source_verified', 'public_verified'] },
+      })),
+      portfolioOnboardingDismissed(access),
+    ]);
+    if (shouldPromptForPortfolio({ portfolioCount, canManage: true, dismissed, writable: true })) return {
+      redirect: { destination: '/prospect/portfolio?onboarding=1', permanent: false },
+    };
+  }
   return {
     props: {
       accountName: account.name || account.email,
