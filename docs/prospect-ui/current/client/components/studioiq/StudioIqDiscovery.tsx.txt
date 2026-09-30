@@ -270,6 +270,7 @@ export function StudioIqDiscovery(props: {
   const [market, setMarket] = useState('all');
   const [marketOpen, setMarketOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectionClearedByUser = useRef(false);
   useEffect(() => {
     const focus = props.agentFocus;
     if (!focus || !props.items.some((item) => item.opportunity_id === focus.id)) return;
@@ -278,6 +279,7 @@ export function StudioIqDiscovery(props: {
     setQuery('');
     setViewMode('globe');
     setSelectedId(focus.id);
+    selectionClearedByUser.current = false;
     setDossierOpen(true);
   }, [props.agentFocus, props.items]);
   useEffect(() => {
@@ -487,7 +489,7 @@ export function StudioIqDiscovery(props: {
         ? current
         : requested && visible.some((item) => item.opportunity_id === requested)
           ? requested
-        : (visible[0]?.opportunity_id ?? null)
+        : selectionClearedByUser.current ? null : (visible[0]?.opportunity_id ?? null)
     );
     if (requested && visible.some((item) => item.opportunity_id === requested)) {
       setDossierOpen(true);
@@ -879,6 +881,7 @@ export function StudioIqDiscovery(props: {
                     <div aria-label="Projects awaiting a geographic location">
                       {visible.filter((item) => !globeProjectLocation(item)).map((item) => (
                         <button key={item.opportunity_id} type="button" onClick={(event) => {
+                          selectionClearedByUser.current = false;
                           setSelectedId(item.opportunity_id);
                           setDossierOpen(true);
                           event.currentTarget.closest('details')?.removeAttribute('open');
@@ -887,13 +890,17 @@ export function StudioIqDiscovery(props: {
                     </div>
                   </details>
                 )}
-                <span className={styles.globeLegend}>
+                <span className={`${styles.globeLegend} ${styles.favoriteLegend}`}>
                   <i />
                   Favorite
                 </span>
                 <span className={styles.globeLegend}>
                   <i />
                   New project
+                </span>
+                <span className={`${styles.globeLegend} ${styles.selectedLegend}`} title="The bright ring marks the selected project; it is not a verification status">
+                  <i />
+                  Selected
                 </span>
               </div>
               <PursuitGlobe
@@ -904,26 +911,22 @@ export function StudioIqDiscovery(props: {
                 precedentId={precedentId}
                 onSelectPrecedent={setPrecedentId}
                 onSelect={(id) => {
-                  setSelectedId(id);
-                  setDossierOpen(true);
+                  if (id === selectedId) {
+                    selectionClearedByUser.current = true;
+                    setSelectedId(null);
+                    setDossierOpen(false);
+                  } else {
+                    selectionClearedByUser.current = false;
+                    setSelectedId(id);
+                    setDossierOpen(true);
+                  }
+                }}
+                onClearSelection={() => {
+                  selectionClearedByUser.current = true;
+                  setSelectedId(null);
+                  setDossierOpen(false);
                 }}
               />
-              {selected ? (
-                <div className={styles.globeSelection}>
-                  <span>
-                    {[selected.city, selected.country]
-                      .filter(Boolean)
-                      .join(', ') || 'Location pending'}
-                  </span>
-                  <strong>{selected.title}</strong>
-                  <small>
-                    {selected.private_saved || selected.session_preview ? 'Unverified project' : <>{Math.round(
-                      practiceBrief(selected)?.match_score ??
-                        selected.value_score
-                    )}{' '}Prospect score</>}
-                  </small>
-                </div>
-              ) : null}
             </div>
           </div>
         </section>

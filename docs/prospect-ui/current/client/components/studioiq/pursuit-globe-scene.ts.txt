@@ -100,6 +100,7 @@ export function createPursuitGlobeScene(
   initial: SceneState,
   callbacks: {
     select: (id: string) => void;
+    clearSelection: () => void;
     openProjects: (ids: string[]) => void;
     preview: (value: GlobePreview) => void;
     zoom: (value: number) => void;
@@ -701,6 +702,7 @@ export function createPursuitGlobeScene(
     });
 
   const pointers = new Map<number, { x: number; y: number }>();
+  const pointerStarts = new Map<number, { x: number; y: number }>();
   let pinchDistance = 0,
     lastMoveAt = 0;
   const distance = () => {
@@ -711,6 +713,7 @@ export function createPursuitGlobeScene(
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     manual();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pointerStarts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     renderer.domElement.setPointerCapture(e.pointerId);
     pinchDistance = distance();
     lastMoveAt = performance.now();
@@ -752,6 +755,9 @@ export function createPursuitGlobeScene(
     schedule();
   };
   const up = (e: PointerEvent) => {
+    const start = pointerStarts.get(e.pointerId);
+    const wasTap = Boolean(start && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6 && pointers.size === 1);
+    pointerStarts.delete(e.pointerId);
     pointers.delete(e.pointerId);
     if (renderer.domElement.hasPointerCapture(e.pointerId))
       renderer.domElement.releasePointerCapture(e.pointerId);
@@ -762,6 +768,7 @@ export function createPursuitGlobeScene(
     )
       velocityX = velocityY = 0;
     pinchDistance = distance();
+    if (wasTap && e.type === 'pointerup' && state.selectedId) callbacks.clearSelection();
     schedule();
   };
   const wheel = (e: WheelEvent) => {

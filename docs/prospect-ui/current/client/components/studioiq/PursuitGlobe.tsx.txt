@@ -17,6 +17,7 @@ export function PursuitGlobe(props: {
   selectedId: string | null;
   focusSignal?: { id: string; sequence: number } | null;
   onSelect: (id: string) => void;
+  onClearSelection?: () => void;
   precedentId?: string | null;
   onSelectPrecedent?: (id: string) => void;
 }) {
@@ -60,6 +61,7 @@ export function PursuitGlobe(props: {
         },
         {
           select: (id) => current.current.onSelect(id),
+          clearSelection: () => current.current.onClearSelection?.(),
           openProjects: (ids) => {
             returnFocus.current = document.activeElement as HTMLElement | null;
             setPreview(null);

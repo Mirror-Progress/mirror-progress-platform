@@ -22,6 +22,10 @@ To refresh a snapshot, copy the corresponding file from `identity-release/client
 | Chat reload | Reload reopened the full assistant panel | Main Prospect initializes chat minimized; the corner MP logo remains available, with dots only for working/answer-ready states | TypeScript/build and service health passed |
 | Portfolio walkthrough | Text behind the highlighted menu item showed through; hover glow was offset/clipped; label used lowercase “portfolio” | Tour menu uses an opaque surface, pauses its entrance animation while measured, removes target hover translation, tightens/centers its ring, and labels “Firm Portfolio” | TypeScript/build and service health passed; exact visual review of this tour step still needs a stable local or production browser session |
 
+## Globe UI QA: September 29, 2026
+
+GaMarry’s annotated screenshots showed a redundant selected-project card obscuring the globe, no clear way to deselect a marker, an ambiguous marker glow, an awaiting-location menu with weak active feedback, and a floating MP icon that covered source text. The deployed source removes the extra card, lets a user clear selection by tapping the selected marker or empty globe, labels the selected state, improves the awaiting-location menu’s open state and spacing, and makes the minimized MP icon smaller and translucent. Selection is preserved during globe dragging. TypeScript, the production build, and a local empty-globe deselection check passed. The exact mobile overlap and whether awaiting-location should become a side list remain design questions.
+
 ## Product checks worth repeating
 
 - Reload Discovery with a closed chat: the corner icon appears, the full panel stays closed, and opening it restores the conversation.

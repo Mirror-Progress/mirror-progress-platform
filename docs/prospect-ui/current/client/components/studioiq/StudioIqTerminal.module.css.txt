@@ -2904,7 +2904,7 @@
 .agentDock:not(.agentDockExpanded) { cursor: grab; }
 .agentDock:not(.agentDockExpanded):active { cursor: grabbing; }
 .agentDock input, .agentDock textarea { cursor: text; }
-.agentWorkBadge { position:fixed; right:max(18px,env(safe-area-inset-right)); bottom:max(18px,env(safe-area-inset-bottom)); z-index:76; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:56px; height:56px; padding:5px; border:1px solid rgba(190,225,173,.36); border-radius:15px; background:rgba(21,34,25,.9); box-shadow:0 14px 36px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.1); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); cursor:pointer; }
+.agentWorkBadge { position:fixed; right:max(18px,env(safe-area-inset-right)); bottom:max(18px,env(safe-area-inset-bottom)); z-index:76; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:48px; height:48px; padding:5px; border:1px solid rgba(190,225,173,.2); border-radius:13px; background:rgba(21,34,25,.38); box-shadow:0 5px 18px rgba(0,0,0,.12); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); cursor:pointer; }
 .agentWorkBadge:hover { border-color:rgba(205,241,174,.7); background:rgba(30,49,33,.95); }
 .agentWorkBadge:focus-visible { outline:2px solid #c8f469; outline-offset:3px; }
 .agentWorkMark { position:relative; display:block; width:29px; height:27px; flex:none; background:#c8eaa5; -webkit-mask:url('/images/White.svg') center / contain no-repeat; mask:url('/images/White.svg') center / contain no-repeat; }
@@ -2916,7 +2916,7 @@
 .agentWorkBadge:has(.agentWorkMarkReady) .agentWorkDots i { animation:none; opacity:.8; }
 @keyframes agentWorkBreathe { 0%,100% { opacity:.72; } 50% { opacity:1; } }
 @keyframes agentWorkBlink { 0%,72%,100% { opacity:.2; transform:scale(.75); } 30% { opacity:1; transform:scale(1.18); } }
-:global(:root[data-theme='light']) .agentWorkBadge { border-color:rgba(42,93,49,.22); background:rgba(251,254,249,.93); box-shadow:0 12px 30px rgba(24,57,29,.14),inset 0 1px #fff; }
+:global(:root[data-theme='light']) .agentWorkBadge { border-color:rgba(42,93,49,.16); background:rgba(251,254,249,.42); box-shadow:0 5px 18px rgba(24,57,29,.08); }
 :global(:root[data-theme='light']) .agentWorkBadge:hover { border-color:rgba(42,93,49,.5); background:#fff; }
 :global(:root[data-theme='light']) .agentWorkMark,:global(:root[data-theme='light']) .agentWorkDots i { background:#37653c; }
 @media(max-width:500px) { .agentWorkBadge { right:max(10px,env(safe-area-inset-right)); bottom:max(10px,env(safe-area-inset-bottom)); } }
