@@ -175,3 +175,4 @@
 :global(:root[data-theme='light']) .historyItem small,:global(:root[data-theme='light']) .history p{color:#6b806d}
 :global(:root[data-theme='light']) .recovery{color:#284b31;background:#e7f0e4;border-color:#b8d2b7}
 :global(:root[data-theme='light']) .recovery button{color:#235b32;background:#fff;border-color:#98bd98}
+.header{touch-action:none;user-select:none;-webkit-user-select:none}

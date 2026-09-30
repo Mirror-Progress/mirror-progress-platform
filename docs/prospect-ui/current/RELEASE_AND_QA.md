@@ -26,6 +26,10 @@ To refresh a snapshot, copy the corresponding file from `identity-release/client
 
 GaMarry’s annotated screenshots showed a redundant selected-project card obscuring the globe, no clear way to deselect a marker, an ambiguous marker glow, an awaiting-location menu with weak active feedback, and a floating MP icon that covered source text. The deployed source removes the extra card, lets a user clear selection by tapping the selected marker or empty globe, labels the selected state, improves the awaiting-location menu’s open state and spacing, and makes the minimized MP icon smaller and translucent. Selection is preserved during globe dragging. TypeScript, the production build, and a local empty-globe deselection check passed. The exact mobile overlap and whether awaiting-location should become a side list remain design questions.
 
+## iPad touch QA: September 29, 2026
+
+The globe now owns touch gestures and disables native text selection inside its viewport, preventing finger rotation from selecting page text. The floating chat accepts touch dragging from its header while leaving conversation scrolling available. Pointer tracking uses the active touch identifier instead of mouse-button state. TypeScript, focused lint, the production build, and the local Prospect route passed; physical iPad gesture verification is still pending.
+
 ## Product checks worth repeating
 
 - Reload Discovery with a closed chat: the corner icon appears, the full panel stays closed, and opening it restores the conversation.

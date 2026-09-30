@@ -359,15 +359,19 @@ export function StudioIqTerminal(props: {
     if (event.button !== 0 || tourScene || expandedLayout) return;
     const target = event.target as HTMLElement;
     if (target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+    // Touch dragging starts on the header so the conversation can still scroll.
+    if (event.pointerType === 'touch' && !target.closest('header')) return;
     const rect = agentDockRef.current?.getBoundingClientRect();
     if (!rect) return;
+    if (event.pointerType === 'touch') event.currentTarget.setPointerCapture(event.pointerId);
     const startX = event.clientX;
     const startY = event.clientY;
     const dx = event.clientX - rect.left;
     const dy = event.clientY - rect.top;
     let dragging = false;
     const onMove = (move: PointerEvent) => {
-      if ((move.buttons & 1) === 0) { onEnd(move); return; }
+      if (move.pointerId !== event.pointerId) return;
+      if (move.pointerType === 'mouse' && (move.buttons & 1) === 0) { onEnd(move); return; }
       if (!dragging && Math.hypot(move.clientX - startX, move.clientY - startY) < 6) return;
       if (!dragging) {
         dragging = true;
@@ -378,8 +382,10 @@ export function StudioIqTerminal(props: {
       setChatPosition(clampChatPosition(move.clientX - dx, move.clientY - dy));
     };
     const onEnd = (end: PointerEvent) => {
+      if (end.pointerId !== event.pointerId) return;
       if (dragging) saveChatPosition({ x: end.clientX - dx, y: end.clientY - dy });
       document.body.style.userSelect = '';
+      if (agentDockRef.current?.hasPointerCapture(event.pointerId)) agentDockRef.current.releasePointerCapture(event.pointerId);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
