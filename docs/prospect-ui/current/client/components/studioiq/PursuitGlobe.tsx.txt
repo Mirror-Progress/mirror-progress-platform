@@ -258,7 +258,7 @@ export function PursuitGlobe(props: {
           : 'Select a cluster to zoom · shared locations open all projects'}
       </span>
       <p id={id} className={styles.accessibleContext}>
-        Drag to rotate. Scroll or pinch to zoom. Arrow keys rotate; plus and
+        Drag or swipe with two fingers to rotate. Pinch to zoom. Arrow keys rotate; plus and
         minus zoom; zero fits the globe. Page Up and Page Down select projects.
         Tab to inspect visible markers. Coastlines and boundaries provide
         geographic context only.

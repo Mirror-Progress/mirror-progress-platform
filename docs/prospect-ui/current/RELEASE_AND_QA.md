@@ -28,7 +28,11 @@ GaMarry’s annotated screenshots showed a redundant selected-project card obscu
 
 ## iPad touch QA: September 29, 2026
 
-The globe now owns touch gestures and disables native text selection inside its viewport, preventing finger rotation from selecting page text. The floating chat accepts touch dragging from its header while leaving conversation scrolling available. Pointer tracking uses the active touch identifier instead of mouse-button state. TypeScript, focused lint, the production build, and the local Prospect route passed; physical iPad gesture verification is still pending.
+The globe now owns touch gestures and disables native text selection inside its viewport, preventing finger rotation from selecting page text. The floating chat accepts touch dragging from its header while leaving conversation scrolling available. Pointer tracking uses the active touch identifier instead of mouse-button state. TypeScript, focused lint, the production build, and the local Prospect route passed; the owner subsequently verified the improvement on iPad.
+
+## Trackpad globe navigation: September 29, 2026
+
+Pixel-resolution two-finger trackpad swipes over the globe now rotate it without a click. Browser pinch gestures retain zoom, as do line/page wheel events and the zoom controls. The on-screen guidance matches the new gesture. TypeScript, focused lint, and the local Prospect route passed before release; physical trackpad behavior should be checked after deployment.
 
 ## Product checks worth repeating
 

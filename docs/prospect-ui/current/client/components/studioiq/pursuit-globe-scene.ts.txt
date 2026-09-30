@@ -775,6 +775,16 @@ export function createPursuitGlobeScene(
     if ((e.target as Element).closest('[data-project-picker]')) return;
     e.preventDefault();
     manual();
+    // Pixel-resolution wheel events are trackpad swipes. Browser pinch gestures
+    // also arrive as wheel events, but carry ctrlKey and should keep zooming.
+    if (e.deltaMode === 0 && !e.ctrlKey) {
+      rotate(
+        (THREE.MathUtils.clamp(e.deltaY, -100, 100) * 0.003) / Math.sqrt(zoom),
+        (THREE.MathUtils.clamp(e.deltaX, -100, 100) * 0.004) / Math.sqrt(zoom)
+      );
+      schedule();
+      return;
+    }
     const rect = host.getBoundingClientRect();
     const ray = new THREE.Raycaster();
     ray.setFromCamera(
