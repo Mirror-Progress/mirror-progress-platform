@@ -1,0 +1,84 @@
+{
+  "files": [
+    {
+      "path": "components/studioiq/StudioIqTerminal.tsx",
+      "sha256": "27d58a1932bd3ed2c40baddbe327e8bcf47c7a372fa3aebd54b3a92348a697df",
+      "bytes": 10284
+    },
+    {
+      "path": "components/studioiq/StudioIqTerminal.module.css",
+      "sha256": "59fcdd81f9cc8cac72d57c99fb9723f9c0dc8b827889894106103cac3a32f4d4",
+      "bytes": 70273
+    },
+    {
+      "path": "components/studioiq/StudioIqDiscovery.tsx",
+      "sha256": "11b75c4580b4b476157dbc79f1fb35e379af5cb43fd4c8dc613c97a73453d030",
+      "bytes": 45632
+    },
+    {
+      "path": "components/studioiq/StudioIqDiscovery.module.css",
+      "sha256": "169643421cb15df80bfb5913877a218ba1d862bdd444a7a89fbcd2e58b63f729",
+      "bytes": 34564
+    },
+    {
+      "path": "components/studioiq/ProspectAgentPanel.tsx",
+      "sha256": "36d28bd12767e01e7a5dec3bc1e9bb36000d5c5b55ff1cfdb03dc0e2fd2097bc",
+      "bytes": 8992
+    },
+    {
+      "path": "components/studioiq/ProspectAgentPanel.module.css",
+      "sha256": "7c561afcbb83860a710f4d8514645c4317d3d2109ccc43a1a1f7a3707d4c0a41",
+      "bytes": 12430
+    },
+    {
+      "path": "lib/prospect-agent/catalog.ts",
+      "sha256": "e8b58699d2bd38c3ff88d9063c565f1978986a5e7dc9a34483a8f5f84f5d0487",
+      "bytes": 5940
+    },
+    {
+      "path": "lib/prospect-agent/run.ts",
+      "sha256": "daa7be8853b6ec2b61eec661ccd002c2f7135f4794797e09e9eaed567ddcfae8",
+      "bytes": 9075
+    },
+    {
+      "path": "lib/prospect-agent/http.ts",
+      "sha256": "6bdfee946eded244e35633e5079c5a9c031aab580bc0f298f9be5fe5fdec1d25",
+      "bytes": 1875
+    },
+    {
+      "path": "pages/api/products/studioiq/agent.ts",
+      "sha256": "5cdc8cc3950b2cc7c7237b96f0a885c22545cdc4d23ecbf1c360e806f3607848",
+      "bytes": 824
+    },
+    {
+      "path": "pages/api/local/prospect-agent.ts",
+      "sha256": "1cbded6ab120f5b308677deb118167122292f1f23bb52b3e84da0474b362fcbf",
+      "bytes": 681
+    },
+    {
+      "path": "pages/apps/studioiq/index.tsx",
+      "sha256": "b25f166bc3da6de0a5667f69ef5a9ede7a7ca48527ebf378bce859fc24928993",
+      "bytes": 4681
+    },
+    {
+      "path": "middleware.ts",
+      "sha256": "eab66b64942cd8b074dba782e31b035515532107ab941c7b054452c5f8e02a55",
+      "bytes": 5850
+    },
+    {
+      "path": "lib/studioiq-product-auth.ts",
+      "sha256": "e7ceb353826208b127ca504976dbac2174199b3552d276bc149f50f1aa441921",
+      "bytes": 10314
+    },
+    {
+      "path": "pages/_app.tsx",
+      "sha256": "462e83d5a759c3429b7b3c7315b40fb1db41a361e5daaa1b9f355fe349721f56",
+      "bytes": 2741
+    },
+    {
+      "path": "public/images/mirror-progress-wordmark.svg",
+      "sha256": "7064fc31b2e35686cc45ac9556e92a6854e964469b44ae2c2e40e64d4c7158ca",
+      "bytes": 3883
+    }
+  ]
+}

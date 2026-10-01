@@ -1,0 +1,15 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
+import { loadWorkspaceProspectCatalog } from '../../../../lib/prospect-agent/catalog';
+import { streamProspectAgent } from '../../../../lib/prospect-agent/http';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const access = await requireStudioIqProductAccess(req, res, { readOnlyAction: true });
+  if (!access?.mirrorClientId) return;
+  try {
+    return await streamProspectAgent(req, res, await loadWorkspaceProspectCatalog(access));
+  } catch {
+    return res.status(503).json({ error: 'Prospect projects are temporarily unavailable.' });
+  }
+}

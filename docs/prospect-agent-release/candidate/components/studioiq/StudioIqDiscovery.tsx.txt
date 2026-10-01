@@ -1,0 +1,1193 @@
+import dynamic from 'next/dynamic';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ClockIcon,
+  GlobeAltIcon,
+  HeartIcon,
+  ListBulletIcon,
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  SparklesIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
+import type { GlobeOpportunity } from './PursuitGlobe';
+import {
+  relatedGlobeProjects,
+  type GlobePrecedent,
+} from '../../lib/studioiq-globe-context';
+import { globeProjectLocation } from '../../lib/studioiq-globe-location';
+import { resolvePortfolioGlobeLocation } from '../../lib/studioiq-location';
+import styles from './StudioIqDiscovery.module.css';
+
+const PursuitGlobe = dynamic(
+  () => import('./PursuitGlobe').then((module) => module.PursuitGlobe),
+  { ssr: false }
+);
+
+type DossierTab = 'overview' | 'practice' | 'sources';
+const dossierTabs: Array<[DossierTab, string]> = [
+  ['overview', 'Overview'],
+  ['practice', 'Practice fit'],
+  ['sources', 'Sources'],
+];
+function ExpandableText({
+  text,
+  label = 'Read full explanation',
+}: {
+  text: string;
+  label?: string;
+}) {
+  if (text.length <= 240) return <p>{text}</p>;
+  const boundary = text.lastIndexOf(' ', 220);
+  return (
+    <>
+      <p className={styles.excerpt}>
+        {text.slice(0, boundary > 100 ? boundary : 220)}…
+      </p>
+      <details className={styles.explanation}>
+        <summary>{label}</summary>
+        <p>{text}</p>
+      </details>
+    </>
+  );
+}
+
+type Collaborator = {
+  member_id: string;
+  external_user_id: string;
+  display_name: string;
+};
+type ViewMode = 'list' | 'globe';
+type Filter = 'all' | 'favorites' | 'recommended' | 'closing';
+
+export type DiscoveryOpportunity = {
+  opportunity_id: string;
+  mirror_canonical_id: string;
+  title: string;
+  description: string;
+  buyer_name: string | null;
+  country: string | null;
+  city: string | null;
+  project_type: string | null;
+  deadline: string | null;
+  first_published_at: string | null;
+  discovery_class: string;
+  value_score: number;
+  value_reasons: string[];
+  evidence_count: number;
+  authority_level: string;
+  last_verified_at: string | null;
+  location: {
+    latitude: number;
+    longitude: number;
+    coordinate_method: string;
+    coordinate_confidence: string;
+  } | null;
+  provenance: Array<{
+    evidence_id: string;
+    evidence_text: string;
+    value: string;
+    source_url: string;
+    source_authority: string;
+    captured_at: string;
+    language: string;
+  }>;
+  collaboration: {
+    current_user_flagged: boolean;
+    flagged_by: Collaborator[];
+    last_viewed_by: (Collaborator & { viewed_at: string }) | null;
+  } | null;
+  pursuit_brief: {
+    match_score: number;
+    summary: string;
+    strategic_rationale: string[];
+    precedent_matches?: Array<{
+      precedentId: string;
+      matchReasons: string[];
+      relationshipType: string;
+      evidenceIds: string[];
+    }>;
+    precedents: Array<{
+      precedent_id: string;
+      name: string;
+      summary: string;
+      location: string | null;
+      featured_image_url: string | null;
+      verification_status?: string;
+      source_status?: string | null;
+      source_url?: string | null;
+    }>;
+  } | null;
+};
+
+export type DiscoverySummary = {
+  total: number;
+  favorites: number;
+  team_favorites: number;
+  niche: number;
+  mapped: number;
+  markets: number;
+  freshness_window_days: number;
+};
+
+const filters: Array<[Filter, string]> = [
+  ['all', 'All projects'],
+  ['favorites', 'Favorites'],
+  ['recommended', 'Recommended'],
+  ['closing', 'Closing'],
+];
+
+function priorityScore(item: DiscoveryOpportunity) {
+  const match = item.pursuit_brief?.match_score ?? 0;
+  const published = Date.parse(item.first_published_at ?? '') || 0;
+  const ageDays = published
+    ? Math.max(0, (Date.now() - published) / 86_400_000)
+    : 45;
+  return (
+    item.value_score * 0.55 +
+    match * 0.35 +
+    Math.max(0, 100 - ageDays * 2.2) * 0.1
+  );
+}
+
+function relativeTime(value: string | null) {
+  if (!value) return 'Timing unconfirmed';
+  const timestamp = Date.parse(value);
+  if (!timestamp) return 'Timing unconfirmed';
+  const days = Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+  return days === 0 ? 'Today' : days === 1 ? '1 day ago' : `${days} days ago`;
+}
+
+function dateLabel(value: string | null) {
+  if (!value) return 'Open timing';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Open timing';
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
+function displayLabel(value: string | null, fallback = 'Project type pending') {
+  const normalized = value?.trim();
+  if (!normalized) return fallback;
+  return `${normalized.charAt(0).toLocaleUpperCase()}${normalized.slice(1)}`;
+}
+
+function closingSoon(item: DiscoveryOpportunity) {
+  if (!item.deadline) return false;
+  const days = (Date.parse(item.deadline) - Date.now()) / 86_400_000;
+  return days >= 0 && days <= 14;
+}
+
+export function StudioIqDiscovery(props: {
+  items: DiscoveryOpportunity[];
+  summary: DiscoverySummary | null;
+  canFavorite: boolean;
+  loading: boolean;
+  theme: 'dark' | 'light';
+  onReload: () => Promise<void>;
+}) {
+  const [dossierTab, setDossierTab] = useState<DossierTab>('overview');
+  const dossierId = useId();
+  const dossierScroll = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const [workspaceWidth, setWorkspaceWidth] = useState(1200);
+  const [browserShare, setBrowserShare] = useState(0.52);
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem('prospect-browser-share-v1'));
+    if (saved >= 0.3 && saved <= 0.7) setBrowserShare(saved);
+    const observer = new ResizeObserver(([entry]) => setWorkspaceWidth(entry.contentRect.width));
+    if (workspaceRef.current) observer.observe(workspaceRef.current);
+    return () => observer.disconnect();
+  }, []);
+  const saveBrowserShare = (share: number) => {
+    const next = Math.max(0.3, Math.min(0.7, share));
+    setBrowserShare(next);
+    window.localStorage.setItem('prospect-browser-share-v1', String(next));
+  };
+  const resizeBrowser = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    const onMove = (move: PointerEvent) => {
+      const rect = workspaceRef.current?.getBoundingClientRect();
+      if (rect) saveBrowserShare((move.clientX - rect.left) / rect.width);
+    };
+    const onEnd = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onEnd);
+      handle.removeEventListener('pointercancel', onEnd);
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onEnd);
+    handle.addEventListener('pointercancel', onEnd);
+  };
+  const onBrowserResizeKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      saveBrowserShare(browserShare + (event.key === 'ArrowRight' ? 0.025 : -0.025));
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      saveBrowserShare(event.key === 'Home' ? 0.3 : 0.7);
+    }
+  };
+  const browserWidth = Math.max(280, Math.min(workspaceWidth - 290, workspaceWidth * browserShare));
+  const [viewMode, setViewMode] = useState<ViewMode>('globe');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const [market, setMarket] = useState('all');
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dossierOpen, setDossierOpen] = useState(false);
+  useEffect(() => {
+    if (dossierScroll.current) dossierScroll.current.scrollTop = 0;
+  }, [selectedId, dossierTab]);
+  const [precedentId, setPrecedentId] = useState<string | null>(null);
+  useEffect(() => {
+    setPrecedentId(null);
+  }, [selectedId]);
+  const [favoriteMutation, setFavoriteMutation] = useState('');
+  const [favoriteOverrides, setFavoriteOverrides] = useState<
+    Record<string, boolean>
+  >({});
+  const [error, setError] = useState('');
+  const marketPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const closeMarketPicker = (event: PointerEvent) => {
+      if (!marketPickerRef.current?.contains(event.target as Node))
+        setMarketOpen(false);
+    };
+    const closeMarketPickerWithKeyboard = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setMarketOpen(false);
+    };
+    document.addEventListener('pointerdown', closeMarketPicker);
+    document.addEventListener('keydown', closeMarketPickerWithKeyboard);
+    return () => {
+      document.removeEventListener('pointerdown', closeMarketPicker);
+      document.removeEventListener('keydown', closeMarketPickerWithKeyboard);
+    };
+  }, []);
+
+  const selectView = (mode: ViewMode) => {
+    setViewMode(mode);
+  };
+
+  const selectMetric = (nextFilter: Filter) => {
+    setFilter(nextFilter);
+    setMarket('all');
+  };
+
+  const openMarketPicker = () => {
+    setMarketOpen(true);
+    window.requestAnimationFrame(() => {
+      marketPickerRef.current
+        ?.querySelector<HTMLButtonElement>('button')
+        ?.focus();
+    });
+  };
+
+  const isFavorite = (item: DiscoveryOpportunity) =>
+    favoriteOverrides[item.opportunity_id] ??
+    item.collaboration?.current_user_flagged ??
+    false;
+
+  const markets = useMemo(
+    () =>
+      Array.from(
+        new Set(props.items.map((item) => item.country).filter(Boolean))
+      ).sort() as string[],
+    [props.items]
+  );
+
+  const visible = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return props.items
+      .filter((item) => filter !== 'favorites' || isFavorite(item))
+      .filter(
+        (item) => filter !== 'recommended' || item.discovery_class === 'niche'
+      )
+      .filter((item) => filter !== 'closing' || closingSoon(item))
+      .filter((item) => market === 'all' || item.country === market)
+      .filter(
+        (item) =>
+          !normalized ||
+          [
+            item.title,
+            item.description,
+            item.buyer_name,
+            item.city,
+            item.country,
+            item.project_type,
+          ]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalized)
+      )
+      .sort((a, b) => priorityScore(b) - priorityScore(a));
+    // favoriteOverrides intentionally participates through isFavorite.
+  }, [favoriteOverrides, filter, market, props.items, query]);
+
+  const mapped = useMemo(
+    () => visible.flatMap((item) => {
+      const location = globeProjectLocation(item);
+      return location ? [{ ...item, location }] : [];
+    }),
+    [visible]
+  );
+  const globeOpportunities = useMemo<GlobeOpportunity[]>(
+    () =>
+      mapped.map((item) => ({
+        id: item.opportunity_id,
+        title: item.title,
+        country: item.country ?? 'Location pending',
+        city: item.city,
+        projectType: displayLabel(item.project_type),
+        latitude: item.location?.latitude ?? 0,
+        longitude: item.location?.longitude ?? 0,
+        value: item.value_score,
+        active: isFavorite(item),
+        buyer: item.buyer_name,
+        coordinateMethod: item.location?.coordinate_method,
+        coordinateConfidence: item.location?.coordinate_confidence,
+        precedents: (item.pursuit_brief?.precedents ?? []).flatMap(
+          (precedent): GlobePrecedent[] => {
+            const location = resolvePortfolioGlobeLocation(precedent.location);
+            const match = item.pursuit_brief?.precedent_matches?.find(
+              (m) => m.precedentId === precedent.precedent_id
+            );
+            if (
+              !location ||
+              !match?.matchReasons.length ||
+              !match.evidenceIds.length ||
+              ![
+                'public_verified',
+                'firm_source_verified',
+                'firm_approved',
+              ].includes(precedent.verification_status ?? '')
+            )
+              return [];
+            return [
+              {
+                id: precedent.precedent_id,
+                name: precedent.name,
+                location: precedent.location ?? '',
+                latitude: location.latitude,
+                longitude: location.longitude,
+                coordinateMethod: location.coordinate_method,
+                reasons: match.matchReasons,
+                sourceUrl: precedent.source_url ?? null,
+                relationship:
+                  precedent.source_status === 'Completed'
+                    ? 'Completed precedent'
+                    : (precedent.source_status ?? 'Design analogue'),
+              },
+            ];
+          }
+        ),
+        // favoriteOverrides intentionally participates through isFavorite.
+      })),
+    [favoriteOverrides, mapped]
+  );
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const requested = query.get('opportunity');
+    setSelectedId((current) =>
+      current && visible.some((item) => item.opportunity_id === current)
+        ? current
+        : requested && visible.some((item) => item.opportunity_id === requested)
+          ? requested
+        : (visible[0]?.opportunity_id ?? null)
+    );
+    if (requested && visible.some((item) => item.opportunity_id === requested)) {
+      setDossierOpen(true);
+      if (query.get('tab') === 'sources') setDossierTab('sources');
+    }
+  }, [visible]);
+
+  const selected =
+    props.items.find((item) => item.opportunity_id === selectedId) ?? null;
+  const selectedGlobe = globeOpportunities.find(
+    (item) => item.id === selectedId
+  );
+  const nearby = selectedGlobe
+    ? relatedGlobeProjects(selectedGlobe, globeOpportunities)
+    : [];
+  const inspectedPrecedent = selectedGlobe?.precedents?.find(
+    (p) => p.id === precedentId
+  );
+  const favoriteCount = props.items.filter(isFavorite).length;
+  const counts: Record<Filter, number> = {
+    all: props.items.length,
+    favorites: favoriteCount,
+    recommended: props.items.filter((item) => item.discovery_class === 'niche')
+      .length,
+    closing: props.items.filter(closingSoon).length,
+  };
+
+  const toggleFavorite = async (item: DiscoveryOpportunity) => {
+    if (!props.canFavorite || favoriteMutation) return;
+    const previous = isFavorite(item);
+    const next = !previous;
+    setFavoriteOverrides((current) => ({
+      ...current,
+      [item.opportunity_id]: next,
+    }));
+    setFavoriteMutation(item.opportunity_id);
+    setError('');
+    try {
+      const response = await fetch(
+        `/api/products/studioiq/opportunities/${encodeURIComponent(item.opportunity_id)}/collaboration`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            event_type: next ? 'flagged' : 'unflagged',
+            idempotency_key: crypto.randomUUID(),
+          }),
+        }
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(body.error || 'Unable to update this favorite.');
+      await props.onReload();
+      setFavoriteOverrides((current) => {
+        const copy = { ...current };
+        delete copy[item.opportunity_id];
+        return copy;
+      });
+    } catch (reason) {
+      setFavoriteOverrides((current) => ({
+        ...current,
+        [item.opportunity_id]: previous,
+      }));
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Unable to update this favorite.'
+      );
+    } finally {
+      setFavoriteMutation('');
+    }
+  };
+
+  return (
+    <main className={styles.discovery}>
+      <section className={styles.analyticsBar} aria-label="Discovery analytics">
+        <div className={styles.analyticsIntro}>
+          <span>Live project intelligence</span>
+          <strong>New projects matched to your firm</strong>
+          <small>Verified opportunities ranked by score and recency.</small>
+        </div>
+        <button
+          className={`${styles.metric} ${styles.metricNew}`}
+          type="button"
+          aria-pressed={filter === 'all' && market === 'all'}
+          onClick={() => selectMetric('all')}
+        >
+          <strong>{props.summary?.total ?? '—'}</strong>
+          <span>New projects</span>
+        </button>
+        <button
+          className={`${styles.metric} ${styles.metricFavorites}`}
+          type="button"
+          aria-pressed={filter === 'favorites'}
+          onClick={() => selectMetric('favorites')}
+        >
+          <strong>{favoriteCount}</strong>
+          <span>Favorites</span>
+        </button>
+        <button
+          className={`${styles.metric} ${styles.metricMarkets}`}
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={marketOpen}
+          onClick={openMarketPicker}
+        >
+          <strong>{props.summary?.markets ?? '—'}</strong>
+          <span>Markets</span>
+        </button>
+        <button
+          className={`${styles.metric} ${styles.metricRecommended}`}
+          type="button"
+          aria-pressed={filter === 'recommended'}
+          onClick={() => selectMetric('recommended')}
+        >
+          <strong>{props.summary?.niche ?? '—'}</strong>
+          <span>Recommended</span>
+        </button>
+        <div
+          className={styles.viewToggle}
+          data-view={viewMode}
+          role="group"
+          aria-label="Discovery view"
+        >
+          <i aria-hidden="true" />
+          <button
+            type="button"
+            aria-pressed={viewMode === 'globe'}
+            onClick={() => selectView('globe')}
+          >
+            <GlobeAltIcon />
+            Globe
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === 'list'}
+            onClick={() => selectView('list')}
+          >
+            <ListBulletIcon />
+            List
+          </button>
+        </div>
+      </section>
+
+      <section ref={workspaceRef} className={styles.workspace} style={{ '--prospect-browser-width': `${browserWidth}px` } as CSSProperties}>
+        <section
+          className={styles.browser}
+          aria-label="Project discovery browser"
+        >
+          <header className={styles.browserHeader}>
+            <div className={styles.search}>
+              <MagnifyingGlassIcon aria-hidden="true" />
+              <input
+                aria-label="Search new projects"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search projects, clients, places, or types"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                >
+                  <XMarkIcon />
+                </button>
+              ) : null}
+            </div>
+            <div className={styles.marketPicker} ref={marketPickerRef}>
+              <button
+                type="button"
+                className={styles.marketTrigger}
+                aria-haspopup="menu"
+                aria-expanded={marketOpen}
+                onClick={() => setMarketOpen((current) => !current)}
+              >
+                <span>{market === 'all' ? 'All markets' : market}</span>
+                <ChevronDownIcon aria-hidden="true" />
+              </button>
+              {marketOpen ? (
+                <div
+                  className={styles.marketMenu}
+                  role="menu"
+                  aria-label="Project markets"
+                >
+                  {['all', ...markets].map((item) => {
+                    const active = market === item;
+                    const label = item === 'all' ? 'All markets' : item;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setMarket(item);
+                          setMarketOpen(false);
+                        }}
+                      >
+                        <span>{label}</span>
+                        {active ? <CheckIcon aria-hidden="true" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            <button
+              className={styles.refresh}
+              type="button"
+              onClick={() => void props.onReload()}
+              disabled={props.loading}
+              aria-label="Refresh project discovery"
+            >
+              <ArrowPathIcon />
+            </button>
+          </header>
+
+          <div
+            className={styles.filters}
+            role="tablist"
+            aria-label="Project filters"
+          >
+            {filters.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={filter === id}
+                onClick={() => setFilter(id)}
+              >
+                {label}
+                <i>{counts[id]}</i>
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.viewStage} data-view={viewMode}>
+            <div className={styles.listPanel} aria-hidden={viewMode !== 'list'}>
+              <div className={styles.listHeader}>
+                <span>{visible.length} projects</span>
+                <span>Ranked by score and recency</span>
+              </div>
+              <div
+                className={styles.queue}
+                role="list"
+                aria-label="New projects"
+              >
+                {props.loading ? (
+                  <div className={styles.empty}>Resolving new projects…</div>
+                ) : (
+                  visible.map((item, index) => (
+                    <article
+                      key={item.opportunity_id}
+                      role="listitem"
+                      className={
+                        selectedId === item.opportunity_id
+                          ? styles.selected
+                          : ''
+                      }
+                    >
+                      <button
+                        className={styles.projectSelect}
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(item.opportunity_id);
+                          setDossierOpen(true);
+                        }}
+                        aria-current={
+                          selectedId === item.opportunity_id
+                            ? 'true'
+                            : undefined
+                        }
+                      >
+                        <span className={styles.rank}>
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <div>
+                          <span className={styles.itemMeta}>
+                            {relativeTime(item.first_published_at)} ·{' '}
+                            {[item.city, item.country]
+                              .filter(Boolean)
+                              .join(', ') || 'Location pending'}
+                          </span>
+                          <strong>{item.title}</strong>
+                          <small>
+                            {item.pursuit_brief?.precedents[0]
+                              ? `Matches ${item.pursuit_brief.precedents[0].name}`
+                              : displayLabel(item.project_type)}
+                          </small>
+                          <span className={styles.tags}>
+                            {item.discovery_class === 'niche' ? (
+                              <i>Recommended</i>
+                            ) : null}
+                            {closingSoon(item) ? <i>Closing</i> : null}
+                          </span>
+                        </div>
+                        <span className={styles.fit}>
+                          {Math.round(
+                            item.pursuit_brief?.match_score ?? item.value_score
+                          )}
+                          <small>Score</small>
+                        </span>
+                      </button>
+                      <button
+                        className={`${styles.favoriteButton} ${isFavorite(item) ? styles.favoriteActive : ''}`}
+                        type="button"
+                        disabled={
+                          !props.canFavorite ||
+                          favoriteMutation === item.opportunity_id
+                        }
+                        onClick={() => void toggleFavorite(item)}
+                        aria-label={`${isFavorite(item) ? 'Remove' : 'Add'} ${item.title} ${isFavorite(item) ? 'from' : 'to'} favorites`}
+                        title={
+                          props.canFavorite
+                            ? 'Favorite project'
+                            : 'Your role has read-only access'
+                        }
+                      >
+                        <HeartIcon />
+                      </button>
+                    </article>
+                  ))
+                )}
+                {!props.loading && !visible.length ? (
+                  <div className={styles.empty}>
+                    <SparklesIcon />
+                    <strong>No projects match this view.</strong>
+                    <span>Adjust the search or filter to widen the field.</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div
+              className={styles.globePanel}
+              data-theme={props.theme}
+              aria-hidden={viewMode !== 'globe'}
+            >
+              <div className={styles.globeMeta}>
+                <span>
+                  <MapPinIcon />
+                  {mapped.length} mapped projects
+                  {mapped.some((item) => item.location.coordinate_method === 'country_centroid') && ' · includes country markers'}
+                </span>
+                {visible.length > mapped.length && (
+                  <details className={styles.unlocatedProjects}>
+                    <summary>{visible.length - mapped.length} awaiting location</summary>
+                    <div aria-label="Projects awaiting a geographic location">
+                      {visible.filter((item) => !globeProjectLocation(item)).map((item) => (
+                        <button key={item.opportunity_id} type="button" onClick={(event) => {
+                          setSelectedId(item.opportunity_id);
+                          setDossierOpen(true);
+                          event.currentTarget.closest('details')?.removeAttribute('open');
+                        }}>{item.title}</button>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                <span>
+                  <i />
+                  Favorite
+                </span>
+                <span>
+                  <i />
+                  New project
+                </span>
+              </div>
+              <PursuitGlobe
+                theme={props.theme}
+                opportunities={globeOpportunities}
+                selectedId={selectedId}
+                precedentId={precedentId}
+                onSelectPrecedent={setPrecedentId}
+                onSelect={(id) => {
+                  setSelectedId(id);
+                  setDossierOpen(true);
+                }}
+              />
+              {selected ? (
+                <div className={styles.globeSelection}>
+                  <span>
+                    {[selected.city, selected.country]
+                      .filter(Boolean)
+                      .join(', ') || 'Location pending'}
+                  </span>
+                  <strong>{selected.title}</strong>
+                  <small>
+                    {Math.round(
+                      selected.pursuit_brief?.match_score ??
+                        selected.value_score
+                    )}{' '}
+                    Prospect score
+                  </small>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <div className={styles.paneResize} role="separator" aria-label="Resize globe and project details" aria-orientation="vertical" aria-valuenow={Math.round(browserShare * 100)} aria-valuemin={30} aria-valuemax={70} tabIndex={0} onPointerDown={resizeBrowser} onKeyDown={onBrowserResizeKey} onDoubleClick={() => saveBrowserShare(0.52)} />
+        <article
+          className={`${styles.dossier} ${dossierOpen ? styles.dossierOpen : ''}`}
+          aria-label="Project details"
+        >
+          {!selected ? (
+            <div className={styles.empty}>
+              <SparklesIcon />
+              <strong>Select a project</strong>
+              <span>Inspect its relevance, evidence, and practice match.</span>
+            </div>
+          ) : (
+            <>
+              <header className={styles.dossierHeader}>
+                <button
+                  className={styles.mobileClose}
+                  type="button"
+                  onClick={() => setDossierOpen(false)}
+                  aria-label="Close project details"
+                >
+                  <XMarkIcon />
+                </button>
+                <div className={styles.signalLine}>
+                  <span>
+                    {selected.discovery_class === 'niche'
+                      ? 'Recommended project'
+                      : 'New project'}
+                  </span>
+                  <span>Found {relativeTime(selected.first_published_at)}</span>
+                  <span>{selected.authority_level} authority</span>
+                </div>
+                <div className={styles.titleRow}>
+                  <h2 title={selected.title}>{selected.title}</h2>
+                  <button
+                    className={`${styles.dossierFavorite} ${isFavorite(selected) ? styles.favoriteActive : ''}`}
+                    type="button"
+                    disabled={
+                      !props.canFavorite ||
+                      favoriteMutation === selected.opportunity_id
+                    }
+                    onClick={() => void toggleFavorite(selected)}
+                    aria-label={
+                      isFavorite(selected)
+                        ? 'Remove from favorites'
+                        : 'Add to favorites'
+                    }
+                  >
+                    <HeartIcon />
+                    <span>
+                      {isFavorite(selected) ? 'Favorited' : 'Favorite'}
+                    </span>
+                  </button>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Location</dt>
+                    <dd>
+                      {[selected.city, selected.country]
+                        .filter(Boolean)
+                        .join(', ') || 'Location pending'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Deadline</dt>
+                    <dd>{dateLabel(selected.deadline)}</dd>
+                  </div>
+                  <div>
+                    <dt>Prospect score</dt>
+                    <dd>
+                      {Math.round(
+                        selected.pursuit_brief?.match_score ??
+                          selected.value_score
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </header>
+
+              <div
+                className={styles.dossierTabs}
+                role="tablist"
+                aria-label="Project information"
+              >
+                {dossierTabs.map(([tab, label], index) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    id={`${dossierId}-${tab}`}
+                    aria-controls={`${dossierId}-panel`}
+                    aria-selected={dossierTab === tab}
+                    tabIndex={dossierTab === tab ? 0 : -1}
+                    onClick={() => setDossierTab(tab)}
+                    onKeyDown={(event) => {
+                      const next =
+                        event.key === 'ArrowRight'
+                          ? (index + 1) % 3
+                          : event.key === 'ArrowLeft'
+                            ? (index + 2) % 3
+                            : event.key === 'Home'
+                              ? 0
+                              : event.key === 'End'
+                                ? 2
+                                : null;
+                      if (next === null) return;
+                      event.preventDefault();
+                      setDossierTab(dossierTabs[next][0]);
+                      const tabButtons =
+                        event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                          '[role="tab"]'
+                        );
+                      tabButtons?.[next]?.focus();
+                    }}
+                  >
+                    {label}{' '}
+                    {tab === 'sources' && (
+                      <span>{selected.provenance.length}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div
+                className={styles.dossierBody}
+                ref={dossierScroll}
+                key={`${selectedId}-${dossierTab}`}
+                role="tabpanel"
+                id={`${dossierId}-panel`}
+                aria-labelledby={`${dossierId}-${dossierTab}`}
+                tabIndex={0}
+              >
+                {error ? (
+                  <p className={styles.feedbackError} role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                {dossierTab === 'overview' && (
+                  <>
+                    <section>
+                      <span>The opportunity</span>
+                      <h3>{selected.project_type ?? 'Project overview'}</h3>
+                      {selected.title.length > 90 && (
+                        <p>
+                          <strong>{selected.title}</strong>
+                        </p>
+                      )}
+                      <ExpandableText
+                        text={
+                          selected.pursuit_brief?.summary ||
+                          selected.description ||
+                          'A project summary is not available yet.'
+                        }
+                      />
+                      {selected.pursuit_brief?.summary &&
+                        selected.description &&
+                        selected.description !==
+                          selected.pursuit_brief.summary && (
+                          <details className={styles.explanation}>
+                            <summary>Full project description</summary>
+                            <p>{selected.description}</p>
+                          </details>
+                        )}
+                    </section>
+                    <section>
+                      <span>Why Prospect surfaced it</span>
+                      <h3>Project signal</h3>
+                      <ul>
+                        {(selected.value_reasons.length
+                          ? selected.value_reasons
+                          : (selected.pursuit_brief?.strategic_rationale ?? [])
+                        ).map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    </section>
+                    {selectedGlobe && (
+                      <section>
+                        <span>Geographic context</span>
+                        <h3>Around this project</h3>
+                        <p className={styles.muted}>
+                          {selectedGlobe.coordinateMethod === 'country_centroid'
+                            ? 'Country-level location; nearby distances are unavailable.'
+                            : selectedGlobe.coordinateMethod === 'region_centroid'
+                              ? 'Approximate regional reference, not a single project site; nearby distances are unavailable.'
+                            : 'The quiet ring marks 250 km around the mapped location. City-centroid distances are approximate.'}
+                        </p>
+                        <p className={styles.muted}>
+                          City reference data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a>
+                          {' · '}<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>
+                        </p>
+                        {nearby.map(({ item, reasons }) => (
+                          <button
+                            type="button"
+                            className={styles.contextProject}
+                            key={item.id}
+                            onClick={() => setSelectedId(item.id)}
+                          >
+                            <strong>{item.title}</strong>
+                            <small>{reasons.join(' · ')}</small>
+                          </button>
+                        ))}
+                        {!nearby.length && (
+                          <p className={styles.muted}>
+                            No related projects in the current filtered view.
+                          </p>
+                        )}
+                      </section>
+                    )}
+                  </>
+                )}
+                {dossierTab === 'practice' && (
+                  <section>
+                    <span>Relevant firm work</span>
+                    <h3>Practice match</h3>
+                    {selected.pursuit_brief?.precedents.map((precedent) => (
+                      <article
+                        className={styles.precedent}
+                        key={precedent.precedent_id}
+                      >
+                        {precedent.featured_image_url ? (
+                          <img
+                            src={precedent.featured_image_url}
+                            alt=""
+                            loading="lazy"
+                          />
+                        ) : null}
+                        <div>
+                          <strong>{precedent.name}</strong>
+                          <small>
+                            {precedent.location ?? 'Firm precedent'}
+                          </small>
+                          <ExpandableText
+                            text={precedent.summary}
+                            label="Read precedent details"
+                          />
+                          {selectedGlobe?.precedents?.some(
+                            (p) => p.id === precedent.precedent_id
+                          ) ? (
+                            <button
+                              type="button"
+                              className={styles.contextProject}
+                              aria-pressed={
+                                precedentId === precedent.precedent_id
+                              }
+                              onClick={() => {
+                                setViewMode('globe');
+                                setDossierOpen(false);
+                                setPrecedentId(
+                                  precedentId === precedent.precedent_id
+                                    ? null
+                                    : precedent.precedent_id
+                                );
+                              }}
+                            >
+                              {precedentId === precedent.precedent_id
+                                ? 'Hide connection'
+                                : 'Inspect globe connection'}
+                            </button>
+                          ) : (
+                            <small>
+                              Globe connection needs a verified match and known
+                              city.
+                            </small>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                    {inspectedPrecedent && (
+                      <div className={styles.connectionEvidence}>
+                        <strong>
+                          {inspectedPrecedent.relationship} ·{' '}
+                          {inspectedPrecedent.name}
+                        </strong>
+                        <ul>
+                          {inspectedPrecedent.reasons.map((reason) => (
+                            <li key={reason}>{reason}</li>
+                          ))}
+                        </ul>
+                        <small>
+                          Approximate city location · connection indicates
+                          practice relevance.
+                        </small>
+                        {inspectedPrecedent.sourceUrl &&
+                          /^https?:\/\//.test(inspectedPrecedent.sourceUrl) && (
+                            <a
+                              href={inspectedPrecedent.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              View portfolio source
+                            </a>
+                          )}
+                      </div>
+                    )}
+                    {!selected.pursuit_brief?.precedents.length ? (
+                      <p className={styles.muted}>
+                        A verified portfolio match is still being resolved.
+                      </p>
+                    ) : null}
+                  </section>
+                )}
+                {dossierTab === 'sources' && (
+                  <section>
+                    <span>Primary support</span>
+                    <p className={styles.muted}>
+                      Published:{' '}
+                      {selected.first_published_at
+                        ? dateLabel(selected.first_published_at)
+                        : 'Not yet confirmed'}
+                    </p>
+                    <h3>Evidence</h3>
+                    <p className={styles.muted}>
+                      {selected.provenance.length} available source
+                      {selected.provenance.length === 1 ? '' : 's'} ·{' '}
+                      {selected.authority_level} authority
+                    </p>
+                    <p className={styles.muted}>
+                      Last verified:{' '}
+                      {selected.last_verified_at
+                        ? dateLabel(selected.last_verified_at)
+                        : 'Not yet confirmed'}
+                    </p>
+                    {!selected.provenance.length && (
+                      <p>
+                        No source documents are available for this project yet.
+                      </p>
+                    )}
+                    {selected.provenance.map((evidence) => (
+                      <article
+                        className={styles.evidence}
+                        key={evidence.evidence_id}
+                      >
+                        <div>
+                          <strong>{evidence.source_authority}</strong>
+                          {/^https?:\/\//.test(evidence.source_url) && (
+                            <a
+                              href={`/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(evidence.evidence_id)}`}
+                              aria-label={`Open ${evidence.source_authority} source`}
+                            >
+                              Read in Prospect <ArrowTopRightOnSquareIcon />
+                            </a>
+                          )}
+                        </div>
+                        <ExpandableText
+                          text={evidence.evidence_text || evidence.value}
+                          label="Read full source excerpt"
+                        />
+                        <small>
+                          {evidence.language} · captured{' '}
+                          {relativeTime(evidence.captured_at)}
+                        </small>
+                      </article>
+                    ))}
+                  </section>
+                )}
+              </div>
+
+              <footer className={styles.dossierFooter}>
+                {selected.provenance[0]?.source_url ? (
+                  <a
+                    href={`/apps/studioiq/sources?opportunity=${encodeURIComponent(selected.opportunity_id)}&evidence=${encodeURIComponent(selected.provenance[0].evidence_id)}`}
+                  >
+                    Open source workspace
+                    <ArrowTopRightOnSquareIcon />
+                  </a>
+                ) : null}
+                {selected.collaboration?.flagged_by.length ? (
+                  <span>
+                    {selected.collaboration.flagged_by.length} teammate
+                    {selected.collaboration.flagged_by.length === 1
+                      ? ''
+                      : 's'}{' '}
+                    favorited this
+                  </span>
+                ) : null}
+                <span>
+                  <ClockIcon />
+                  Verified {relativeTime(selected.last_verified_at)}
+                </span>
+              </footer>
+            </>
+          )}
+        </article>
+      </section>
+    </main>
+  );
+}
