@@ -12,6 +12,7 @@ import {
   SunIcon,
   Squares2X2Icon,
   UserCircleIcon,
+  UserGroupIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useTheme } from '../../hooks/useTheme';
@@ -51,6 +52,7 @@ export function StudioIqTerminal(props: {
   accountName: string;
   organizationName: string;
   canManageBilling: boolean;
+  canSendTrialInvites?: boolean;
   localPreview?: boolean;
   trialLocked?: boolean;
   initialDiscovery?: Pick<DiscoveryResponse, 'opportunities' | 'summary' | 'can_favorite' | 'portfolio_count'>;
@@ -475,6 +477,10 @@ export function StudioIqTerminal(props: {
                   <Squares2X2Icon />
                   Firm Portfolio
                 </Link>
+                {props.canSendTrialInvites ? <a href="https://accounts.mirrorprogress.com/#manage" role="menuitem">
+                  <UserGroupIcon />
+                  Send trial invites
+                </a> : null}
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); startTourScene('intro'); }}>
                   <QuestionMarkCircleIcon />
                   Replay walkthrough

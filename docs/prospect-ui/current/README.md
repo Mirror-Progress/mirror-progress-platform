@@ -24,11 +24,11 @@ Start with [product goals and business context](PRODUCT_CONTEXT.md), then [archi
 | Assistant tools and stream | [agent runner](client/lib/prospect-agent/run.ts.txt), [agent API](client/pages/api/products/studioiq/agent.ts.txt) |
 | Bedrock project cleanup | [project normalization](client/lib/prospect-agent/project-normalization.ts.txt) |
 | Source reading | [ProspectSourceWorkspace.tsx](client/components/studioiq/ProspectSourceWorkspace.tsx.txt) |
-| Portfolio import | [import service](client/lib/studioiq-portfolio-import.ts.txt), [import API](client/pages/api/products/studioiq/portfolio-imports.ts.txt) |
+| Portfolio import | [portfolio page](client/pages/apps/studioiq/portfolio.tsx.txt), [import service](client/lib/studioiq-portfolio-import.ts.txt), [text extraction](client/lib/studioiq-portfolio-text.ts.txt), [import API](client/pages/api/products/studioiq/portfolio-imports.ts.txt) |
 | Behavior checks | [private project tests](client/tests/prospect-private-projects.test.ts.txt), [walkthrough tests](client/tests/studioiq-walkthrough.test.ts.txt) |
 
 ## Source-record status
 
-The snapshots were refreshed after the September 27, 2026 production changes: Bedrock-backed normalization of privately saved web projects, legacy-record cleanup, a minimized-on-reload chat launcher, and portfolio tour contrast/alignment fixes. The product still needs visual QA at the exact portfolio tour step after deployment; a production build and service-health check do not prove visual fidelity.
+The snapshots were refreshed after the October 1, 2026 Prospect portfolio-import update. Earlier QA and remaining visual checks are recorded in [RELEASE_AND_QA.md](RELEASE_AND_QA.md).
 
 Use [RELEASE_AND_QA.md](RELEASE_AND_QA.md) before modifying or publishing anything. In particular, do not copy these snapshots into the repository's root `client/` or run the root's old Vercel workflow as a Prospect release.

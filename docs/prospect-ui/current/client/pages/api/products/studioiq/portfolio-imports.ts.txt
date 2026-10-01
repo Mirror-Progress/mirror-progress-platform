@@ -1,8 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireStudioIqProductAccess } from '../../../../lib/studioiq-product-auth';
 import { commitPortfolioImport, createPortfolioImport, listPortfolioImports } from '../../../../lib/studioiq-portfolio-import';
+import { MAX_PORTFOLIO_FILE_BYTES } from '../../../../lib/studioiq-portfolio-limits';
 
-export const config = { api: { bodyParser: { sizeLimit: '6mb' } } };
+// Base64 adds roughly one third to the file size, plus a small JSON envelope.
+export const config = { api: { bodyParser: { sizeLimit: '55mb' } } };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!['GET', 'POST', 'PATCH'].includes(req.method || '')) return res.status(405).json({ error: 'Method Not Allowed' });
@@ -21,8 +23,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }));
     const encoded = req.body?.data;
     if (typeof encoded !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new Error('A valid file is required.');
+    if (encoded.length > Math.ceil(MAX_PORTFOLIO_FILE_BYTES / 3) * 4 + 4) throw new Error('Choose a file no larger than 40 MB.');
     const bytes = Buffer.from(encoded, 'base64');
-    return res.status(201).json(await createPortfolioImport({ access, filename: String(req.body?.filename || ''), bytes }));
+    // Keep the load balancer connection active while larger documents are parsed.
+    res.statusCode = 201;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.flushHeaders();
+    const heartbeat = setInterval(() => res.write(' '), 15_000);
+    try {
+      const result = await createPortfolioImport({ access, filename: String(req.body?.filename || ''), bytes });
+      return res.end(JSON.stringify(result));
+    } catch (error) {
+      return res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Portfolio import failed.' }));
+    } finally { clearInterval(heartbeat); }
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : 'Portfolio import failed.' });
   }

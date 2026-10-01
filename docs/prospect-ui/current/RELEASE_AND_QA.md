@@ -34,6 +34,10 @@ The globe now owns touch gestures and disables native text selection inside its 
 
 Pixel-resolution two-finger trackpad swipes over the globe now rotate it without a click. Browser pinch gestures retain zoom, as do line/page wheel events and the zoom controls. The on-screen guidance matches the new gesture. TypeScript, focused lint, and the local Prospect route passed before release; physical trackpad behavior should be checked after deployment.
 
+## Portfolio import QA: October 1, 2026
+
+The former 4 MB client, API, and service limits have been raised to 40 MiB. Import parsing now extracts readable text from PDF, CSV, XLSX, DOCX, TXT, and Markdown before calling Bedrock, avoiding Bedrock Converse's 4.5 MB per-document limit. Large imports keep the HTTP connection active during extraction; the review screen reports when only the first 120,000 characters were processed. A scanned large PDF without selectable text gives an actionable error instead of a raw model failure. An internal-admin item in the normal Prospect account menu now opens the existing Mirror Identity invitation manager, where admins can enter a name, email, and trial length and see sent status. Format extraction tests, TypeScript, focused lint, and the production build passed. A customer-file upload and exact physical-device behavior remain to be verified after deployment.
+
 ## Product checks worth repeating
 
 - Reload Discovery with a closed chat: the corner icon appears, the full panel stays closed, and opening it restores the conversation.

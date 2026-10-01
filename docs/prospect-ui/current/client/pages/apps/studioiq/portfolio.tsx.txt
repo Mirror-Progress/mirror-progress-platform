@@ -1,0 +1,121 @@
+import { useEffect, useRef, useState } from 'react';
+import type { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import Link from 'next/link';
+import { StudioIqSettingsShell } from '../../../components/studioiq/StudioIqSettingsShell';
+import styles from '../../../components/studioiq/StudioIqSettings.module.css';
+import { getSessionAccountFromContext } from '../../../lib/auth-guards';
+import { cognitoIsRequired } from '../../../lib/state-kernel/authorization/cognito';
+import { getDb } from '../../../lib/mongodb';
+import { ensureStudioIqWorkspaceMembership } from '../../../lib/studioiq-collaboration';
+import { findStudioIqProductAccessForAccount } from '../../../lib/studioiq-product-auth';
+import type { PortfolioDraft } from '../../../lib/studioiq-portfolio-import';
+import { portfolioImportWorkflow } from '../../../lib/studioiq-walkthrough';
+import { useProspectPageGuide } from '../../../components/studioiq/useProspectPageGuide';
+import { MAX_PORTFOLIO_FILE_BYTES } from '../../../lib/studioiq-portfolio-limits';
+
+type Props = { accountName: string; organizationName: string; canManage: boolean; canManageBilling: boolean; onboarding: boolean };
+type Review = { id: string; filename: string; drafts: PortfolioDraft[]; textTruncated?: boolean };
+type Precedent = { id: string; name: string; location?: string; summary: string };
+
+export default function PortfolioPage(props: Props) {
+  const [projects, setProjects] = useState<Precedent[]>([]);
+  const [review, setReview] = useState<Review | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState('');
+  const reviewGuideShown = useRef(false);
+  const guide = useProspectPageGuide(portfolioImportWorkflow, { ready: props.canManage });
+  async function load() {
+    const response = await fetch('/api/products/studioiq/practice');
+    if (response.ok) setProjects((await response.json()).precedents || []);
+  }
+  useEffect(() => {
+    void load();
+    if (props.canManage) void fetch('/api/products/studioiq/portfolio-imports').then((response) => response.ok ? response.json() : null).then((body) => {
+      const latest = body?.imports?.[0];
+      if (latest) { setReview(latest); setSelected(latest.drafts.map((_: unknown, index: number) => index)); setMessage('You have an unfinished portfolio import. Review it below.'); }
+    }).catch(() => undefined);
+  }, [props.canManage]);
+  useEffect(() => {
+    if (props.onboarding && review && !reviewGuideShown.current) {
+      reviewGuideShown.current = true;
+      guide.showScene('portfolio_review');
+    }
+  }, [props.onboarding, review?.id]);
+  async function upload(file: File) {
+    setWorking(true); setMessage('Reading and organizing your portfolio…');
+    try {
+      if (file.size > MAX_PORTFOLIO_FILE_BYTES) throw new Error('Choose a file no larger than 40 MB.');
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Unable to read this file. Try downloading a fresh copy.'));
+        reader.onload = () => resolve(String(reader.result || '').split(',', 2)[1] || '');
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch('/api/products/studioiq/portfolio-imports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: file.name, data }) });
+      const body = await response.json().catch(() => ({ error: `Upload failed (${response.status}). Try a smaller file or a stronger connection.` }));
+      if (body.error) throw new Error(body.error);
+      if (!response.ok) throw new Error(body.error || 'Unable to read this portfolio.');
+      setReview(body); setSelected(body.drafts.map((_: unknown, index: number) => index));
+      setMessage(body.textTruncated
+        ? 'This file is large. Review the projects found in the first portion, and split the file to import the rest.'
+        : 'Check each project before adding it to your firm portfolio.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Upload failed.'); }
+    finally { setWorking(false); }
+  }
+  function edit(index: number, field: keyof PortfolioDraft, value: string) {
+    setReview((current) => current ? { ...current, drafts: current.drafts.map((draft, at) => at === index ? { ...draft, [field]: value } : draft) } : null);
+  }
+  async function commit() {
+    if (!review) return;
+    setWorking(true); setMessage('Adding approved projects…');
+    try {
+      const response = await fetch('/api/products/studioiq/portfolio-imports', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ import_id: review.id, projects: selected.map((index) => ({ index, draft: review.drafts[index] })) }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to add these projects.');
+      setReview(null); setMessage(`${body.imported} projects added to your portfolio. MP can now use them when discussing your firm’s work.`);
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed.'); }
+    finally { setWorking(false); }
+  }
+  async function continueWithoutPortfolio() {
+    setWorking(true); setMessage('Saving your choice…');
+    try {
+      const response = await fetch('/api/products/studioiq/portfolio-onboarding', { method: 'POST' });
+      if (!response.ok) throw new Error((await response.json()).error || 'Unable to continue.');
+      window.location.assign('/prospect');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to continue.'); setWorking(false); }
+  }
+  return <StudioIqSettingsShell accountName={props.accountName} active="portfolio" canManageBilling={props.canManageBilling}>
+    <Head><title>Portfolio | Prospect</title><meta name="robots" content="noindex, nofollow" /></Head>
+    <section className={styles.intro}><div><span>{props.onboarding ? `Set up your practice · ${review ? '2' : '1'} of 2` : 'Your practice'}</span><h1>{props.onboarding ? `Bring ${props.organizationName} into Prospect` : 'Firm Portfolio'}</h1><p>Bring in your firm’s work so Prospect can explain how new opportunities relate to your experience. Review every extracted project before it becomes part of your workspace.</p></div><strong className={styles.role}>{projects.length} projects</strong></section>
+    {props.onboarding ? <section className={styles.panel} style={{ marginTop: 14 }}><span className={styles.sectionLabel}>Your choice</span><h2>Start with your work, or explore first</h2><p className={styles.notice}>Prospect works without a portfolio. Importing it adds firm-specific context; you can return here any time from the menu.</p><button className={styles.secondaryButton} disabled={working} onClick={() => void continueWithoutPortfolio()} style={{ marginTop: 14 }}>Explore Prospect first</button>{projects.length ? <Link className={styles.contactButton} href="/prospect" style={{ marginLeft: 10, textDecoration: 'none' }}>Explore matched opportunities →</Link> : null}</section> : null}
+    {props.canManage ? <section className={styles.panel} data-tour-anchor="portfolio-import" style={{ marginTop: 14 }}><span className={styles.sectionLabel}>Bring your projects in</span><h2>Import a portfolio file</h2><p className={styles.notice}>Upload PDF, CSV, XLSX, DOCX, TXT, or Markdown (up to 40 MB). MP will organize the facts for your review; you choose what gets added.</p><input type="file" accept=".pdf,.csv,.xlsx,.docx,.txt,.md" disabled={working} onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void upload(file); }} style={{ marginTop: 18, maxWidth: '100%' }} /><button type="button" className={styles.secondaryButton} onClick={guide.replay} style={{ marginLeft: 12 }}>Guide me through importing</button></section> : <p className={styles.notice}>Your workspace owner or admin can import firm projects here. You can explore all opportunities while your portfolio is being prepared.</p>}
+    {message ? <p role="status" className={styles.notice}>{message}</p> : null}
+    {review ? <section className={styles.panel} data-tour-anchor="portfolio-review" style={{ marginTop: 14 }}><span className={styles.sectionLabel}>Review import · {review.filename}</span><h2>Choose projects to add</h2><p>Check the extracted names, dates, and descriptions. Unknown facts stay blank.</p><div style={{ display: 'grid', gap: 12, marginTop: 18 }}>{review.drafts.map((draft, index) => <article key={index} className={styles.panel}>
+      <label><input type="checkbox" checked={selected.includes(index)} onChange={() => setSelected((current) => current.includes(index) ? current.filter((value) => value !== index) : [...current, index])} /> Add this project</label>
+      <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>Name<input className={styles.portfolioField} value={draft.name} onChange={(event) => edit(index, 'name', event.target.value)} /></label>
+      <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>Summary<textarea className={styles.portfolioField} value={draft.summary} onChange={(event) => edit(index, 'summary', event.target.value)} rows={3} /></label>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}><label>Location <input className={styles.portfolioField} value={draft.location} onChange={(event) => edit(index, 'location', event.target.value)} /></label><label>Year <input className={styles.portfolioField} type="number" value={draft.completionYear ?? ''} onChange={(event) => setReview((current) => current ? { ...current, drafts: current.drafts.map((item, at) => at === index ? { ...item, completionYear: event.target.value ? Number(event.target.value) : null } : item) } : null)} /></label></div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}><label>Status <select className={styles.portfolioField} value={draft.sourceStatus} onChange={(event) => edit(index, 'sourceStatus', event.target.value)}><option value="">Not stated</option><option value="Completed">Completed</option><option value="Under Construction">Under Construction</option><option value="Design in-progress">Design in progress</option><option value="Proposal">Proposal</option></select></label><label>Project types <input className={styles.portfolioField} value={draft.projectTypes.join(', ')} onChange={(event) => setReview((current) => current ? { ...current, drafts: current.drafts.map((item, at) => at === index ? { ...item, projectTypes: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) } : item) } : null)} /></label></div>
+      <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>Source URL<input className={styles.portfolioField} value={draft.sourceUrl} onChange={(event) => edit(index, 'sourceUrl', event.target.value)} /></label>
+      {draft.evidenceQuote ? <p className={styles.notice}>From file: “{draft.evidenceQuote}”</p> : null}
+    </article>)}</div><button className={styles.contactButton} disabled={working || !selected.length} onClick={() => void commit()} style={{ marginTop: 16 }}>Add {selected.length} selected projects</button></section> : null}
+    <section className={styles.panel} style={{ marginTop: 14 }}><span className={styles.sectionLabel}>Firm work</span><h2>Portfolio projects</h2>{projects.length ? <><div className={styles.details}>{projects.map((project) => <div key={project.id}><dt>{project.location || 'Location unknown'}</dt><dd>{project.name}</dd><p>{project.summary}</p></div>)}</div><p><Link href="/prospect">Explore opportunities with your practice context →</Link></p></> : <p className={styles.notice}>No portfolio projects yet. You can still explore all available opportunities in <Link href="/prospect">Discovery</Link>.</p>}</section>
+    {guide.element}
+  </StudioIqSettingsShell>;
+}
+
+export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
+  const account = await getSessionAccountFromContext(context);
+  if (!account) return { redirect: { destination: cognitoIsRequired() ? `/api/auth/cognito/start?next=${encodeURIComponent('/prospect/portfolio')}` : `/?auth=login&next=${encodeURIComponent('/prospect/portfolio')}`, permanent: false } };
+  const access = await findStudioIqProductAccessForAccount(account).catch(() => null);
+  if (!access?.mirrorClientId) return { notFound: true };
+  const [member, client] = await Promise.all([ensureStudioIqWorkspaceMembership(access),
+    getDb().then((db) => db.collection<{ id: string; companyName?: string; name?: string }>('clients').findOne({ id: access.mirrorClientId }))]);
+  return { props: { accountName: account.name || account.email,
+    organizationName: client?.companyName || client?.name || account.company || 'your firm',
+    canManage: ['owner', 'admin'].includes(member.role), canManageBilling: ['owner', 'admin'].includes(member.role),
+    onboarding: context.query.onboarding === '1' && ['owner', 'admin'].includes(member.role) } };
+};

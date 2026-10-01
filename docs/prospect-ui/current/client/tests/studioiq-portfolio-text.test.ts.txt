@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import JSZip from 'jszip';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
+import { extractPortfolioText } from '../lib/studioiq-portfolio-text';
+import { MAX_PORTFOLIO_FILE_BYTES } from '../lib/studioiq-portfolio-limits';
+
+test('portfolio imports accept files up to 40 MiB', () => {
+  assert.equal(MAX_PORTFOLIO_FILE_BYTES, 40 * 1024 * 1024);
+});
+
+test('portfolio text extraction reads CSV, Word, spreadsheet, and PDF content', async () => {
+  assert.match(await extractPortfolioText('csv', Buffer.from('name,city\nCivic Center,Sacramento')),
+    /Civic Center,Sacramento/);
+
+  const word = new JSZip();
+  word.file('word/document.xml', '<w:document><w:p><w:t>Civic Center</w:t></w:p><w:p><w:t>Sacramento</w:t></w:p></w:document>');
+  assert.match(await extractPortfolioText('docx', await word.generateAsync({ type: 'nodebuffer' })),
+    /Civic Center\nSacramento/);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.addWorksheet('Projects').addRow(['Civic Center', 'Sacramento']);
+  assert.match(await extractPortfolioText('xlsx', Buffer.from(await workbook.xlsx.writeBuffer())),
+    /Civic Center,Sacramento/);
+
+  const pdf = new PDFDocument();
+  const pieces: Buffer[] = [];
+  pdf.on('data', (piece: Buffer) => pieces.push(piece));
+  const complete = new Promise<Buffer>((resolve) => pdf.on('end', () => resolve(Buffer.concat(pieces))));
+  pdf.text('Civic Center in Sacramento');
+  pdf.end();
+  assert.match(await extractPortfolioText('pdf', await complete), /Civic Center in Sacramento/);
+});

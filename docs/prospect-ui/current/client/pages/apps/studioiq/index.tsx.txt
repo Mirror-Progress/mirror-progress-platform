@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import { loadLocalProspectCatalog } from '../../../lib/prospect-agent/catalog';
 import type { DiscoveryOpportunity, DiscoverySummary } from '../../../components/studioiq/StudioIqDiscovery';
 
-type PageProps = { accountName: string; organizationName: string; canManageBilling: boolean; trialEndsAt?: string | null; trialLocked?: boolean; localPreview?: boolean; initialDiscovery?: { opportunities: DiscoveryOpportunity[]; summary: DiscoverySummary; can_favorite: boolean } };
+type PageProps = { accountName: string; organizationName: string; canManageBilling: boolean; canSendTrialInvites?: boolean; trialEndsAt?: string | null; trialLocked?: boolean; localPreview?: boolean; initialDiscovery?: { opportunities: DiscoveryOpportunity[]; summary: DiscoverySummary; can_favorite: boolean } };
 
 function enabled() {
   const value = `${process.env.STUDIOIQ_APP_ENABLED ?? ''}`.trim().toLowerCase();
@@ -117,6 +117,8 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (context)
       accountName: account.name || account.email,
       organizationName: client?.companyName || client?.name || client?.company || account.company || 'Studio workspace',
       canManageBilling: ['owner', 'admin'].includes(member.role),
+      canSendTrialInvites: account.status === 'active' && account.email.toLowerCase().endsWith('@mirrorprogress.com')
+        && (isAdminRole(account.role) || ['owner', 'admin'].includes(member.role)),
       trialEndsAt: entitlement?.status === 'trialing' ? entitlement.trialEndsAt : null,
       trialLocked: Boolean(entitlement && ['expired', 'grace_read_only', 'suspended', 'canceled'].includes(entitlement.status)),
     },

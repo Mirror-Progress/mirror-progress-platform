@@ -1,0 +1,43 @@
+import JSZip from 'jszip';
+
+function readableText(value: string) {
+  return value.replaceAll('\0', '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').trim();
+}
+
+function xmlText(value: string) {
+  return readableText(value
+    .replace(/<w:tab[^>]*\/>/g, '\t')
+    .replace(/<\/w:p>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(?:amp|lt|gt|quot|apos);/g, (entity) => ({
+      '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+    })[entity] || entity));
+}
+
+export async function extractPortfolioText(format: string, bytes: Buffer): Promise<string> {
+  if (format === 'txt' || format === 'md' || format === 'csv') return readableText(bytes.toString('utf8'));
+  if (format === 'docx') {
+    const archive = await JSZip.loadAsync(bytes);
+    const document = archive.file('word/document.xml');
+    if (!document) throw new Error('This Word file has no readable document content.');
+    return xmlText(await document.async('string'));
+  }
+  if (format === 'xlsx') {
+    const { default: ExcelJS } = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const lines: string[] = [];
+    for (const sheet of workbook.worksheets) {
+      lines.push(`Sheet: ${sheet.name}`);
+      sheet.eachRow((row) => { lines.push(row.values?.toString() || ''); });
+    }
+    return readableText(lines.join('\n'));
+  }
+  if (format === 'pdf') {
+    const { PDFParse } = await import('pdf-parse');
+    const parser = new PDFParse({ data: new Uint8Array(bytes) });
+    try { return readableText((await parser.getText()).text); }
+    finally { await parser.destroy(); }
+  }
+  throw new Error('Use a PDF, CSV, XLSX, DOCX, TXT, or Markdown file.');
+}
