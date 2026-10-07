@@ -4,6 +4,8 @@
 
 This directory is the **public, reviewable source record** for the currently deployed private Prospect release. `client/` at the repository root is an older baseline and is **not** the code deployed at the Prospect URL. Runtime source lives in a private `identity-release/client` checkout. Files below `docs/prospect-ui/current/client/` mirror selected runtime paths with a `.txt` suffix, so GitHub can show their contents without suggesting that the obsolete root `client/` is deployable. These snapshots contain no customer project database, account records, credentials, or deployment secrets. They are useful for review and for an agent planning changes, but do not form a standalone runnable release.
 
+The snapshot set is intentionally partial. Newer access-control, billing, invitation, and internal endpoint changes are not mirrored here, so the snapshots in those areas may lag the live release and should not be treated as its security source of truth. Infrastructure identifiers (AWS account IDs, IAM and AgentCore ARNs, gateway URLs, ECS cluster, service and task-definition names, and image digests) are replaced with placeholders such as `<aws-account-id>`.
+
 Start with [product goals and business context](PRODUCT_CONTEXT.md), then [architecture and data contracts](ARCHITECTURE.md), and [release and QA guidance](RELEASE_AND_QA.md). Those documents distinguish implemented behavior from future ideas. Previous feature-by-feature release notes remain in this repository's Git history.
 
 ## What the customer sees
