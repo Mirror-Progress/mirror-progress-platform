@@ -14,6 +14,14 @@ To refresh a snapshot, copy the corresponding file from `identity-release/client
 4. If publishing, build and deploy the release image, wait for the ECS service to become stable at its desired task count, and check the live health endpoint. Then test the specific production interaction if access permits.
 5. Refresh these snapshots and notes from the deployed source. Use a commit that skips GitHub Actions while the owner has directed that Actions must not run. Do not use the repository's old Vercel workflow to publish Prospect.
 
+## October 7, 2026 production release
+
+The private reviewed release was built from a committed source tree and deployed to the Prospect platform service after a successful rollout in security staging. The production service reached its desired two healthy tasks. The nightly portfolio sync and commercial-reminder/project-alert schedules were updated to the same task revision. The previous production task revision remains the rollback point.
+
+The release includes the reviewed access, pursuit-brief, agent, portfolio-import, billing, data-scoping, and frontend hardening. A separate saved-search correction uses bounded deterministic database IDs so concurrent saves cannot exceed the 30-search account limit. Focused tests, typecheck, lint, a production build, and a local MongoDB concurrency probe passed. A disposable security-staging DocumentDB probe confirmed transaction support and one accepted save from 40 concurrent attempts at 29 existing searches. Production health returned 200; unauthenticated agent, saved-search, and portfolio-import requests returned 401. Authenticated customer workflows and the next scheduled job runs still require observation.
+
+These public snapshots are intentionally partial. The private release source and its image digest are recorded locally; access-control and billing snapshots here are not a security source of truth. No GitHub Action was used for the release.
+
 ## Recent QA: September 27, 2026
 
 | Area | Reported behavior | Change in the current source record | Verification limit |

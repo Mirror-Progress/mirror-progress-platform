@@ -27,10 +27,11 @@ Start with [product goals and business context](PRODUCT_CONTEXT.md), then [archi
 | Bedrock project cleanup | [project normalization](client/lib/prospect-agent/project-normalization.ts.txt) |
 | Source reading | [ProspectSourceWorkspace.tsx](client/components/studioiq/ProspectSourceWorkspace.tsx.txt) |
 | Portfolio import | [portfolio page](client/pages/apps/studioiq/portfolio.tsx.txt), [import service](client/lib/studioiq-portfolio-import.ts.txt), [text extraction](client/lib/studioiq-portfolio-text.ts.txt), [import API](client/pages/api/products/studioiq/portfolio-imports.ts.txt) |
+| Saved searches | [bounded saved-search store](client/lib/prospect-saved-searches.ts.txt), [concurrency checks](client/tests/prospect-fix-discovery-workspace.test.ts.txt) |
 | Behavior checks | [private project tests](client/tests/prospect-private-projects.test.ts.txt), [walkthrough tests](client/tests/studioiq-walkthrough.test.ts.txt) |
 
 ## Source-record status
 
-The snapshots were refreshed after the October 1, 2026 Prospect portfolio-import update. Earlier QA and remaining visual checks are recorded in [RELEASE_AND_QA.md](RELEASE_AND_QA.md).
+The October 7, 2026 production release and its verification limits are recorded in the release guide. The snapshots are partial; the saved-search store and its focused test were refreshed after that release, while access-control and billing snapshots may lag the private runtime. Earlier QA and remaining visual checks are recorded in [RELEASE_AND_QA.md](RELEASE_AND_QA.md).
 
 Use [RELEASE_AND_QA.md](RELEASE_AND_QA.md) before modifying or publishing anything. In particular, do not copy these snapshots into the repository's root `client/` or run the root's old Vercel workflow as a Prospect release.

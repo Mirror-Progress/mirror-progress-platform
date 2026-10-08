@@ -1,0 +1,76 @@
+import crypto from 'crypto';
+import type { Collection, Db } from 'mongodb';
+import { getDb } from './mongodb';
+
+export type ProspectSavedSearch = {
+  _id?: string;
+  id: string;
+  accountId: string;
+  organizationId: string;
+  name: string;
+  query: string;
+  createdAt: string;
+  updatedAt: string;
+  slot?: number;
+};
+
+export const PROSPECT_SAVED_SEARCH_LIMIT = 30;
+
+/** A user-correctable saved-search problem whose message is safe to show. */
+export class ProspectSavedSearchError extends Error {}
+
+export function normalizeSavedSearch(input: { name: unknown; query: unknown }) {
+  const name = typeof input.name === 'string' ? input.name.trim().slice(0, 80) : '';
+  const query = typeof input.query === 'string' ? input.query.trim().slice(0, 240) : '';
+  if (!name || !query) throw new ProspectSavedSearchError('A search name and query are required.');
+  return { name, query };
+}
+
+function savedSearchCollection(db: Db) {
+  return db.collection<ProspectSavedSearch>('prospect_saved_searches');
+}
+
+export async function listProspectSavedSearches(accountId: string, organizationId: string) {
+  return savedSearchCollection(await getDb())
+    .find({ accountId, organizationId }).sort({ updatedAt: -1 }).limit(PROSPECT_SAVED_SEARCH_LIMIT).toArray();
+}
+
+type SavedSearchStore = Pick<Collection<ProspectSavedSearch>, 'countDocuments' | 'insertOne'>;
+
+function isDuplicateKey(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 11000;
+}
+
+export async function saveProspectSearch(
+  input: { accountId: string; organizationId: string; name: unknown; query: unknown },
+  store?: SavedSearchStore
+) {
+  const { name, query } = normalizeSavedSearch(input);
+  const collection = store ?? savedSearchCollection(await getDb());
+  const scope = { accountId: input.accountId, organizationId: input.organizationId };
+  const full = () => new ProspectSavedSearchError(`You can save up to ${PROSPECT_SAVED_SEARCH_LIMIT} searches.`);
+  // Older saved searches have no slot. Reserve capacity for them until they are
+  // deleted; every new search claims one of the remaining deterministic _id
+  // values. MongoDB's built-in unique _id index enforces the cap across workers.
+  const legacyCount = await collection.countDocuments({ ...scope, slot: { $exists: false } });
+  const availableSlots = Math.max(0, PROSPECT_SAVED_SEARCH_LIMIT - legacyCount);
+  if (!availableSlots) throw full();
+  const now = new Date().toISOString();
+  const search: ProspectSavedSearch = { id: `search_${crypto.randomUUID()}`, ...scope, name, query, createdAt: now, updatedAt: now };
+  const scopeKey = crypto.createHash('sha256').update(JSON.stringify(scope)).digest('hex');
+  for (let slot = 0; slot < availableSlots; slot += 1) {
+    try {
+      await collection.insertOne({ ...search, _id: `prospect_saved_search:${scopeKey}:${slot}`, slot });
+      return search;
+    } catch (error) {
+      if (!isDuplicateKey(error)) throw error;
+    }
+  }
+  throw full();
+}
+
+export async function removeProspectSavedSearch(input: { accountId: string; organizationId: string; id: string }) {
+  const result = await savedSearchCollection(await getDb())
+    .deleteOne({ accountId: input.accountId, organizationId: input.organizationId, id: input.id });
+  return result.deletedCount === 1;
+}

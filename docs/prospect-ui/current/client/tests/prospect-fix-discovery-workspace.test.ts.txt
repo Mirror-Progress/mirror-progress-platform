@@ -1,0 +1,131 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { loadProspectSourceWorkspace } from '../lib/prospect-source-workspace';
+import {
+  PROSPECT_SAVED_SEARCH_LIMIT,
+  ProspectSavedSearchError,
+  saveProspectSearch,
+  type ProspectSavedSearch,
+} from '../lib/prospect-saved-searches';
+
+const access = { mirrorClientId: 'client-a', externalOrganizationId: 'mirror:client-a' };
+
+test('source workspace looks up a single published record', async () => {
+  const lookups: string[] = [];
+  const workspace = await loadProspectSourceWorkspace(access, 'opportunity_abc', {
+    findCandidate: async (id: string) => {
+      lookups.push(id);
+      return {
+        id, title: 'Harbor Pavilion', description: 'Design competition', buyerName: 'City of Oslo',
+        city: 'Oslo', country: 'Norway', deadline: '2026-11-01',
+      };
+    },
+    getSourceDocuments: async (id: string) => ({
+      opportunityId: id,
+      sources: [{ evidenceId: 'evidence_1', sourceUrl: 'https://example.org/call', document: null }],
+    }),
+  });
+  assert.deepEqual(lookups, ['opportunity_abc']);
+  assert.deepEqual(workspace?.project, {
+    id: 'opportunity_abc', title: 'Harbor Pavilion', description: 'Design competition',
+    buyer: 'City of Oslo', city: 'Oslo', country: 'Norway', deadline: '2026-11-01',
+  });
+  assert.equal(workspace?.sources.length, 1);
+});
+
+test('source workspace returns null without reading sources when the record is not published', async () => {
+  let sourceReads = 0;
+  const workspace = await loadProspectSourceWorkspace(access, 'opportunity_missing', {
+    findCandidate: async () => null,
+    getSourceDocuments: async () => { sourceReads += 1; return null; },
+  });
+  assert.equal(workspace, null);
+  assert.equal(sourceReads, 0);
+});
+
+// Minimal in-memory stand-in for the saved-search collection operations used.
+function memoryStore() {
+  const docs: ProspectSavedSearch[] = [];
+  let peakCount = 0;
+  const matches = (filter: Record<string, unknown>) => (doc: ProspectSavedSearch) =>
+    Object.entries(filter).every(([key, value]) =>
+      typeof value === 'object' && value !== null && '$exists' in value
+        ? (doc[key as keyof ProspectSavedSearch] !== undefined) === value.$exists
+        : doc[key as keyof ProspectSavedSearch] === value);
+  const store = {
+    docs,
+    get peakCount() { return peakCount; },
+    countDocuments: async (filter: Record<string, unknown>) => docs.filter(matches(filter)).length,
+    insertOne: async (doc: ProspectSavedSearch) => {
+      if (docs.some((existing) => existing._id === doc._id)) throw Object.assign(new Error('duplicate key'), { code: 11000 });
+      docs.push(doc);
+      peakCount = Math.max(peakCount, docs.length);
+      return { acknowledged: true };
+    },
+    deleteOne: async (filter: Partial<ProspectSavedSearch>) => {
+      const index = docs.findIndex(matches(filter));
+      if (index >= 0) docs.splice(index, 1);
+      return { acknowledged: true, deletedCount: index >= 0 ? 1 : 0 };
+    },
+    find: (filter: Partial<ProspectSavedSearch>) => {
+      let limit = Infinity;
+      const cursor = {
+        sort: () => cursor,
+        limit: (value: number) => { limit = value; return cursor; },
+        toArray: async () => docs.filter(matches(filter))
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+          .slice(0, limit),
+      };
+      return cursor;
+    },
+  };
+  return store;
+}
+
+test('saved-search cap holds under concurrent saves', async () => {
+  const store = memoryStore();
+  const scope = { accountId: 'account-a', organizationId: 'client-a' };
+  for (let index = 0; index < PROSPECT_SAVED_SEARCH_LIMIT - 1; index += 1) {
+    await saveProspectSearch({ ...scope, name: `Search ${index}`, query: 'civic' }, store as never);
+  }
+  const results = await Promise.allSettled(Array.from({ length: 5 }, (_, index) =>
+    saveProspectSearch({ ...scope, name: `Race ${index}`, query: 'transit' }, store as never)
+  ));
+  const saved = results.filter((result) => result.status === 'fulfilled').length;
+  assert.ok(saved <= 1);
+  assert.equal(store.docs.length, PROSPECT_SAVED_SEARCH_LIMIT - 1 + saved);
+  assert.ok(store.docs.length <= PROSPECT_SAVED_SEARCH_LIMIT);
+  assert.ok(store.peakCount <= PROSPECT_SAVED_SEARCH_LIMIT);
+  if (!saved) await saveProspectSearch({ ...scope, name: 'Retry', query: 'transit' }, store as never);
+  for (const result of results) {
+    if (result.status === 'rejected') assert.ok(result.reason instanceof ProspectSavedSearchError);
+  }
+  await assert.rejects(
+    saveProspectSearch({ ...scope, name: 'Late', query: 'museum' }, store as never),
+    ProspectSavedSearchError
+  );
+  // Another account in the same organization keeps its own allowance.
+  await saveProspectSearch({ accountId: 'account-b', organizationId: 'client-a', name: 'Mine', query: 'x' }, store as never);
+  assert.equal(store.docs.length, PROSPECT_SAVED_SEARCH_LIMIT + 1);
+});
+
+test('legacy saved searches reserve slots under concurrent saves', async () => {
+  const store = memoryStore();
+  const scope = { accountId: 'legacy-account', organizationId: 'legacy-org' };
+  for (let index = 0; index < PROSPECT_SAVED_SEARCH_LIMIT - 1; index += 1) {
+    store.docs.push({ id: `legacy-${index}`, ...scope, name: `Old ${index}`, query: 'civic',
+      createdAt: '2026-01-01', updatedAt: '2026-01-01' });
+  }
+  const results = await Promise.allSettled(Array.from({ length: 8 }, (_, index) =>
+    saveProspectSearch({ ...scope, name: `New ${index}`, query: 'transit' }, store as never)));
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+  assert.equal(store.docs.length, PROSPECT_SAVED_SEARCH_LIMIT);
+  assert.equal(store.peakCount, PROSPECT_SAVED_SEARCH_LIMIT);
+});
+
+test('saved-search validation errors are user-safe errors', async () => {
+  await assert.rejects(
+    saveProspectSearch({ accountId: 'a', organizationId: 'b', name: '', query: '' }, memoryStore() as never),
+    ProspectSavedSearchError
+  );
+});
