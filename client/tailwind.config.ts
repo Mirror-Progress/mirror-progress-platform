@@ -18,6 +18,12 @@ export default {
         secondaryGrey: '#A2A2A2',
         secondaryBlack: '#1D2222',
         white: '#FFFFFF',
+        // One-page homepage tokens (components/home).
+        signal: '#00C2F4',
+        mist: '#F6FBFB',
+        background: '#FFFFFF',
+        card: '#FFFFFF',
+        'muted-foreground': '#586E6B',
       },
       fontFamily: {
         dmSans: ['DM Sans', 'sans-serif'],
