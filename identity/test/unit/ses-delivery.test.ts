@@ -20,3 +20,14 @@ test('password reset email uses the verified sender and only an account reset li
  assert.deepEqual(commands[0].input.Destination.ToAddresses,[message.to]);
  assert.match(commands[0].input.Content.Simple.Body.Html.Data,/&lt;Person&gt;/);
 });
+test('SES sends the trial copy (text and HTML) only for self-serve trial invitations',async()=>{
+ const commands:any[]=[];const client={send:async(c:unknown)=>{commands.push(c);return {};},destroy:()=>{}};
+ const transport=new SesEnrollmentTransport(client as any);
+ const base={to:'person@example.com',url:'https://accounts.mirrorprogress.com/#invitation='+'b'.repeat(43),expiresAt:new Date(Date.now()+60000),inviteeName:'Ada Doe',company:'Studio'};
+ await transport.send({...base,idempotencyKey:'trial',invitationKind:'self_serve_trial'});
+ await transport.send({...base,idempotencyKey:'standard'});
+ const [trial,standard]=commands.map((c)=>c.input.Content.Simple);
+ assert.equal(trial.Subject.Data,'Start your 14-day Prospect trial');
+ assert.match(trial.Body.Text.Data,/No card is required/);assert.match(trial.Body.Html.Data,/Start your trial/);
+ assert.equal(standard.Subject.Data,"You're invited to Mirror Progress Prospect");
+});

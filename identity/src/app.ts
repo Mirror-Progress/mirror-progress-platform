@@ -6,6 +6,7 @@ import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } fr
 import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
 import type { Config } from "./core/config.js";
+import { platformOrigin } from "./core/config.js";
 import { PolicyError, validateAuthorizationQuery } from "./core/policy.js";
 import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest, digest } from "./core/tokens.js";
 import { ceremony } from "./auth.js";
@@ -165,6 +166,37 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (!profile) throw new PolicyError("route_not_exposed", 404);
       return json(profile);
     }
+    if (url.pathname === "/internal/identity/self-serve-trial-invitations") {
+      // Service-to-service only: the Prospect platform has already validated, rate limited and
+      // provisioned the public trial request. No browser origin and no actor session is accepted.
+      if (config.mode !== "production" || !config.freshInstall || !config.sessionStatusSecret || request.method !== "POST") {
+        throw new PolicyError("route_not_exposed", 404);
+      }
+      const presented = request.headers.get("authorization") ?? "";
+      if (request.headers.has("origin") || !timingSafeEqual(
+        createHash("sha256").update(presented).digest(),
+        createHash("sha256").update(`Bearer ${config.sessionStatusSecret}`).digest())) {
+        throw new PolicyError("service_authentication_required", 401);
+      }
+      const body = await readObject(request);
+      // Account type, role, inviter, trial terms and links are never caller-controlled.
+      if (Object.keys(body).length !== 3 || Object.keys(body).some(k => !["name", "email", "company"].includes(k))) {
+        throw new PolicyError("unexpected_invitation_field", 400);
+      }
+      const name = stringField(body, "name", 1, 120).trim();
+      const email = stringField(body, "email", 3, 254).trim().toLowerCase();
+      const company = stringField(body, "company", 1, 120).trim();
+      const domain = email.split("@")[1] ?? "";
+      if (!name || !company || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || domain === "mirrorprogress.com" ||
+          company.toLowerCase() === "mirror progress" || /[\u0000-\u001f\u007f]/.test(name + company)) {
+        throw new PolicyError("invalid_trial_invitation", 400);
+      }
+      // Service-level burst ceilings in front of the database ceilings in migration 008.
+      await store.rateLimit("self-serve-invite:service", 60, 3_600_000);
+      await store.rateLimit(`self-serve-invite-domain:${domain}`, 10, 86_400_000);
+      if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
+      return json(await (store as StagingStore).issueSelfServeInvitation({ name, email, company }), 202);
+    }
     await store.rateLimit(`ip:${ip}`, 60);
     const origin = request.headers.get("origin");
     const tokenExchange = url.pathname === "/api/auth/oauth2/token";
@@ -233,7 +265,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
       const trialKeyHash = createHash("sha256").update(`${email}\0${company.toLowerCase()}`).digest("hex").slice(0, 32);
       const idempotencyKey = `${trialKeyHash.slice(0, 8)}-${trialKeyHash.slice(8, 12)}-${trialKeyHash.slice(12, 16)}-${trialKeyHash.slice(16, 20)}-${trialKeyHash.slice(20)}`;
-      const prepared = await fetch("https://platform.mirrorprogress.com/api/internal/identity/prepare-trial", {
+      const prepared = await fetch(`${platformOrigin(config)}/api/internal/identity/prepare-trial`, {
         method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000),
         headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
         body: JSON.stringify({ name, email, company, trialDays, seatAllowance,
@@ -270,7 +302,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         throw new PolicyError("invalid_invitation", 400);
       }
       if (accountType === "external") {
-        const check = await fetch("https://platform.mirrorprogress.com/api/internal/identity/company-check", {
+        const check = await fetch(`${platformOrigin(config)}/api/internal/identity/company-check`, {
           method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3000),
           headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
           body: JSON.stringify({ company, email }),

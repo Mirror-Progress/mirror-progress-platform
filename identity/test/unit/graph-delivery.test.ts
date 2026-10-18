@@ -64,3 +64,20 @@ test('Graph password recovery uses the hello mailbox and refuses foreign links',
   assert.equal(body.message.subject, 'Reset your Mirror Progress Prospect password');
   assert.match(body.message.body.content, /Reset your Prospect password/);
 });
+
+test('Graph transport sends the trial copy for self-serve trial invitations', async () => {
+  const bodies: string[] = [];
+  const request = (async (url: string, init: RequestInit) => {
+    if (url.includes('/oauth2/')) return Response.json({ access_token: 'test-token', expires_in: 3600 });
+    bodies.push(init.body as string);
+    return new Response(null, { status: 202 });
+  }) as typeof fetch;
+  const delivery = new GraphEnrollmentTransport('cd1b4d15-ba3e-41b9-a0ec-f7a9ed1027f5',
+    '4de476ef-b1df-4777-b45b-241ec6722627', 'test-secret', request);
+  const base = { to: 'recipient@example.com', url: `https://accounts.mirrorprogress.com/#invitation=${'a'.repeat(43)}`,
+    expiresAt: new Date(Date.now() + 600_000), inviteeName: 'Alex', company: 'Example' };
+  await delivery.send({ ...base, idempotencyKey: 'trial', invitationKind: 'self_serve_trial' });
+  await delivery.send({ ...base, idempotencyKey: 'standard' });
+  assert.equal(JSON.parse(bodies[0]!).message.subject, 'Start your 14-day Prospect trial');
+  assert.equal(JSON.parse(bodies[1]!).message.subject, "You're invited to Mirror Progress Prospect");
+});

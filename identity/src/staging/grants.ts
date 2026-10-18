@@ -17,6 +17,9 @@ GRANT UPDATE (consumed_at) ON mirror_staging_invitation TO mirror_identity_stagi
 GRANT EXECUTE ON FUNCTION mirror_lock_principal(text),mirror_revoke_subject(text,text) TO mirror_identity_staging_runtime;
 GRANT EXECUTE ON FUNCTION mirror_managed_issue(text,text,text,text,text,text,text,text),
   mirror_managed_resend(text,text,text),mirror_managed_revoke(text,text) TO mirror_identity_staging_runtime;
+-- Self-serve trial invitations (migration 008): external/client only, DB-enforced ceilings.
+GRANT EXECUTE ON FUNCTION mirror_self_serve_issue(text,text,text,text,text),
+  mirror_self_serve_resend(text,text) TO mirror_identity_staging_runtime;
 GRANT EXECUTE ON FUNCTION mirror_staging_reconcile(text,bigint,text,text),mirror_staging_issue(text,bigint,text,text),
   mirror_staging_approve(text,bigint,text),mirror_staging_request_recovery(text,text,bigint,text,text),
   mirror_staging_approve_recovery(text,text) TO mirror_identity_staging_operator;

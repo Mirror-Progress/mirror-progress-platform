@@ -4,6 +4,8 @@ import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
   freshInstall?: boolean;
   sessionStatusSecret?: string;
+  /** Prospect platform origin for service calls (prepare-trial, legacy pilots, company check). */
+  platformOrigin?: string;
   albProxyCidrs?: readonly string[];
   mode?: "staging" | "production";
   staging?: { rpId: string; deliveryKey: string; certFile: string; keyFile: string };
@@ -43,6 +45,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // No wildcard, URL normalization, dynamic port, or caller-controlled redirect registration.
     redirectUris: ["http://localhost:3000/api/auth/callback"],
   };
+}
+
+/** Hosted profiles pin the platform to their own redirect origin; local preview passes its own loopback origin. */
+export function platformOrigin(config: Pick<Config, "platformOrigin">): string {
+  return config.platformOrigin ?? "https://platform.mirrorprogress.com";
 }
 
 export function sessionStatusSecret(env: NodeJS.ProcessEnv): string | undefined {

@@ -42,7 +42,7 @@ export class GraphEnrollmentTransport implements EnrollmentTransport {
         !/^#(?:mailboxToken|invitation)=[A-Za-z0-9_-]{43}$/.test(url.hash) ||
         message.expiresAt.getTime() <= Date.now()) throw new Error('invalid_enrollment_message');
     const branded = managed ? invitationEmail({ to: message.to, name: message.inviteeName ?? '',
-      company: message.company ?? '', url: message.url, expiresAt: message.expiresAt }) : null;
+      company: message.company ?? '', url: message.url, expiresAt: message.expiresAt, kind: message.invitationKind }) : null;
     const content = branded ?? { subject: 'Set up your Mirror Progress account',
       text: `Open this link to verify your email and finish setting up your Mirror Progress account:\n\n${message.url}\n\nThis link expires in 10 minutes or sooner. If you did not request it, ignore this message.`,
       html: undefined };

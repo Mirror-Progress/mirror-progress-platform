@@ -61,7 +61,13 @@ export function loadHostedConfig(env: NodeJS.ProcessEnv, profile: HostedProfile)
   } else if (env.IDENTITY_BIND_HOST && env.IDENTITY_BIND_HOST !== "127.0.0.1") {
     throw new PolicyError("staging_loopback_listener_required", 500);
   }
+  // The platform origin is derived from the pinned redirect. An explicit setting may only restate it.
+  const platform = new URL(profile.redirect).origin;
+  if (env.IDENTITY_PLATFORM_ORIGIN !== undefined && env.IDENTITY_PLATFORM_ORIGIN !== platform) {
+    throw new PolicyError("staging_allowlist_mismatch", 500);
+  }
   return { mode: profile.mode, origin: profile.origin, databaseUrl, secret, bindHost: albProxyCidrs ? "0.0.0.0" : "127.0.0.1", port: 3040, albProxyCidrs,
+    platformOrigin: platform,
     sessionStatusSecret: sessionStatusSecret(env),
     oidcClientId: profile.clientId, redirectUris: [profile.redirect],
     staging: { rpId: profile.rpId, deliveryKey, certFile, keyFile } };

@@ -50,7 +50,7 @@ export class SesEnrollmentTransport implements EnrollmentTransport {
         url.origin !== 'https://accounts.mirrorprogress.com' || url.pathname !== '/' || url.search ||
         !/^#(?:mailboxToken|invitation)=[A-Za-z0-9_-]{43}$/.test(url.hash) || message.expiresAt.getTime() <= Date.now()) throw new Error('invalid_enrollment_message');
     const branded = managed
-      ? invitationEmail({ to: message.to, name: message.inviteeName ?? '', company: message.company ?? '', url: message.url, expiresAt: message.expiresAt })
+      ? invitationEmail({ to: message.to, name: message.inviteeName ?? '', company: message.company ?? '', url: message.url, expiresAt: message.expiresAt, kind: message.invitationKind })
       : null;
     await this.client.send(new SendEmailCommand({
       FromEmailAddress: 'hello@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
