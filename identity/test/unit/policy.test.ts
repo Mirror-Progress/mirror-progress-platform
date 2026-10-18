@@ -67,3 +67,7 @@ test("resume targets cannot become open redirects", () => {
   for (const path of [null, "https://evil.invalid", "//evil.invalid", "/workspace", "/api/auth/oauth2/authorize/evil?x", "/api/auth/oauth2/authorize?x\n"]) assert.equal(safeResumePath(path), null);
   assert.equal(safeResumePath("/api/auth/oauth2/authorize?x=1"), "/api/auth/oauth2/authorize?x=1");
 });
+test("synthetic foundation never accepts password-only evidence", () => {
+  assert.throws(() => assertAuthorized(principal, live, { ...valid, factor: "password", passwordAt: now - 1000, mfaAt: now - 1000 }, now),
+    /mfa_required/);
+});

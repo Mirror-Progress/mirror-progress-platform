@@ -130,3 +130,23 @@ test('fresh-install admin needs verified mailbox and fresh passkey, without migr
   assert.throws(() => assertStagingAuthorized({ ...privileged, disabled: true }, live, uv, proof, null, now, undefined, false));
   assert.throws(() => loadConfig({ ...env, IDENTITY_ACCOUNT_MODE: 'fresh' }));
 });
+test("password-only evidence authorizes only an eligible external client of the fresh install", () => {
+  const passwordOnly: Evidence = { ...evidence, passwordAt: now - 1000, mfaAt: now - 1000, factor: "password" };
+  // Production fresh install (no migration approval), eligible external client: allowed.
+  assert.equal(assertStagingAuthorized(p, live, passwordOnly, proof, null, now, undefined, false, true).factor, "password");
+  // Not eligible (no external/client invitation), or the staging profile: a passkey or TOTP is still required.
+  assert.throws(() => assertStagingAuthorized(p, live, passwordOnly, proof, null, now, undefined, false, false), /mfa_required/);
+  assert.throws(() => assertStagingAuthorized(p, live, passwordOnly, proof, null, now, undefined, true, true), /mfa_required/);
+  // Password time must be the authentication time; stale evidence expires like any other factor.
+  assert.throws(() => assertStagingAuthorized(p, live, { ...passwordOnly, passwordAt: now - 2000 }, proof, null, now, undefined, false, true));
+  assert.throws(() => assertStagingAuthorized(p, live, { ...passwordOnly, passwordAt: now - 3_600_000, mfaAt: now - 3_600_000 },
+    proof, null, now, undefined, false, true), /mfa_expired/);
+});
+test("admins keep requiring a passkey even if flagged password-only eligible", () => {
+  const passwordOnly: Evidence = { ...evidence, passwordAt: now - 1000, mfaAt: now - 1000, factor: "password" };
+  assert.throws(() => assertStagingAuthorized(privileged, live, passwordOnly, proof, null, now, undefined, false, true),
+    /privileged_passkey_required/);
+  assert.throws(() => assertStagingAuthorized(privileged, live, evidence, proof, null, now, undefined, false, true),
+    /privileged_passkey_required/);
+  assert.equal(assertStagingAuthorized(privileged, live, { ...uv, mfaAt: now - 1000 }, proof, null, now, undefined, false, true).factor, "passkey_uv");
+});

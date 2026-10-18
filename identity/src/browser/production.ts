@@ -155,21 +155,57 @@ function chooseInviteType(type: "team" | "trial") {
   node<HTMLElement>("choose-trial").classList.toggle("selected", type === "trial");
 }
 let passkeyRegistered = false;
+// Set right after a new account is created. External client accounts can then add a passkey
+// ("for faster sign-in") or skip straight to Prospect; admin accounts still finish with a passkey.
+let offerOptionalPasskey = false;
+let optionalPasskeyShown = false;
+function showOptionalPasskey(): void {
+  optionalPasskeyShown = true;
+  node<HTMLElement>("auth-steps").hidden = false;
+  node<HTMLElement>("signin-step").hidden = true;
+  node<HTMLElement>("setup-details").hidden = true;
+  node<HTMLElement>("passkey-step-label").textContent = "OPTIONAL";
+  node<HTMLElement>("passkey-title").textContent = "Add a passkey for faster sign-in";
+  node<HTMLElement>("passkey-guidance").textContent = "Your account is ready and you’re signed in. A passkey lets you sign in with Face ID, Touch ID or your device screen lock instead of your password. You can skip this and keep using your password.";
+  node<HTMLButtonElement>("passkey-register").textContent = "Add a passkey";
+  node<HTMLElement>("passkey-skip").hidden = false;
+  const step = node<HTMLElement>("passkey-step");
+  step.hidden = false;
+  show("Account created. You’re signed in.");
+  step.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+async function addOptionalPasskey(): Promise<void> {
+  show("Approve the device prompt to create your passkey.");
+  const registered = await auth.passkey.addPasskey({ name: "Mirror Progress device" });
+  if (registered.error) throw passkeyError(registered.error);
+  passkeyRegistered = true;
+  node<HTMLElement>("passkey-skip").hidden = true;
+  show("Passkey added. Opening Prospect…");
+  openPlatform(true);
+}
 async function refresh(): Promise<Record<string, unknown> | null> {
   try {
     const state = await api("/api/identity/session");
     passkeyRegistered = state.passkeyRegistered === true;
     node<HTMLElement>("passkey-step").hidden = false;
     node<HTMLElement>("session-status").hidden = false;
+    const passkeyOptional = state.passkeyOptional === true;
     node<HTMLElement>("session-status").textContent = state.mfaCompleted === true ? "You’re signed in." :
       remoteEnrollRequested ? "Your one-time setup link is ready. Sign in with your password to add this phone." :
-      passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
+      passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." :
+      passkeyOptional ? "Sign in with your password to continue." : "Your account is ready. Set up your passkey to finish signing in.";
+    // A passkey-optional account without a passkey signs in again with its password, not a passkey prompt.
+    if (state.mfaCompleted !== true && passkeyOptional && !passkeyRegistered) node<HTMLElement>("passkey-step").hidden = true;
     if (state.mfaCompleted === true) {
       node<HTMLElement>("auth-steps").hidden = !setupActive && !resetActive;
       node<HTMLElement>("setup-details").hidden = !setupActive;
       node<HTMLElement>("passkey-step").hidden = setupActive || resetActive;
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
+      if (offerOptionalPasskey && passkeyOptional && !passkeyRegistered && !remoteEnrollRequested && !manageRequested && !devicesRequested) {
+        showOptionalPasskey();
+        return state;
+      }
       void loadInvitations();
       openPlatform();
     }
@@ -230,6 +266,9 @@ async function signInAndFinish(email: string, password: string): Promise<void> {
   const state = await refresh();
   if (!state) throw new Error("session_required");
   if (remoteEnrollRequested) await finishRemoteEnrollment();
+  // External client accounts are fully signed in with the password; refresh() either continued to
+  // Prospect or offered the optional passkey step.
+  else if (state.mfaCompleted === true) { if (!optionalPasskeyShown) show("Signed in. Opening Mirror Progress…"); }
   else await finishPasskey();
 }
 function submit(id: string, action: (values: Record<string, string>) => Promise<void>) {
@@ -279,13 +318,18 @@ submit("reset-complete", async values => {
   await api("/api/identity/password-reset/complete", { token: resetToken, newPassword: values.newPassword });
   resetToken = null;
   showReset("signin");
-  show("Password changed. Sign in with your new password, then approve your passkey.");
+  show("Password changed. Sign in with your new password.");
 });
 if (resetToken) showReset("complete");
 node<HTMLButtonElement>("passkey-register").addEventListener("click", () => {
   const button = node<HTMLButtonElement>("passkey-register"); button.disabled = true;
-  void (remoteEnrollRequested ? finishRemoteEnrollment() : finishPasskey())
+  void (remoteEnrollRequested ? finishRemoteEnrollment() : optionalPasskeyShown ? addOptionalPasskey() : finishPasskey())
     .catch(error => show(userError(error), true)).finally(() => { button.disabled = false; });
+});
+node<HTMLButtonElement>("passkey-skip").addEventListener("click", () => {
+  node<HTMLElement>("passkey-skip").hidden = true;
+  show("Opening Prospect…");
+  openPlatform(true);
 });
 node<HTMLButtonElement>("passkey-signin").addEventListener("click", () => {
   void finishPasskey().catch(error => show(userError(error), true));
@@ -366,7 +410,8 @@ submit("enroll", async values => { const enrolled = await api("/api/identity/enr
     node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
-  show("Account created. Approve the device prompts to finish signing in.");
+  show("Account created. Signing you in…");
+  offerOptionalPasskey = true;
   try { await signInAndFinish(email, values.password ?? ""); }
   catch (error) {
     node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });

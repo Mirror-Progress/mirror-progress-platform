@@ -375,6 +375,11 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const identity = await requiredSession(request.headers);
       const passkeyRegistered = config.mode === "production" ? (await store.pool.query<{ registered: boolean }>(
         `SELECT EXISTS(SELECT 1 FROM passkey WHERE "userId"=$1) AS registered`, [identity.user.id])).rows[0]?.registered === true : undefined;
+      // Tells the browser whether a passkey is optional ("Add a passkey for faster sign-in" / Skip).
+      const passkeyOptional = config.mode === "production" && config.freshInstall
+        ? await store.passwordOnlyEligible(identity.user.id) : undefined;
+      const passkeyState = { ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }),
+        ...(passkeyOptional === undefined ? {} : { passkeyOptional }) };
       try {
         const { principal, evidence } = await store.authorize(identity.session.id, identity.user.id);
         return json({ authenticated: true, mfaCompleted: true, principalId: principal.id,
@@ -382,11 +387,10 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
             accountType: await (store as StagingStore).managedAccountType(principal.id),
           } : {}),
           assurance: { method: evidence.factor, verifiedAt: evidence.mfaAt, expiresAt: evidence.expiresAt },
-          ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
+          ...passkeyState });
       } catch (error) {
         if (!(error instanceof PolicyError)) throw error;
-        return json({ authenticated: true, mfaCompleted: false, reason: error.code,
-          ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
+        return json({ authenticated: true, mfaCompleted: false, reason: error.code, ...passkeyState });
       }
     }
     if (request.method === "POST" && url.pathname === "/api/identity/global-logout") {
@@ -466,9 +470,13 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         return json({ twoFactorRedirect: true }, 200, headers);
       }
       const identity = await requiredSession(merged);
-      await store.recordEvidence(identity, null, passwordVerifiedAt, null);
+      // External client accounts may finish with the password alone (passkey optional). Everyone else
+      // records password-only evidence that cannot authorize until a passkey/TOTP ceremony follows.
+      const passwordOnly = config.mode === "production" && config.freshInstall === true &&
+        await store.passwordOnlyEligible(identity.user.id);
+      await store.recordEvidence(identity, passwordOnly ? "password" : null, passwordVerifiedAt, passwordOnly ? passwordVerifiedAt : null);
       // Never expose raw session tokens in browser JSON, even when the upstream API includes them.
-      return json({ authenticated: true, mfaCompleted: false }, 200, response.headers);
+      return json({ authenticated: true, mfaCompleted: false, ...(passwordOnly ? { signedIn: true } : {}) }, 200, response.headers);
     }
     if (request.method === "POST" && url.pathname === "/api/auth/two-factor/enable") {
       const identity = await requiredSession(request.headers);

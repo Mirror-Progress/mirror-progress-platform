@@ -40,6 +40,22 @@ export class StagingStore extends Store {
       WHERE b.user_id=$1 AND (a.principal_id IS NOT NULL OR t.principal_id IS NOT NULL)) AS allowed`, [userId]);
     return rows[0]?.allowed === true;
   }
+  /**
+   * External client accounts (account type external, role client) of the production fresh install
+   * may sign in with a password alone; a passkey is optional for them. Admin, project-lead and any
+   * other privileged principal keeps the passkey requirement. Migration 008 enforces the same rule
+   * on mirror_assurance.
+   */
+  override async passwordOnlyEligible(userId: string): Promise<boolean> {
+    if (this.config.mode !== "production" || !this.config.freshInstall) return false;
+    const { rows } = await this.pool.query<{ eligible: boolean }>(`SELECT EXISTS(
+      SELECT 1 FROM mirror_binding b JOIN mirror_principal p ON p.id=b.principal_id
+      JOIN mirror_staging_enrollment e ON e.user_id=b.user_id AND e.principal_id=p.id
+      WHERE b.user_id=$1 AND NOT p.privileged AND NOT p.disabled AND EXISTS (SELECT 1 FROM mirror_managed_invitation mi WHERE mi.principal_id=p.id
+        AND mi.account_type='external' AND mi.requested_role='client' AND mi.revoked_at IS NULL))
+      AS eligible`, [userId]);
+    return rows[0]?.eligible === true;
+  }
   async issueManagedInvitation(sessionId: string, input: {
     name: string; email: string; company: string; accountType: "admin" | "external";
     role: "admin" | "project_lead" | "client";
@@ -198,7 +214,10 @@ export class StagingStore extends Store {
       AND NOT p.disabled AND u."emailVerified" AND s."expiresAt">clock_timestamp()
       AND s."createdAt">clock_timestamp()-interval '8 hours'
       AND a.user_id=u.id AND a.principal_id=p.id AND a.epoch=p.authorization_epoch
-      AND a.factor IN ('passkey_uv','password_totp') AND a.mfa_at<=clock_timestamp()
+      AND (a.factor IN ('passkey_uv','password_totp') OR (a.factor='password' AND $6::boolean
+        AND NOT p.privileged AND a.password_at=a.mfa_at AND EXISTS (SELECT 1 FROM mirror_managed_invitation mi WHERE mi.principal_id=p.id
+        AND mi.account_type='external' AND mi.requested_role='client' AND mi.revoked_at IS NULL)))
+      AND a.mfa_at<=clock_timestamp()
       AND (NOT p.privileged OR (a.factor='passkey_uv' AND ($6::boolean OR EXISTS (
         SELECT 1 FROM mirror_staging_approval o WHERE o.principal_id=p.id AND o.user_id=u.id
         AND o.email=u.email AND o.epoch=p.authorization_epoch AND o.approver NOT IN (p.id,i.issuer,r.reconciler)
@@ -219,7 +238,9 @@ export class StagingStore extends Store {
       u.email,u."emailVerified" AS email_verified,i.issuer,r.reconciler,
       (m.consumed_at IS NOT NULL AND i.consumed_at IS NOT NULL AND d.accepted_at IS NOT NULL) AS possession,
       o.principal_id AS approval_principal,o.user_id AS approval_user,o.epoch::text AS approval_epoch,
-      o.email AS approval_email,o.approver,o.approved_at,o.expires_at AS approval_expires
+      o.email AS approval_email,o.approver,o.approved_at,o.expires_at AS approval_expires,
+      (NOT p.privileged AND EXISTS (SELECT 1 FROM mirror_managed_invitation mi WHERE mi.principal_id=p.id
+        AND mi.account_type='external' AND mi.requested_role='client' AND mi.revoked_at IS NULL)) AS password_only_eligible
       FROM "session" s JOIN "user" u ON u.id=s."userId"
       JOIN mirror_binding b ON b.user_id=u.id JOIN mirror_principal p ON p.id=b.principal_id
       LEFT JOIN mirror_assurance a ON a.session_id=s.id
@@ -247,7 +268,8 @@ export class StagingStore extends Store {
         mailboxAt: time(r.verified_at), issuer: r.issuer, reconciler: r.reconciler },
       r.approver === null ? null : { principalId: r.approval_principal, userId: r.approval_user,
         epoch: r.approval_epoch, email: r.approval_email, approver: r.approver,
-        approvedAt: time(r.approved_at), expiresAt: time(r.approval_expires) }, Date.now(), maxAge, !(this.config.mode === "production" && this.config.freshInstall === true));
+        approvedAt: time(r.approved_at), expiresAt: time(r.approval_expires) }, Date.now(), maxAge, !(this.config.mode === "production" && this.config.freshInstall === true),
+      this.config.mode === "production" && this.config.freshInstall === true && r.password_only_eligible === true);
     return { principal, evidence: verified };
   }
   private async invitation(db: PoolClient, hash: string) {

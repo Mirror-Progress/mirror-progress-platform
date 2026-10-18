@@ -1,5 +1,10 @@
 /** Authorization inputs are constructed on the server from the database only. */
-export type Factor = "password_totp" | "passkey_uv";
+/**
+ * "password" is password-only sign-in. It is accepted solely for non-privileged external client
+ * accounts of the production fresh install (see assertStagingAuthorized and migration 008); every
+ * other principal still needs a passkey (or, where allowed, password + TOTP).
+ */
+export type Factor = "password_totp" | "passkey_uv" | "password";
 export interface Principal {
   id: string;
   disabled: boolean;
@@ -47,7 +52,7 @@ export function assertAuthorized(
 }
 /** Evidence validation only; callers must separately enforce principal/enrollment policy. */
 export function assertSessionEvidence(principal: Principal, live: LiveSession, evidence: Evidence | null,
-  now: number, maxAgeMs = MFA_MAX_AGE_MS): Evidence {
+  now: number, maxAgeMs = MFA_MAX_AGE_MS, passwordOnlyAllowed = false): Evidence {
   if (!Number.isFinite(now) || !Number.isFinite(maxAgeMs) || maxAgeMs <= 0) throw new PolicyError("invalid_clock");
   if (!evidence || evidence.sessionId !== live.id || evidence.userId !== live.userId ||
       evidence.principalId !== principal.id || evidence.epoch !== principal.epoch) {
@@ -62,6 +67,11 @@ export function assertSessionEvidence(principal: Principal, live: LiveSession, e
     if (evidence.passwordAt === null || !Number.isFinite(evidence.passwordAt) || evidence.passwordAt > evidence.mfaAt ||
         evidence.mfaAt - evidence.passwordAt >= PASSWORD_FLOW_MAX_AGE_MS) {
       throw new PolicyError("password_ceremony_missing", 401);
+    }
+  } else if (evidence.factor === "password") {
+    // Password-only evidence is a single ceremony: the password time is the authentication time.
+    if (!passwordOnlyAllowed || principal.privileged || evidence.passwordAt === null || evidence.passwordAt !== evidence.mfaAt) {
+      throw new PolicyError("mfa_required", 401);
     }
   } else if (evidence.factor !== "passkey_uv") {
     throw new PolicyError("mfa_required", 401);
