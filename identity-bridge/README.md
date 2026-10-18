@@ -91,7 +91,7 @@ All fields are readonly; the returned object, `amr` array and `assurance` object
 | `emailVerified` | `boolean`; signed boolean `email_verified`, absent means `false`. String/number coercion is rejected; `true` without email is rejected. |
 | `authTime` | `number`; positive integer **Unix seconds** from signed `auth_time`, representing the accepted ceremony. |
 | `amr` | `readonly string[]`; signed, nonempty, unique, bounded method values; case-sensitive. |
-| `assurance` | `{ readonly kind: 'passkey-uv' \| 'pwd-otp'; readonly acr: string }`; exact configured issuer context plus required AMR evidence. |
+| `assurance` | `{ readonly kind: 'passkey-uv' \| 'pwd-otp' \| 'pwd'; readonly acr: string }`; exact configured issuer context plus required AMR evidence. `pwd` is produced only by the Mirror assurance mode for Mirror Identity password-only sign-in (external client accounts); applications must still require `passkey-uv` for privileged roles. |
 | `mfaVerifiedAt` | `string`; UTC ISO 8601 representation of **that same signed `auth_time`**. Never callback, issue, registration, refresh or local-clock time. |
 | `returnTo` | `string`; validated local path from the authenticated flow, not callback query or token claims. |
 

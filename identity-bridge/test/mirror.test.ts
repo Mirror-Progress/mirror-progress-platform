@@ -51,6 +51,16 @@ test('Mirror accepts only a bounded completed password/TOTP ceremony', async () 
     ...evidence, method: 'password_totp', password_verified_at: NOW - 100 } }), context);
   assert.equal(id.assurance.kind, 'pwd-otp');
 });
+test('Mirror accepts a password-only ceremony as the distinct pwd kind', async () => {
+  const f = await setup();
+  const id = await f.client.verifyIdentityToken(await f.sign({ ...claims, [`${namespace}assurance`]: {
+    ...evidence, method: 'password', password_verified_at: evidence.verified_at } }), context);
+  assert.equal(id.assurance.kind, 'pwd');
+  for (const password_verified_at of [null, evidence.verified_at - 1]) {
+    await assert.rejects(f.client.verifyIdentityToken(await f.sign({ ...claims, [`${namespace}assurance`]: {
+      ...evidence, method: 'password', password_verified_at } }), context), hasCode('assurance_insufficient'));
+  }
+});
 test('Mirror authorization sends only the exact provider-supported code and PKCE parameters', async () => {
   const f = await setup(); f.metadata.token_endpoint_auth_methods_supported = ['none'];
   const start = await f.start();

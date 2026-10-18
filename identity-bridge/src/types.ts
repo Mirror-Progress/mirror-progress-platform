@@ -3,7 +3,11 @@ import type { JWTVerifyGetKey } from 'jose';
 export type SigningAlgorithm = 'RS256' | 'PS256' | 'ES256' | 'EdDSA';
 
 export type VerifiedAssurance = Readonly<{
-  kind: 'passkey-uv' | 'pwd-otp';
+  /**
+   * 'pwd' is Mirror Identity password-only sign-in, issued only for external client accounts.
+   * Applications must keep requiring 'passkey-uv' for every privileged or non-client role.
+   */
+  kind: 'passkey-uv' | 'pwd-otp' | 'pwd';
   /** Exact, server-allowlisted, issuer-defined authentication context. */
   acr: string | null;
 }>;
