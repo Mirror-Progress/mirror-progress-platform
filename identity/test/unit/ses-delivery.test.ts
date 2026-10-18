@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {SesEnrollmentTransport,sendPasswordResetEmail} from '../../src/core/ses-delivery.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {SES_FALLBACK_SENDER,SesEnrollmentTransport,sendPasswordResetEmail} from '../../src/core/ses-delivery.js';
 test('SES sender bounds recipients and token destination before sending; deduplicates accepted IDs',async()=>{
  const commands:any[]=[];const client={send:async(c:unknown)=>{commands.push(c);return {};},destroy:()=>{}};
  const transport=new SesEnrollmentTransport(client as any);
@@ -6,7 +6,7 @@ test('SES sender bounds recipients and token destination before sending; dedupli
  await assert.rejects(transport.send({...message,to:'outside@example.invalid'}));
  await assert.rejects(transport.send({...message,url:'https://attacker.invalid/#mailboxToken='+'a'.repeat(43)}));
  assert.equal(commands.length,0);await transport.send(message);await transport.send(message);assert.equal(commands.length,1);
- assert.equal(commands[0].input.FromEmailAddress,'hello@mirrorprogress.com');
+ assert.equal(commands[0].input.FromEmailAddress,'identity@mirrorprogress.com');
 });
 test('password reset email uses the verified sender and only an account reset link',async()=>{
  const commands:any[]=[];const client={send:async(c:unknown)=>{commands.push(c);return {};}};
@@ -16,7 +16,7 @@ test('password reset email uses the verified sender and only an account reset li
  assert.equal(commands.length,0);
  await sendPasswordResetEmail(message,client as any);
  assert.equal(commands.length,1);
- assert.equal(commands[0].input.FromEmailAddress,'hello@mirrorprogress.com');
+ assert.equal(commands[0].input.FromEmailAddress,'identity@mirrorprogress.com');
  assert.deepEqual(commands[0].input.Destination.ToAddresses,[message.to]);
  assert.match(commands[0].input.Content.Simple.Body.Html.Data,/&lt;Person&gt;/);
 });
@@ -30,4 +30,10 @@ test('SES sends the trial copy (text and HTML) only for self-serve trial invitat
  assert.equal(trial.Subject.Data,'Start your 14-day Prospect trial');
  assert.match(trial.Body.Text.Data,/No card is required/);assert.match(trial.Body.Html.Data,/Start your trial/);
  assert.equal(standard.Subject.Data,"You're invited to Mirror Progress Prospect");
+});
+test('SES fallback sender matches the infra ses:FromAddress condition',async()=>{
+ const { readFile } = await import('node:fs/promises');
+ const infra = await readFile(new URL('../../../../identity-infra/src/production-service.ts', import.meta.url), 'utf8').catch(() => null);
+ if (infra === null) return; // Identity is built without the sibling infra package.
+ assert.ok(infra.includes(`'ses:FromAddress': '${SES_FALLBACK_SENDER}'`));
 });

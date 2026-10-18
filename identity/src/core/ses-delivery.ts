@@ -1,6 +1,13 @@
 import { SESv2Client, SendEmailCommand, GetAccountCommand } from '@aws-sdk/client-sesv2';
 import type { EnrollmentMessage, EnrollmentTransport } from './delivery.js';
 import { invitationEmail } from './invitation-email.js';
+/**
+ * Sender for the SES fallback transport (IDENTITY_MAIL_DELIVERY=ses). It must match the
+ * ses:FromAddress condition on the task role in identity-infra/src/production-service.ts
+ * ('identity@mirrorprogress.com'); any other sender is denied by IAM. The Microsoft Graph
+ * transport sends from hello@mirrorprogress.com and is unaffected.
+ */
+export const SES_FALLBACK_SENDER = 'identity@mirrorprogress.com';
 const accountClient = new SESv2Client({ region: 'us-east-1', maxAttempts: 1 });
 let productionAccess: { enabled: boolean; checkedAt: number } | null = null;
 export async function invitationRecipientDeliverable(email: string): Promise<boolean> {
@@ -28,7 +35,7 @@ export async function sendPasswordResetEmail(message: { to: string; name: string
   client: Pick<SESv2Client, 'send'> = accountClient): Promise<void> {
   const content = passwordResetEmail(message);
   await client.send(new SendEmailCommand({
-    FromEmailAddress: 'hello@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
+    FromEmailAddress: SES_FALLBACK_SENDER, Destination: { ToAddresses: [message.to] },
     Content: { Simple: { Subject: { Data: content.subject, Charset: 'UTF-8' },
       Body: { Text: { Data: content.text, Charset: 'UTF-8' }, Html: { Data: content.html, Charset: 'UTF-8' } } } },
   }), { abortSignal: AbortSignal.timeout(10000) });
@@ -53,7 +60,7 @@ export class SesEnrollmentTransport implements EnrollmentTransport {
       ? invitationEmail({ to: message.to, name: message.inviteeName ?? '', company: message.company ?? '', url: message.url, expiresAt: message.expiresAt, kind: message.invitationKind, trialDays: message.trialDays })
       : null;
     await this.client.send(new SendEmailCommand({
-      FromEmailAddress: 'hello@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
+      FromEmailAddress: SES_FALLBACK_SENDER, Destination: { ToAddresses: [message.to] },
       Content: { Simple: { Subject: { Data: branded?.subject ?? 'Set up your Mirror Progress account', Charset: 'UTF-8' },
         Body: { Text: { Data: branded?.text ?? `Open this link to verify your email and finish setting up your Mirror Progress account:\n\n${message.url}\n\nUse the invitation provided with your account setup. This link expires in 10 minutes or sooner. If you did not request this, ignore this message.`, Charset: 'UTF-8' },
           ...(branded ? { Html: { Data: branded.html, Charset: 'UTF-8' } } : {}) } } },
