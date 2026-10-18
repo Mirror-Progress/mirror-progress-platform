@@ -19,9 +19,11 @@ const resetPattern = /^[A-Za-z0-9_-]{24,128}$/;
 let resetToken = hash.get("reset");
 if (!resetToken || !resetPattern.test(resetToken)) resetToken = null;
 let resetActive = Boolean(resetToken);
+// True when this page is about to hand the person to Prospect rather than stay on the account page.
+const platformOpens = (afterSignIn = false) => location.origin === "https://accounts.mirrorprogress.com" &&
+  (afterSignIn || (!logoutRequested && !signedOutView)) && !manageRequested && !devicesRequested && !setupActive && !resetActive;
 const openPlatform = (afterSignIn = false) => {
-  if (location.origin === "https://accounts.mirrorprogress.com" && (afterSignIn || (!logoutRequested && !signedOutView)) && !manageRequested && !devicesRequested && !setupActive && !resetActive)
-    location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
+  if (platformOpens(afterSignIn)) location.assign(safeResumePath(new URLSearchParams(location.search).get("resume")) ?? platform);
 };
 const storageKey = "mirror-identity-setup-invitation";
 const invitationFromLink = hash.get("invitation");
@@ -194,7 +196,8 @@ async function refresh(afterSignIn = false): Promise<Record<string, unknown> | n
       node<HTMLElement>("passkey-step").hidden = setupActive || resetActive;
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
-      void loadInvitations();
+      // The admin invitation list is only shown on the account page; don't fetch it on the way to Prospect.
+      if (!platformOpens(afterSignIn)) void loadInvitations();
       openPlatform(afterSignIn);
     }
     return state;
@@ -236,7 +239,8 @@ async function authenticatePasskey(): Promise<void> {
   node<HTMLElement>("device-access").hidden = !devicesRequested;
   if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
   show(manageRequested ? "Signed in. You can manage invitations below." : devicesRequested ? "Signed in. Add a passkey for your phone or iPad below." : "Signed in. Opening Mirror Progress…");
-  await loadInvitations();
+  // Leaving for Prospect: go now. The admin invitation list used to be awaited here first, delaying every admin sign-in.
+  if (!platformOpens(true)) await loadInvitations();
   openPlatform(true);
 }
 async function finishRemoteEnrollment(): Promise<void> {
