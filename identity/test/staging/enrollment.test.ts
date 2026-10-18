@@ -30,7 +30,7 @@ const operatorRole = production ? "mirror_identity_production_operator" : "mirro
 const ownerUrl = process.env.ENROLLMENT_TEST_DATABASE_URL ?? "";
 const parsed = new URL(ownerUrl);
 assert.equal(parsed.hostname, "127.0.0.1");
-assert.equal(parsed.port, "55432");
+assert.equal(parsed.port, process.env.ENROLLMENT_TEST_PORT ?? "55432");
 assert.equal(parsed.pathname, production ? "/mirror_identity_production_enrollment_test" : "/mirror_identity_enrollment_test");
 assert.equal(parsed.username, "postgres");
 assert.equal(parsed.search, "");
@@ -89,7 +89,10 @@ before(async () => {
   // Discard only its old synthetic signing keys so the library never decrypts with the wrong key.
   await owner.query("DELETE FROM jwks");
   await owner.query("CREATE TABLE IF NOT EXISTS mirror_schema_migration(name text PRIMARY KEY, checksum text NOT NULL)");
-  for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery", "004-managed-invitations"]) {
+  // Same ordered set as scripts/migrate-staging.ts and migrate-production.ts; the grants reference 006 and 008.
+  for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery", "004-managed-invitations",
+    "005-admin-invitation-authority", "006-trial-invitation-manager", "007-unified-prospect-invitations",
+    "008-self-serve-trial-invitations"]) {
     const sql = await readFile(`migrations/${name}.sql`, "utf8"), checksum = createHash("sha256").update(sql).digest("hex");
     const prior = await owner.query("SELECT checksum FROM mirror_schema_migration WHERE name=$1", [name]);
     if (prior.rows.length) assert.equal(prior.rows[0].checksum, checksum);
@@ -365,7 +368,7 @@ test('managed invite sends one setup link and enrolls its exact mailbox without 
   assert.equal(message.company, 'Mirror Progress');
   const invitation = new URLSearchParams(new URL(message.url).hash.slice(1)).get('invitation');
   assert.ok(invitation);
-  assert.deepEqual(await fresh.managedInvitationInfo(invitation), { name: 'Synthetic Teammate', company: 'Mirror Progress' });
+  assert.deepEqual(await fresh.managedInvitationInfo(invitation), { name: 'Synthetic Teammate', company: 'Mirror Progress', email: inviteEmail });
   assert.equal((await fresh.resendManagedInvitation(sessionId, issued.principalId)).status, 'queued');
   assert.equal(await fresh.managedInvitationInfo(invitation), null);
   assert.equal(await fresh.dispatchOne(transport), 'sent');

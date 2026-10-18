@@ -1,6 +1,13 @@
 import { SESv2Client, SendEmailCommand, GetAccountCommand } from '@aws-sdk/client-sesv2';
 import type { EnrollmentMessage, EnrollmentTransport } from './delivery.js';
 import { invitationEmail } from './invitation-email.js';
+/**
+ * Sender for the SES fallback transport (IDENTITY_MAIL_DELIVERY=ses). It must match the
+ * ses:FromAddress condition on the task role in identity-infra/src/production-service.ts
+ * ('identity@mirrorprogress.com'); any other sender is denied by IAM. The Microsoft Graph
+ * transport sends from hello@mirrorprogress.com and is unaffected.
+ */
+export const SES_FALLBACK_SENDER = 'identity@mirrorprogress.com';
 const accountClient = new SESv2Client({ region: 'us-east-1', maxAttempts: 1 });
 let productionAccess: { enabled: boolean; checkedAt: number } | null = null;
 export async function invitationRecipientDeliverable(email: string): Promise<boolean> {
@@ -20,15 +27,15 @@ export function passwordResetEmail(message: { to: string; name: string; url: str
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[character]!);
   const safeUrl = message.url.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-  const text = `Hi ${firstName || 'there'},\n\nUse this one-time link to reset your Mirror Progress Prospect password:\n\n${message.url}\n\nThe link expires in one hour. If you did not request this, you can ignore this email. Your passkey remains required to sign in.\n\nMirror Progress`;
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#0b1014;color:#f4f5f4;font-family:Arial,sans-serif"><div style="max-width:560px;margin:0 auto;padding:40px 24px"><p style="font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#b9c9c5">Mirror Progress</p><h1 style="font-size:30px;line-height:1.2;font-weight:500;margin:32px 0 16px">Reset your Prospect password</h1><p style="font-size:16px;line-height:1.6">Hi ${safeName || 'there'},</p><p style="font-size:16px;line-height:1.6">Use this one-time link to choose a new password.</p><p style="margin:32px 0"><a href="${safeUrl}" style="display:inline-block;background:#c7f36d;color:#102017;padding:14px 22px;border-radius:6px;text-decoration:none;font-weight:700">Reset password</a></p><p style="font-size:13px;line-height:1.5;color:#b9c9c5">This link expires in one hour. If you did not request it, ignore this email. Your passkey remains required to sign in.</p></div></body></html>`;
+  const text = `Hi ${firstName || 'there'},\n\nUse this one-time link to reset your Mirror Progress Prospect password:\n\n${message.url}\n\nThe link expires in one hour. If you did not request this, you can ignore this email. Accounts that use a required passkey still need it to sign in.\n\nMirror Progress`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#0b1014;color:#f4f5f4;font-family:Arial,sans-serif"><div style="max-width:560px;margin:0 auto;padding:40px 24px"><p style="font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#b9c9c5">Mirror Progress</p><h1 style="font-size:30px;line-height:1.2;font-weight:500;margin:32px 0 16px">Reset your Prospect password</h1><p style="font-size:16px;line-height:1.6">Hi ${safeName || 'there'},</p><p style="font-size:16px;line-height:1.6">Use this one-time link to choose a new password.</p><p style="margin:32px 0"><a href="${safeUrl}" style="display:inline-block;background:#c7f36d;color:#102017;padding:14px 22px;border-radius:6px;text-decoration:none;font-weight:700">Reset password</a></p><p style="font-size:13px;line-height:1.5;color:#b9c9c5">This link expires in one hour. If you did not request it, ignore this email. Accounts that use a required passkey still need it to sign in.</p></div></body></html>`;
   return { subject: 'Reset your Mirror Progress Prospect password', text, html };
 }
 export async function sendPasswordResetEmail(message: { to: string; name: string; url: string },
   client: Pick<SESv2Client, 'send'> = accountClient): Promise<void> {
   const content = passwordResetEmail(message);
   await client.send(new SendEmailCommand({
-    FromEmailAddress: 'hello@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
+    FromEmailAddress: SES_FALLBACK_SENDER, Destination: { ToAddresses: [message.to] },
     Content: { Simple: { Subject: { Data: content.subject, Charset: 'UTF-8' },
       Body: { Text: { Data: content.text, Charset: 'UTF-8' }, Html: { Data: content.html, Charset: 'UTF-8' } } } },
   }), { abortSignal: AbortSignal.timeout(10000) });
@@ -50,10 +57,10 @@ export class SesEnrollmentTransport implements EnrollmentTransport {
         url.origin !== 'https://accounts.mirrorprogress.com' || url.pathname !== '/' || url.search ||
         !/^#(?:mailboxToken|invitation)=[A-Za-z0-9_-]{43}$/.test(url.hash) || message.expiresAt.getTime() <= Date.now()) throw new Error('invalid_enrollment_message');
     const branded = managed
-      ? invitationEmail({ to: message.to, name: message.inviteeName ?? '', company: message.company ?? '', url: message.url, expiresAt: message.expiresAt })
+      ? invitationEmail({ to: message.to, name: message.inviteeName ?? '', company: message.company ?? '', url: message.url, expiresAt: message.expiresAt, kind: message.invitationKind, trialDays: message.trialDays })
       : null;
     await this.client.send(new SendEmailCommand({
-      FromEmailAddress: 'hello@mirrorprogress.com', Destination: { ToAddresses: [message.to] },
+      FromEmailAddress: SES_FALLBACK_SENDER, Destination: { ToAddresses: [message.to] },
       Content: { Simple: { Subject: { Data: branded?.subject ?? 'Set up your Mirror Progress account', Charset: 'UTF-8' },
         Body: { Text: { Data: branded?.text ?? `Open this link to verify your email and finish setting up your Mirror Progress account:\n\n${message.url}\n\nUse the invitation provided with your account setup. This link expires in 10 minutes or sooner. If you did not request this, ignore this message.`, Charset: 'UTF-8' },
           ...(branded ? { Html: { Data: branded.html, Charset: 'UTF-8' } } : {}) } } },

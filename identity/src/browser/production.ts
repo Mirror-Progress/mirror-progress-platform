@@ -51,6 +51,7 @@ const userError = (error: unknown): string => {
   if (code === "company_unavailable") return "Choose an existing company with active Prospect access and an available seat.";
   if (code === "external_email_delivery_unavailable") return "Invites to this email domain are temporarily unavailable. Contact your admin to use a verified Mirror Progress address.";
   if (code === "invitation_conflict") return "That email already has an invitation. Check the list below.";
+  if (code === "legacy_pilot_exists") return "This person already has a pending Prospect invitation. Use Send new invite in the Invitations tab.";
   if (code === "trial_preparation_failed") return "We couldn't prepare this trial. Check whether the company already has a Prospect workspace, then try again.";
   if (code === "invalid_trial_invitation") return "Enter a valid email, 1–365 trial days, and at least one seat.";
   if (code === "privileged_passkey_required") return "Finish signing in with your passkey.";
@@ -91,6 +92,10 @@ async function loadInvitations(): Promise<void> {
     node<HTMLElement>("external-delivery-status").textContent = result.externalDeliveryReady === true
       ? "Invitations can be delivered to external email domains."
       : "External email delivery is pending. Mirror Progress addresses can be invited now.";
+    if (result.legacyUnavailable === true) {
+      node<HTMLElement>("external-delivery-status").textContent +=
+        " Older Prospect invitations could not be loaded. Try again before sending a duplicate.";
+    }
     const list = node<HTMLElement>("invitation-list");
     const people = node<HTMLElement>("people-list");
     list.replaceChildren(); people.replaceChildren();
@@ -98,7 +103,8 @@ async function loadInvitations(): Promise<void> {
     for (const item of invitations) {
       const row = document.createElement("div");
       row.className = "access-row";
-      const status = item.accepted === true ? "Accepted" : item.revokedAt ? "Revoked" :
+      const legacy = item.source === "legacy_pilot";
+      const status = legacy ? "Pending · previous system" : item.accepted === true ? "Accepted" : item.revokedAt ? "Revoked" :
         new Date(String(item.expiresAt)).getTime() <= Date.now() ? "Expired" :
         item.deliveryStatus === "sent" ? "Sent" : item.deliveryStatus === "failed" ? "Delivery failed" : "Sending";
       const identity = document.createElement("div"); identity.className = "access-person";
@@ -110,7 +116,18 @@ async function loadInvitations(): Promise<void> {
       const actions = document.createElement("div"); actions.className = "access-row-actions";
       row.append(identity,company,badge,actions);
       const id = String(item.principalId);
-      if (!trialOnly && /^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
+      if (legacy && /^studioiq_pilot_[a-f0-9-]{36}$/.test(id)) {
+        const migrate = document.createElement("button");
+        migrate.type = "button"; migrate.className = "secondary"; migrate.textContent = "Send new invite";
+        migrate.addEventListener("click", () => { migrate.disabled = true;
+          void api(`/api/identity/admin/legacy-pilots/${id}/migrate`, {}).then(async () => {
+            show("A new Mirror Identity invitation is queued. The existing Prospect workspace and trial are preserved.");
+            await loadInvitations();
+          }).catch(error => show(userError(error), true)).finally(() => { migrate.disabled = false; }); });
+        actions.append(migrate);
+      }
+      // Trial managers may resend (migration 007); revoking stays with invitation admins.
+      if (/^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
         if (item.accepted !== true) {
           const resend = document.createElement("button");
           resend.type = "button"; resend.className = "secondary"; resend.textContent = "Resend";
@@ -120,6 +137,7 @@ async function loadInvitations(): Promise<void> {
             }).catch(error => show(userError(error), true)).finally(() => { resend.disabled = false; }); });
           actions.append(resend);
         }
+        if (!trialOnly) {
         const revoke = document.createElement("button");
         revoke.type = "button"; revoke.className = "secondary"; revoke.textContent = "Revoke";
         revoke.addEventListener("click", () => { if (!window.confirm(`Revoke access for ${String(item.email)}? This will sign the person out.`)) return; revoke.disabled = true;
@@ -127,6 +145,7 @@ async function loadInvitations(): Promise<void> {
             show("Invitation and account access revoked."); await loadInvitations();
           }).catch(error => show(userError(error), true)).finally(() => { revoke.disabled = false; }); });
         actions.append(revoke);
+        }
       }
       (item.accepted === true && !item.revokedAt ? people : list).append(row);
     }
@@ -155,15 +174,20 @@ function chooseInviteType(type: "team" | "trial") {
   node<HTMLElement>("choose-trial").classList.toggle("selected", type === "trial");
 }
 let passkeyRegistered = false;
-async function refresh(): Promise<Record<string, unknown> | null> {
+// afterSignIn: the person just signed in on this page, so continue even on a ?logout=1 / ?signedOut=1 view.
+async function refresh(afterSignIn = false): Promise<Record<string, unknown> | null> {
   try {
     const state = await api("/api/identity/session");
     passkeyRegistered = state.passkeyRegistered === true;
     node<HTMLElement>("passkey-step").hidden = false;
     node<HTMLElement>("session-status").hidden = false;
+    const passkeyOptional = state.passkeyOptional === true;
     node<HTMLElement>("session-status").textContent = state.mfaCompleted === true ? "You’re signed in." :
       remoteEnrollRequested ? "Your one-time setup link is ready. Sign in with your password to add this phone." :
-      passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." : "Your account is ready. Set up your passkey to finish signing in.";
+      passkeyRegistered ? "Your passkey is ready. Approve the prompt to sign in." :
+      passkeyOptional ? "Sign in with your password to continue." : "Your account is ready. Set up your passkey to finish signing in.";
+    // A passkey-optional account without a passkey signs in again with its password, not a passkey prompt.
+    if (state.mfaCompleted !== true && passkeyOptional && !passkeyRegistered) node<HTMLElement>("passkey-step").hidden = true;
     if (state.mfaCompleted === true) {
       node<HTMLElement>("auth-steps").hidden = !setupActive && !resetActive;
       node<HTMLElement>("setup-details").hidden = !setupActive;
@@ -171,7 +195,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
       void loadInvitations();
-      openPlatform();
+      openPlatform(afterSignIn);
     }
     return state;
   } catch {
@@ -227,9 +251,11 @@ async function finishRemoteEnrollment(): Promise<void> {
 async function signInAndFinish(email: string, password: string): Promise<void> {
   const result = await api("/api/auth/sign-in/email", { email, password });
   if (result.twoFactorRedirect === true) throw new Error("passkey_unavailable");
-  const state = await refresh();
+  const state = await refresh(true);
   if (!state) throw new Error("session_required");
   if (remoteEnrollRequested) await finishRemoteEnrollment();
+  // External client accounts are fully signed in with the password; refresh() continued to Prospect.
+  else if (state.mfaCompleted === true) show("Signed in. Opening Prospect…");
   else await finishPasskey();
 }
 function submit(id: string, action: (values: Record<string, string>) => Promise<void>) {
@@ -279,7 +305,7 @@ submit("reset-complete", async values => {
   await api("/api/identity/password-reset/complete", { token: resetToken, newPassword: values.newPassword });
   resetToken = null;
   showReset("signin");
-  show("Password changed. Sign in with your new password, then approve your passkey.");
+  show("Password changed. Sign in with your new password.");
 });
 if (resetToken) showReset("complete");
 node<HTMLButtonElement>("passkey-register").addEventListener("click", () => {
@@ -366,7 +392,7 @@ submit("enroll", async values => { const enrolled = await api("/api/identity/enr
     node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
-  show("Account created. Approve the device prompts to finish signing in.");
+  show("Account created. Signing you in…");
   try { await signInAndFinish(email, values.password ?? ""); }
   catch (error) {
     node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });

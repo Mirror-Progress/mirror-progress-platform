@@ -15,7 +15,8 @@ export interface OperatorApproval {
   approver: string; approvedAt: number; expiresAt: number;
 }
 export function assertStagingAuthorized(principal: Principal, live: LiveSession, evidence: Evidence | null,
-  proof: EnrollmentProof | null, approval: OperatorApproval | null, now: number, maxAge = MFA_MAX_AGE_MS, requireMigrationApproval = true): Evidence {
+  proof: EnrollmentProof | null, approval: OperatorApproval | null, now: number, maxAge = MFA_MAX_AGE_MS, requireMigrationApproval = true,
+  passwordOnlyEligible = false): Evidence {
   if (principal.disabled) throw new PolicyError("principal_disabled");
   decimalEpoch(principal.epoch);
   if (!proof || proof.principalId !== principal.id || proof.userId !== live.userId || !proof.emailVerified ||
@@ -39,7 +40,9 @@ export function assertStagingAuthorized(principal: Principal, live: LiveSession,
     }
     maxAge = Math.min(maxAge, STEP_UP_MAX_AGE_MS);
   }
-  return assertSessionEvidence(principal, live, evidence, now, maxAge);
+  // Only a non-privileged external client of the fresh install may authorize with a password alone.
+  return assertSessionEvidence(principal, live, evidence, now, maxAge,
+    passwordOnlyEligible && !principal.privileged && !requireMigrationApproval);
 }
 export function enrollmentMessage(code: unknown): string {
   const messages: Record<string, string> = {

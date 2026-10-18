@@ -19,7 +19,7 @@ export function mirrorAssurance(payload: JWTPayload, config: Config, now: number
       evidence.expires_at <= evidence.verified_at || evidence.expires_at - evidence.verified_at > 3600 ||
       (payload.sid !== undefined && payload.sid !== evidence.session_id)) fail('assurance_insufficient');
   if (evidence.expires_at <= now || now - evidence.verified_at >= config.maxAuthenticationAgeSeconds) fail('authentication_stale');
-  let kind: 'passkey-uv' | 'pwd-otp';
+  let kind: 'passkey-uv' | 'pwd-otp' | 'pwd';
   if (evidence.method === 'passkey_uv') {
     if (evidence.password_verified_at !== null) fail('assurance_insufficient');
     kind = 'passkey-uv';
@@ -27,6 +27,11 @@ export function mirrorAssurance(payload: JWTPayload, config: Config, now: number
     if (!numericDate(evidence.password_verified_at) || evidence.password_verified_at > evidence.verified_at ||
         evidence.verified_at - evidence.password_verified_at >= 300) fail('assurance_insufficient');
     kind = 'pwd-otp';
+  } else if (evidence.method === 'password') {
+    // Password-only: one ceremony, so the password time is the authentication time. Mirror Identity
+    // issues this only to external client accounts; callers must still require passkey-uv for privileged roles.
+    if (!numericDate(evidence.password_verified_at) || evidence.password_verified_at !== evidence.verified_at) fail('assurance_insufficient');
+    kind = 'pwd';
   } else fail('assurance_insufficient');
   return { principalId, authorizationEpoch, identitySessionId: evidence.session_id,
     authTime: evidence.verified_at, amr: Object.freeze([] as string[]), assurance: Object.freeze({ kind, acr: null }) };

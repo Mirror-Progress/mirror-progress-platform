@@ -17,6 +17,8 @@ const millis = (value: unknown): number => new Date(value as string | Date).getT
 export class Store {
   constructor(readonly pool: Pool) {}
   assertCredentialPrincipal(principal: Principal): void { assertOrdinaryPrincipal(principal); }
+  /** Password-only sign-in is a production fresh-install policy; the synthetic foundation never allows it. */
+  async passwordOnlyEligible(_userId: string): Promise<boolean> { return false; }
   /** Server-to-server revocation check. Does not upgrade assurance or create a session. */
   async sessionActive(sessionId: string, userId: string, principalId: string, epoch: string, requirePrivileged = false): Promise<boolean> {
     if (requirePrivileged) return false; // Synthetic foundation has no privileged enrollment.

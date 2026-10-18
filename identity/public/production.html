@@ -22,7 +22,7 @@
 <label id="invited-email-label" hidden>Email<input id="invited-email" type="email" autocomplete="off" readonly></label>
 <label>Display name<input name="name" maxlength="120" autocomplete="name" required></label>
 <label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
-<p class="form-hint">Use at least 14 characters. You’ll add a passkey after creating the account.</p>
+<p class="form-hint">Use at least 14 characters. Admin accounts add a passkey next; for other accounts a passkey is optional.</p>
 <button type="submit">Create account</button></form>
 <button id="show-signin" type="button" class="text-action">Already have an account? Sign in</button></div></details>
 <section class="card" id="signin-step"><p class="step">YOUR ACCOUNT</p><h2>Welcome back.</h2><p>Sign in to continue to your workspace.</p>
@@ -36,9 +36,9 @@
 <button id="reset-request-signin" type="button" class="text-action">Back to sign in</button></section>
 <section class="card" id="reset-complete-step" hidden><p class="step">ACCOUNT RECOVERY</p><h2>Choose a new password.</h2><p>This link can be used once and expires after one hour.</p>
 <form id="reset-complete"><label>New password<input name="newPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
-<label>Confirm new password<input name="confirmPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label><p class="form-hint">Use at least 14 characters. Your passkey is still required when you sign in.</p><button type="submit">Save new password</button></form>
+<label>Confirm new password<input name="confirmPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label><p class="form-hint">Use at least 14 characters. If your account requires a passkey, you’ll still confirm it when you sign in.</p><button type="submit">Save new password</button></form>
 <button id="reset-complete-request" type="button" class="text-action">Need a new link?</button></section>
-<section class="card" id="passkey-step" hidden><p class="step">FINAL STEP</p><h2>Approve on your device</h2>
+<section class="card" id="passkey-step" hidden><p class="step" id="passkey-step-label">FINAL STEP</p><h2 id="passkey-title">Approve on your device</h2>
 <p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation. If your passkey is only on your Mac, <a href="/#devices">add one for your phone</a> from the Mac after signing in.</p>
 <button id="passkey-register" type="button" class="secondary wide">Finish with passkey</button>
 <button id="passkey-signin" type="button" class="secondary wide" hidden>Retry passkey sign-in</button></section>

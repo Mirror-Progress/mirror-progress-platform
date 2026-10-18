@@ -6,6 +6,7 @@ import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } fr
 import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
 import type { Config } from "./core/config.js";
+import { platformOrigin, SELF_SERVE_SECRET_MIN_LENGTH } from "./core/config.js";
 import { PolicyError, validateAuthorizationQuery } from "./core/policy.js";
 import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest, digest } from "./core/tokens.js";
 import { ceremony } from "./auth.js";
@@ -56,6 +57,42 @@ function stringField(body: Record<string, unknown>, key: string, min = 1, max = 
   const v = body[key];
   if (typeof v !== "string" || v.length < min || v.length > max) throw new PolicyError(`invalid_${key}`, 400);
   return v;
+}
+// Pending trials created by the previous Prospect pilot system, served by the platform. Listed beside managed
+// invitations so an operator does not send a duplicate, and migratable into a Mirror Identity invitation.
+type LegacyPilot = { id: string; name: string; email: string; company: string;
+  trialDays: number; seatAllowance: number; createdAt: string };
+async function legacyPilots(config: Config): Promise<LegacyPilot[]> {
+  if (!config.sessionStatusSecret || config.sessionStatusSecret.length < 48) throw new Error("legacy_pilot_link_unavailable");
+  const response = await fetch(`${platformOrigin(config)}/api/internal/identity/legacy-pilots`, {
+    method: "GET", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5_000),
+    headers: { authorization: `Bearer ${config.sessionStatusSecret}` },
+  });
+  if (!response.ok || response.redirected) throw new Error("legacy_pilot_link_unavailable");
+  const payload = await response.json() as { pilots?: unknown };
+  if (!Array.isArray(payload.pilots)) throw new Error("legacy_pilot_link_unavailable");
+  return payload.pilots.filter((item): item is LegacyPilot => {
+    if (!item || typeof item !== "object") return false;
+    const pilot = item as Record<string, unknown>;
+    return typeof pilot.id === "string" && /^studioiq_pilot_[a-f0-9-]{36}$/.test(pilot.id) &&
+      typeof pilot.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pilot.email) &&
+      typeof pilot.name === "string" && typeof pilot.company === "string" &&
+      typeof pilot.trialDays === "number" && typeof pilot.seatAllowance === "number" &&
+      typeof pilot.createdAt === "string";
+  });
+}
+async function invitationsWithLegacy(config: Config, managed: Array<Record<string, unknown>>) {
+  try {
+    const legacy = await legacyPilots(config);
+    const managedKeys = new Set(managed.map((item) =>
+      `${String(item.email).toLowerCase()}\0${String(item.company).toLowerCase()}`));
+    return { invitations: [...managed, ...legacy.filter((item) =>
+      !managedKeys.has(`${item.email.toLowerCase()}\0${item.company.toLowerCase()}`))
+      .map((item) => ({ ...item, principalId: item.id, accountType: "external", role: "client",
+        source: "legacy_pilot", accepted: false, deliveryStatus: "sent" }))], legacyUnavailable: false };
+  } catch {
+    return { invitations: managed, legacyUnavailable: true };
+  }
 }
 export function createApp(config: Config, store: Store, auth: MirrorAuth) {
   const staging = (config.mode === "staging" || config.mode === "production");
@@ -165,6 +202,48 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (!profile) throw new PolicyError("route_not_exposed", 404);
       return json(profile);
     }
+    if (url.pathname === "/internal/identity/self-serve-trial-invitations") {
+      // Service-to-service only: the Prospect platform has already validated, rate limited and
+      // provisioned the public trial request. No browser origin and no actor session is accepted.
+      // Authenticated with its own secret (IDENTITY_SELF_SERVE_SECRET), never the session-status secret.
+      const serviceSecret = config.selfServeSecret;
+      if (config.mode !== "production" || !config.freshInstall || !serviceSecret ||
+          serviceSecret.length < SELF_SERVE_SECRET_MIN_LENGTH || request.method !== "POST") {
+        throw new PolicyError("route_not_exposed", 404);
+      }
+      // Cheap ceilings first: the shared per-IP limiter covers this route, then the bearer check.
+      await store.rateLimit(`ip:${ip}`, 60);
+      const presented = request.headers.get("authorization") ?? "";
+      if (request.headers.has("origin") || !timingSafeEqual(
+        createHash("sha256").update(presented).digest(),
+        createHash("sha256").update(`Bearer ${serviceSecret}`).digest())) {
+        throw new PolicyError("service_authentication_required", 401);
+      }
+      // Service-level burst ceiling before body parsing, mail-provider checks or database writes.
+      // The database ceilings in migration 008 still apply behind it.
+      await store.rateLimit("self-serve-invite:service", 60, 3_600_000);
+      const body = await readObject(request);
+      // Account type, role, inviter and links are never caller-controlled. Optional trialDays only sets
+      // the trial length shown in the email; Prospect owns and enforces the trial term itself.
+      if (Object.keys(body).some(k => !["name", "email", "company", "trialDays"].includes(k)) ||
+          !["name", "email", "company"].every(k => Object.hasOwn(body, k))) {
+        throw new PolicyError("unexpected_invitation_field", 400);
+      }
+      const name = stringField(body, "name", 1, 120).trim();
+      const email = stringField(body, "email", 3, 254).trim().toLowerCase();
+      const company = stringField(body, "company", 1, 120).trim();
+      const domain = email.split("@")[1] ?? "";
+      const trialDays = body.trialDays;
+      if (!name || !company || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || domain === "mirrorprogress.com" ||
+          company.toLowerCase() === "mirror progress" || /[\u0000-\u001f\u007f]/.test(name + company) ||
+          (trialDays !== undefined && (typeof trialDays !== "number" || !Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365))) {
+        throw new PolicyError("invalid_trial_invitation", 400);
+      }
+      await store.rateLimit(`self-serve-invite-domain:${domain}`, 10, 86_400_000);
+      if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
+      return json(await (store as StagingStore).issueSelfServeInvitation({ name, email, company,
+        ...(trialDays === undefined ? {} : { trialDays: trialDays as number }) }), 202);
+    }
     await store.rateLimit(`ip:${ip}`, 60);
     const origin = request.headers.get("origin");
     const tokenExchange = url.pathname === "/api/auth/oauth2/token";
@@ -215,7 +294,9 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const managed = store as StagingStore;
       const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
       if (!principal.privileged || !await managed.canManageTrials(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
-      if (request.method === "GET") return json({ invitations: await managed.managedInvitations(principal.id),
+      // Trial managers see every external invitation (any inviter, including self-serve) so they can resend it.
+      if (request.method === "GET") return json({ ...await invitationsWithLegacy(config,
+        (await managed.managedInvitations()).filter((item) => item.accountType === "external")),
         trialOnly: !await managed.canManageInvitations(identity.user.id),
         externalDeliveryReady: await invitationRecipientDeliverable("recipient@example.com").catch(() => false) });
       const body = await readObject(request);
@@ -229,11 +310,17 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
           !Number.isInteger(seatAllowance) || seatAllowance < 1 || seatAllowance > 10_000) {
         throw new PolicyError("invalid_trial_invitation", 400);
       }
+      const pendingLegacy = await legacyPilots(config).catch(() => {
+        throw new PolicyError("trial_preparation_failed", 409);
+      });
+      if (pendingLegacy.some((pilot) => pilot.email.toLowerCase() === email)) {
+        throw new PolicyError("legacy_pilot_exists", 409);
+      }
       if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
       await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
       const trialKeyHash = createHash("sha256").update(`${email}\0${company.toLowerCase()}`).digest("hex").slice(0, 32);
       const idempotencyKey = `${trialKeyHash.slice(0, 8)}-${trialKeyHash.slice(8, 12)}-${trialKeyHash.slice(12, 16)}-${trialKeyHash.slice(16, 20)}-${trialKeyHash.slice(20)}`;
-      const prepared = await fetch("https://platform.mirrorprogress.com/api/internal/identity/prepare-trial", {
+      const prepared = await fetch(`${platformOrigin(config)}/api/internal/identity/prepare-trial`, {
         method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000),
         headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
         body: JSON.stringify({ name, email, company, trialDays, seatAllowance,
@@ -253,7 +340,8 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) {
         throw new PolicyError("route_not_exposed", 404);
       }
-      if (request.method === "GET") return json({ invitations: await managed.managedInvitations(),
+      if (request.method === "GET") return json({ ...await invitationsWithLegacy(config,
+        await managed.managedInvitations()),
         externalDeliveryReady: await invitationRecipientDeliverable("recipient@example.com").catch(() => false) });
       const body = await readObject(request);
       if (Object.keys(body).some(key => !["name", "email", "company", "accountType", "role"].includes(key))) {
@@ -270,7 +358,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         throw new PolicyError("invalid_invitation", 400);
       }
       if (accountType === "external") {
-        const check = await fetch("https://platform.mirrorprogress.com/api/internal/identity/company-check", {
+        const check = await fetch(`${platformOrigin(config)}/api/internal/identity/company-check`, {
           method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3000),
           headers: { authorization: `Bearer ${config.sessionStatusSecret}`, "content-type": "application/json" },
           body: JSON.stringify({ company, email }),
@@ -286,18 +374,48 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         role: role as "admin" | "project_lead" | "client",
       }), 202);
     }
+    const legacyAction = /^\/api\/identity\/admin\/legacy-pilots\/(studioiq_pilot_[a-f0-9-]{36})\/migrate$/.exec(url.pathname);
+    if (legacyAction && request.method === "POST") {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const identity = await requiredSession(request.headers);
+      const managed = store as StagingStore;
+      const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
+      if (!principal.privileged || !await managed.canManageTrials(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 0) throw new PolicyError("unexpected_invitation_field", 400);
+      const pilot = (await legacyPilots(config)).find((item) => item.id === legacyAction[1]);
+      if (!pilot) throw new PolicyError("legacy_pilot_unavailable", 409);
+      const prior = await managed.managedInvitations();
+      if (prior.some((item) => String(item.email).toLowerCase() === pilot.email.toLowerCase() &&
+          String(item.company).toLowerCase() === pilot.company.toLowerCase() && !item.revokedAt)) {
+        throw new PolicyError("invitation_conflict", 409);
+      }
+      if (!await invitationRecipientDeliverable(pilot.email)) throw new PolicyError("external_email_delivery_unavailable", 409);
+      await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
+      return json(await managed.issueManagedInvitation(identity.session.id, {
+        name: pilot.name, email: pilot.email, company: pilot.company,
+        accountType: "external", role: "client",
+      }), 202);
+    }
     const managedAction = /^\/api\/identity\/admin\/invitations\/([a-f0-9-]{36})\/(resend|revoke)$/.exec(url.pathname);
     if (managedAction && request.method === "POST") {
       if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
       const identity = await requiredSession(request.headers);
       const managed = store as StagingStore;
       const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
-      if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) {
+      // Trial managers may resend pending external invitations (migration 007); revocation stays admin-only.
+      const invitationAdmin = await managed.canManageInvitations(identity.user.id);
+      const trialManager = await managed.canManageTrials(identity.user.id);
+      if (!principal.privileged || (!invitationAdmin && !(managedAction[2] === "resend" && trialManager))) {
         throw new PolicyError("route_not_exposed", 404);
       }
       const body = await readObject(request);
       if (Object.keys(body).length !== 0) throw new PolicyError("unexpected_invitation_field", 400);
       const target = managedAction[1]!;
+      if (!invitationAdmin && !(await managed.managedInvitations()).some((item) =>
+        item.principalId === target && item.accountType === "external" && !item.revokedAt)) {
+        throw new PolicyError("route_not_exposed", 404);
+      }
       return json(managedAction[2] === "resend"
         ? await managed.resendManagedInvitation(identity.session.id, target)
         : await managed.revokeManagedInvitation(identity.session.id, target));
@@ -332,6 +450,11 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const identity = await requiredSession(request.headers);
       const passkeyRegistered = config.mode === "production" ? (await store.pool.query<{ registered: boolean }>(
         `SELECT EXISTS(SELECT 1 FROM passkey WHERE "userId"=$1) AS registered`, [identity.user.id])).rows[0]?.registered === true : undefined;
+      // Tells the browser whether a passkey is optional (password-only sign-in continues to Prospect).
+      const passkeyOptional = config.mode === "production" && config.freshInstall
+        ? await store.passwordOnlyEligible(identity.user.id) : undefined;
+      const passkeyState = { ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }),
+        ...(passkeyOptional === undefined ? {} : { passkeyOptional }) };
       try {
         const { principal, evidence } = await store.authorize(identity.session.id, identity.user.id);
         return json({ authenticated: true, mfaCompleted: true, principalId: principal.id,
@@ -339,11 +462,10 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
             accountType: await (store as StagingStore).managedAccountType(principal.id),
           } : {}),
           assurance: { method: evidence.factor, verifiedAt: evidence.mfaAt, expiresAt: evidence.expiresAt },
-          ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
+          ...passkeyState });
       } catch (error) {
         if (!(error instanceof PolicyError)) throw error;
-        return json({ authenticated: true, mfaCompleted: false, reason: error.code,
-          ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }) });
+        return json({ authenticated: true, mfaCompleted: false, reason: error.code, ...passkeyState });
       }
     }
     if (request.method === "POST" && url.pathname === "/api/identity/global-logout") {
@@ -423,9 +545,13 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         return json({ twoFactorRedirect: true }, 200, headers);
       }
       const identity = await requiredSession(merged);
-      await store.recordEvidence(identity, null, passwordVerifiedAt, null);
+      // External client accounts may finish with the password alone (passkey optional). Everyone else
+      // records password-only evidence that cannot authorize until a passkey/TOTP ceremony follows.
+      const passwordOnly = config.mode === "production" && config.freshInstall === true &&
+        await store.passwordOnlyEligible(identity.user.id);
+      await store.recordEvidence(identity, passwordOnly ? "password" : null, passwordVerifiedAt, passwordOnly ? passwordVerifiedAt : null);
       // Never expose raw session tokens in browser JSON, even when the upstream API includes them.
-      return json({ authenticated: true, mfaCompleted: false }, 200, response.headers);
+      return json({ authenticated: true, mfaCompleted: false, ...(passwordOnly ? { signedIn: true } : {}) }, 200, response.headers);
     }
     if (request.method === "POST" && url.pathname === "/api/auth/two-factor/enable") {
       const identity = await requiredSession(request.headers);
