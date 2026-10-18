@@ -58,6 +58,42 @@ function stringField(body: Record<string, unknown>, key: string, min = 1, max = 
   if (typeof v !== "string" || v.length < min || v.length > max) throw new PolicyError(`invalid_${key}`, 400);
   return v;
 }
+// Pending trials created by the previous Prospect pilot system, served by the platform. Listed beside managed
+// invitations so an operator does not send a duplicate, and migratable into a Mirror Identity invitation.
+type LegacyPilot = { id: string; name: string; email: string; company: string;
+  trialDays: number; seatAllowance: number; createdAt: string };
+async function legacyPilots(config: Config): Promise<LegacyPilot[]> {
+  if (!config.sessionStatusSecret || config.sessionStatusSecret.length < 48) throw new Error("legacy_pilot_link_unavailable");
+  const response = await fetch(`${platformOrigin(config)}/api/internal/identity/legacy-pilots`, {
+    method: "GET", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5_000),
+    headers: { authorization: `Bearer ${config.sessionStatusSecret}` },
+  });
+  if (!response.ok || response.redirected) throw new Error("legacy_pilot_link_unavailable");
+  const payload = await response.json() as { pilots?: unknown };
+  if (!Array.isArray(payload.pilots)) throw new Error("legacy_pilot_link_unavailable");
+  return payload.pilots.filter((item): item is LegacyPilot => {
+    if (!item || typeof item !== "object") return false;
+    const pilot = item as Record<string, unknown>;
+    return typeof pilot.id === "string" && /^studioiq_pilot_[a-f0-9-]{36}$/.test(pilot.id) &&
+      typeof pilot.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pilot.email) &&
+      typeof pilot.name === "string" && typeof pilot.company === "string" &&
+      typeof pilot.trialDays === "number" && typeof pilot.seatAllowance === "number" &&
+      typeof pilot.createdAt === "string";
+  });
+}
+async function invitationsWithLegacy(config: Config, managed: Array<Record<string, unknown>>) {
+  try {
+    const legacy = await legacyPilots(config);
+    const managedKeys = new Set(managed.map((item) =>
+      `${String(item.email).toLowerCase()}\0${String(item.company).toLowerCase()}`));
+    return { invitations: [...managed, ...legacy.filter((item) =>
+      !managedKeys.has(`${item.email.toLowerCase()}\0${item.company.toLowerCase()}`))
+      .map((item) => ({ ...item, principalId: item.id, accountType: "external", role: "client",
+        source: "legacy_pilot", accepted: false, deliveryStatus: "sent" }))], legacyUnavailable: false };
+  } catch {
+    return { invitations: managed, legacyUnavailable: true };
+  }
+}
 export function createApp(config: Config, store: Store, auth: MirrorAuth) {
   const staging = (config.mode === "staging" || config.mode === "production");
   if (staging !== (store instanceof StagingStore)) throw new Error("Store policy must match service mode");
@@ -258,7 +294,9 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const managed = store as StagingStore;
       const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
       if (!principal.privileged || !await managed.canManageTrials(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
-      if (request.method === "GET") return json({ invitations: await managed.managedInvitations(principal.id),
+      // Trial managers see every external invitation (any inviter, including self-serve) so they can resend it.
+      if (request.method === "GET") return json({ ...await invitationsWithLegacy(config,
+        (await managed.managedInvitations()).filter((item) => item.accountType === "external")),
         trialOnly: !await managed.canManageInvitations(identity.user.id),
         externalDeliveryReady: await invitationRecipientDeliverable("recipient@example.com").catch(() => false) });
       const body = await readObject(request);
@@ -271,6 +309,12 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
           !Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365 ||
           !Number.isInteger(seatAllowance) || seatAllowance < 1 || seatAllowance > 10_000) {
         throw new PolicyError("invalid_trial_invitation", 400);
+      }
+      const pendingLegacy = await legacyPilots(config).catch(() => {
+        throw new PolicyError("trial_preparation_failed", 409);
+      });
+      if (pendingLegacy.some((pilot) => pilot.email.toLowerCase() === email)) {
+        throw new PolicyError("legacy_pilot_exists", 409);
       }
       if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
       await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
@@ -296,7 +340,8 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) {
         throw new PolicyError("route_not_exposed", 404);
       }
-      if (request.method === "GET") return json({ invitations: await managed.managedInvitations(),
+      if (request.method === "GET") return json({ ...await invitationsWithLegacy(config,
+        await managed.managedInvitations()),
         externalDeliveryReady: await invitationRecipientDeliverable("recipient@example.com").catch(() => false) });
       const body = await readObject(request);
       if (Object.keys(body).some(key => !["name", "email", "company", "accountType", "role"].includes(key))) {
@@ -329,18 +374,48 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         role: role as "admin" | "project_lead" | "client",
       }), 202);
     }
+    const legacyAction = /^\/api\/identity\/admin\/legacy-pilots\/(studioiq_pilot_[a-f0-9-]{36})\/migrate$/.exec(url.pathname);
+    if (legacyAction && request.method === "POST") {
+      if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
+      const identity = await requiredSession(request.headers);
+      const managed = store as StagingStore;
+      const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
+      if (!principal.privileged || !await managed.canManageTrials(identity.user.id)) throw new PolicyError("route_not_exposed", 404);
+      const body = await readObject(request);
+      if (Object.keys(body).length !== 0) throw new PolicyError("unexpected_invitation_field", 400);
+      const pilot = (await legacyPilots(config)).find((item) => item.id === legacyAction[1]);
+      if (!pilot) throw new PolicyError("legacy_pilot_unavailable", 409);
+      const prior = await managed.managedInvitations();
+      if (prior.some((item) => String(item.email).toLowerCase() === pilot.email.toLowerCase() &&
+          String(item.company).toLowerCase() === pilot.company.toLowerCase() && !item.revokedAt)) {
+        throw new PolicyError("invitation_conflict", 409);
+      }
+      if (!await invitationRecipientDeliverable(pilot.email)) throw new PolicyError("external_email_delivery_unavailable", 409);
+      await managed.rateLimit(`managed-invite:${principal.id}`, 10, 3_600_000);
+      return json(await managed.issueManagedInvitation(identity.session.id, {
+        name: pilot.name, email: pilot.email, company: pilot.company,
+        accountType: "external", role: "client",
+      }), 202);
+    }
     const managedAction = /^\/api\/identity\/admin\/invitations\/([a-f0-9-]{36})\/(resend|revoke)$/.exec(url.pathname);
     if (managedAction && request.method === "POST") {
       if (config.mode !== "production" || !config.freshInstall) throw new PolicyError("route_not_exposed", 404);
       const identity = await requiredSession(request.headers);
       const managed = store as StagingStore;
       const { principal } = await managed.authorize(identity.session.id, identity.user.id, 300_000);
-      if (!principal.privileged || !await managed.canManageInvitations(identity.user.id)) {
+      // Trial managers may resend pending external invitations (migration 007); revocation stays admin-only.
+      const invitationAdmin = await managed.canManageInvitations(identity.user.id);
+      const trialManager = await managed.canManageTrials(identity.user.id);
+      if (!principal.privileged || (!invitationAdmin && !(managedAction[2] === "resend" && trialManager))) {
         throw new PolicyError("route_not_exposed", 404);
       }
       const body = await readObject(request);
       if (Object.keys(body).length !== 0) throw new PolicyError("unexpected_invitation_field", 400);
       const target = managedAction[1]!;
+      if (!invitationAdmin && !(await managed.managedInvitations()).some((item) =>
+        item.principalId === target && item.accountType === "external" && !item.revokedAt)) {
+        throw new PolicyError("route_not_exposed", 404);
+      }
       return json(managedAction[2] === "resend"
         ? await managed.resendManagedInvitation(identity.session.id, target)
         : await managed.revokeManagedInvitation(identity.session.id, target));
