@@ -174,7 +174,8 @@ function chooseInviteType(type: "team" | "trial") {
   node<HTMLElement>("choose-trial").classList.toggle("selected", type === "trial");
 }
 let passkeyRegistered = false;
-async function refresh(): Promise<Record<string, unknown> | null> {
+// afterSignIn: the person just signed in on this page, so continue even on a ?logout=1 / ?signedOut=1 view.
+async function refresh(afterSignIn = false): Promise<Record<string, unknown> | null> {
   try {
     const state = await api("/api/identity/session");
     passkeyRegistered = state.passkeyRegistered === true;
@@ -194,7 +195,7 @@ async function refresh(): Promise<Record<string, unknown> | null> {
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
       void loadInvitations();
-      openPlatform();
+      openPlatform(afterSignIn);
     }
     return state;
   } catch {
@@ -250,7 +251,7 @@ async function finishRemoteEnrollment(): Promise<void> {
 async function signInAndFinish(email: string, password: string): Promise<void> {
   const result = await api("/api/auth/sign-in/email", { email, password });
   if (result.twoFactorRedirect === true) throw new Error("passkey_unavailable");
-  const state = await refresh();
+  const state = await refresh(true);
   if (!state) throw new Error("session_required");
   if (remoteEnrollRequested) await finishRemoteEnrollment();
   // External client accounts are fully signed in with the password; refresh() continued to Prospect.
