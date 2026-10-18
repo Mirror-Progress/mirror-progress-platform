@@ -1,11 +1,11 @@
 export type InvitationKind = 'standard' | 'self_serve_trial';
 
 /**
- * Length of the self-serve Prospect trial shown in the invitation. The platform owns the real
- * term (PROSPECT_SELF_SERVE_TRIAL_DAYS, default 14) and the invitation does not carry it, so keep
- * this in step with that setting.
+ * Trial length shown in a self-serve invitation when the platform did not send `trialDays`.
+ * Prospect owns the real term (PROSPECT_SELF_SERVE_TRIAL_DAYS, default 14); the platform passes
+ * its value with the request and Identity stores it with the invitation (migration 008).
  */
-export const SELF_SERVE_TRIAL_DAYS = 14;
+export const DEFAULT_SELF_SERVE_TRIAL_DAYS = 14;
 
 export interface InvitationEmail {
   to: string;
@@ -15,6 +15,8 @@ export interface InvitationEmail {
   expiresAt: Date;
   /** Selects the copy; omitted means the standard invitation. */
   kind?: InvitationKind;
+  /** Self-serve trial length in days (1-365); defaults to DEFAULT_SELF_SERVE_TRIAL_DAYS. */
+  trialDays?: number;
 }
 
 const PRODUCTION_ORIGIN = 'https://accounts.mirrorprogress.com';
@@ -43,7 +45,8 @@ export function invitationEmail(message: InvitationEmail, options: { origin?: st
   }
   const expiry = message.expiresAt.toUTCString();
   if (message.kind === 'self_serve_trial') {
-    const days = SELF_SERVE_TRIAL_DAYS;
+    const days = message.trialDays ?? DEFAULT_SELF_SERVE_TRIAL_DAYS;
+    if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error('invalid_invitation_email');
     const subject = `Start your ${days}-day Prospect trial`;
     const text = `Hi ${firstName},\n\nYour ${days}-day Mirror Progress Prospect trial for ${message.company} is ready.\n\nThe trial starts when you first sign in and lasts ${days} days. No card is required.\n\nStart your trial: ${message.url}\n\nThis link can be used once and expires ${expiry}.\n\nIf you didn't request this, ignore this email.\n\nMirror Progress`;
     const html = shell(`Start your ${days}-day Prospect trial`,

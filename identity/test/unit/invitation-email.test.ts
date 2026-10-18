@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { invitationEmail, SELF_SERVE_TRIAL_DAYS } from '../../src/core/invitation-email.js';
+import { invitationEmail, DEFAULT_SELF_SERVE_TRIAL_DAYS } from '../../src/core/invitation-email.js';
 
 test('branded invitation contains one safe setup link and escapes personal details', () => {
   const token = 'A'.repeat(43);
@@ -26,7 +26,7 @@ test('self-serve trial invitation uses trial copy with one start link, expiry an
   const expiresAt = new Date(Date.now() + 7 * 86_400_000);
   const email = invitationEmail({ to: 'maya@northlight.example', name: 'Maya Chen', company: 'Northlight & Partners',
     url, expiresAt, kind: 'self_serve_trial' });
-  assert.equal(SELF_SERVE_TRIAL_DAYS, 14);
+  assert.equal(DEFAULT_SELF_SERVE_TRIAL_DAYS, 14);
   assert.equal(email.subject, 'Start your 14-day Prospect trial');
   assert.match(email.text, /^Hi Maya,/);
   assert.match(email.text, /trial for Northlight & Partners is ready/);
@@ -55,4 +55,17 @@ test('only the local preview may render a loopback invitation link', () => {
   const message = { to: 'p@example.com', name: 'Pat', company: 'Example', url, expiresAt: new Date(Date.now() + 86_400_000) };
   assert.throws(() => invitationEmail(message));
   assert.match(invitationEmail(message, { origin: 'http://localhost:3040' }).text, /Create your account/);
+});
+
+test('self-serve trial copy uses the stored trial length and rejects out-of-range values', () => {
+  const url = `https://accounts.mirrorprogress.com/#invitation=${'E'.repeat(43)}`;
+  const message = { to: 'p@example.com', name: 'Pat', company: 'Example', url, expiresAt: new Date(Date.now() + 86_400_000),
+    kind: 'self_serve_trial' as const };
+  const thirty = invitationEmail({ ...message, trialDays: 30 });
+  assert.equal(thirty.subject, 'Start your 30-day Prospect trial');
+  assert.match(thirty.text, /lasts 30 days\./);
+  assert.match(thirty.html, /Start your 30-day Prospect trial/);
+  assert.doesNotMatch(thirty.text + thirty.html, /14-day|14 days/);
+  assert.equal(invitationEmail(message).subject, 'Start your 14-day Prospect trial');
+  for (const trialDays of [0, 366, 1.5, Number.NaN]) assert.throws(() => invitationEmail({ ...message, trialDays }));
 });

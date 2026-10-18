@@ -187,21 +187,26 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       // The database ceilings in migration 008 still apply behind it.
       await store.rateLimit("self-serve-invite:service", 60, 3_600_000);
       const body = await readObject(request);
-      // Account type, role, inviter, trial terms and links are never caller-controlled.
-      if (Object.keys(body).length !== 3 || Object.keys(body).some(k => !["name", "email", "company"].includes(k))) {
+      // Account type, role, inviter and links are never caller-controlled. Optional trialDays only sets
+      // the trial length shown in the email; Prospect owns and enforces the trial term itself.
+      if (Object.keys(body).some(k => !["name", "email", "company", "trialDays"].includes(k)) ||
+          !["name", "email", "company"].every(k => Object.hasOwn(body, k))) {
         throw new PolicyError("unexpected_invitation_field", 400);
       }
       const name = stringField(body, "name", 1, 120).trim();
       const email = stringField(body, "email", 3, 254).trim().toLowerCase();
       const company = stringField(body, "company", 1, 120).trim();
       const domain = email.split("@")[1] ?? "";
+      const trialDays = body.trialDays;
       if (!name || !company || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || domain === "mirrorprogress.com" ||
-          company.toLowerCase() === "mirror progress" || /[\u0000-\u001f\u007f]/.test(name + company)) {
+          company.toLowerCase() === "mirror progress" || /[\u0000-\u001f\u007f]/.test(name + company) ||
+          (trialDays !== undefined && (typeof trialDays !== "number" || !Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365))) {
         throw new PolicyError("invalid_trial_invitation", 400);
       }
       await store.rateLimit(`self-serve-invite-domain:${domain}`, 10, 86_400_000);
       if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
-      return json(await (store as StagingStore).issueSelfServeInvitation({ name, email, company }), 202);
+      return json(await (store as StagingStore).issueSelfServeInvitation({ name, email, company,
+        ...(trialDays === undefined ? {} : { trialDays: trialDays as number }) }), 202);
     }
     await store.rateLimit(`ip:${ip}`, 60);
     const origin = request.headers.get("origin");

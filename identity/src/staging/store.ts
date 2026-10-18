@@ -8,6 +8,7 @@ import { assertStagingAuthorized } from "../core/staging-policy.js";
 import { digest, opaqueToken, tokenDigest } from "../core/tokens.js";
 import { openDelivery, sealDelivery } from "../core/delivery.js";
 import type { EnrollmentTransport } from "../core/delivery.js";
+import { DEFAULT_SELF_SERVE_TRIAL_DAYS } from "../core/invitation-email.js";
 const time = (v: unknown): number => v === null || v === undefined ? NaN : new Date(v as string | Date).getTime();
 /** Never-bound system principal recorded as inviter of self-serve trial invitations (migration 008). */
 export const SELF_SERVE_PRINCIPAL = "mirror-self-serve-trial";
@@ -87,7 +88,7 @@ export class StagingStore extends Store {
    * the dedicated self-serve principal as inviter, and enforces the database ceilings.
    * The caller learns only a coarse status; it never receives a token or link.
    */
-  async issueSelfServeInvitation(input: { name: string; email: string; company: string }): Promise<
+  async issueSelfServeInvitation(input: { name: string; email: string; company: string; trialDays?: number }): Promise<
     { status: "queued"; principalId: string } | { status: "resent" | "pending" | "exists" }> {
     if (this.config.mode !== "production" || !this.config.freshInstall) throw new PolicyError("route_not_exposed", 404);
     const { rows: users } = await this.pool.query<{ exists: boolean }>(
@@ -109,8 +110,8 @@ export class StagingStore extends Store {
     }
     const principalId = randomUUID();
     try {
-      await this.queueInvitationDelivery("SELECT mirror_self_serve_issue($1,$2,$3,$4,$5)",
-        (hash) => [principalId, hash, input.email, input.name, input.company]);
+      await this.queueInvitationDelivery("SELECT mirror_self_serve_issue($1,$2,$3,$4,$5,$6)",
+        (hash) => [principalId, hash, input.email, input.name, input.company, input.trialDays ?? DEFAULT_SELF_SERVE_TRIAL_DAYS]);
     } catch (error) {
       // A concurrent request for the same mailbox won the unique index.
       if (sqlState(error, "23505")) return { status: "pending" };
@@ -325,7 +326,7 @@ export class StagingStore extends Store {
       await db.query(`UPDATE mirror_staging_delivery SET status='failed',sealed_payload=NULL,lease_until=NULL
         WHERE status='sending' AND lease_until<=clock_timestamp() AND attempts>=5`);
       const { rows } = await db.query(`SELECT d.id,d.sealed_payload,d.attempts,d.purpose,i.email,m.expires_at,
-        mi.display_name,mi.company_name,mi.inviter
+        mi.display_name,mi.company_name,mi.inviter,mi.trial_days
         FROM mirror_staging_delivery d JOIN mirror_staging_mailbox m ON m.id=d.id
         JOIN mirror_staging_invitation i ON i.digest=m.invitation_digest
         LEFT JOIN mirror_managed_invitation mi ON mi.invitation_digest=i.digest
@@ -344,7 +345,8 @@ export class StagingStore extends Store {
         expiresAt: item.expires_at, ...(item.purpose === 'invitation' ? {
           inviteeName: item.display_name, company: item.company_name,
           // Copy is chosen by who issued the invitation, never by the caller.
-          ...(item.inviter === SELF_SERVE_PRINCIPAL ? { invitationKind: "self_serve_trial" as const } : {}),
+          ...(item.inviter === SELF_SERVE_PRINCIPAL ? { invitationKind: "self_serve_trial" as const,
+            trialDays: item.trial_days ?? DEFAULT_SELF_SERVE_TRIAL_DAYS } : {}),
         } : {}) });
       await this.pool.query(`UPDATE mirror_staging_delivery SET status='sent',accepted_at=clock_timestamp(),
         sealed_payload=NULL,lease_until=NULL,last_error=NULL WHERE id=$1 AND status='sending' AND attempts=$2`, [item.id, item.attempt]);

@@ -20,8 +20,13 @@
 INSERT INTO mirror_principal(id,privileged,authorization_epoch)
   VALUES ('mirror-self-serve-trial',false,0) ON CONFLICT (id) DO NOTHING;
 
+-- Trial length (days) shown in a self-serve invitation email. Prospect owns and
+-- enforces the real trial term; NULL for invitations issued by people.
+ALTER TABLE mirror_managed_invitation ADD COLUMN trial_days smallint
+  CHECK (trial_days IS NULL OR trial_days BETWEEN 1 AND 365);
+
 CREATE FUNCTION mirror_self_serve_issue(target text, invitation_hash text,
-  mailbox text, display text, company text)
+  mailbox text, display text, company text, trial_length integer)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE actor constant text := 'mirror-self-serve-trial'; at_time timestamptz := clock_timestamp();
   mailbox_domain text;
@@ -38,6 +43,7 @@ BEGIN
     mailbox !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' OR length(mailbox)>254 OR
     display IS NULL OR length(btrim(display)) NOT BETWEEN 1 AND 120 OR
     company IS NULL OR length(btrim(company)) NOT BETWEEN 1 AND 120 OR
+    trial_length IS NULL OR trial_length NOT BETWEEN 1 AND 365 OR
     lower(btrim(company))='mirror progress' OR split_part(mailbox,'@',2)='mirrorprogress.com' OR
     EXISTS (SELECT 1 FROM public."user" WHERE lower(email)=mailbox) OR
     EXISTS (SELECT 1 FROM public.mirror_principal WHERE id=target) THEN
@@ -57,8 +63,8 @@ BEGIN
   INSERT INTO public.mirror_staging_invitation(digest,principal_id,epoch,email,issuer,created_at,expires_at)
     VALUES (invitation_hash,target,0,mailbox,actor,at_time,at_time+interval '7 days');
   INSERT INTO public.mirror_managed_invitation(principal_id,invitation_digest,email,display_name,company_name,
-    account_type,requested_role,inviter)
-    VALUES (target,invitation_hash,mailbox,btrim(display),btrim(company),'external','client',actor);
+    account_type,requested_role,inviter,trial_days)
+    VALUES (target,invitation_hash,mailbox,btrim(display),btrim(company),'external','client',actor,trial_length);
   INSERT INTO public.mirror_staging_audit(kind,operator_login,actor,principal_id,epoch,review_ref)
     VALUES ('self-serve-invite',session_user,actor,target,0,'Self-serve Prospect trial invitation');
 END $$;
@@ -101,5 +107,5 @@ BEGIN
   INSERT INTO public.mirror_staging_audit(kind,operator_login,actor,principal_id,epoch,review_ref)
     VALUES ('self-serve-resend',session_user,actor,target,p.authorization_epoch,'Resent self-serve Prospect trial invitation');
 END $$;
-REVOKE ALL ON FUNCTION mirror_self_serve_issue(text,text,text,text,text),
+REVOKE ALL ON FUNCTION mirror_self_serve_issue(text,text,text,text,text,integer),
   mirror_self_serve_resend(text,text) FROM PUBLIC;

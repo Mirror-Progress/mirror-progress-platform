@@ -22,10 +22,10 @@ const config: Config = { mode: "production", freshInstall: true, origin: PRODUCT
   staging: { rpId: PRODUCTION.rpId, deliveryKey: Buffer.alloc(32, 7).toString("base64url"), certFile: "/x", keyFile: "/y" } };
 
 class RecordingStore extends StagingStore {
-  calls: Array<{ name: string; email: string; company: string }> = [];
+  calls: Array<{ name: string; email: string; company: string; trialDays?: number }> = [];
   limits: string[] = [];
   override async rateLimit(key: string): Promise<void> { this.limits.push(key); }
-  override async issueSelfServeInvitation(input: { name: string; email: string; company: string }) {
+  override async issueSelfServeInvitation(input: { name: string; email: string; company: string; trialDays?: number }) {
     this.calls.push(input);
     return { status: "queued" as const, principalId: "00000000-0000-4000-8000-000000000000" };
   }
@@ -80,7 +80,9 @@ test("self-serve invitations are external/client only: caller cannot choose role
     const { app, store, pool } = harness();
     for (const payload of [{ ...body, accountType: "admin" }, { ...body, role: "admin" }, { name: body.name, email: body.email },
       { ...body, email: "not-an-email" }, { ...body, email: "staff@mirrorprogress.com" }, { ...body, company: "Mirror Progress" },
-      { ...body, name: "x".repeat(121) }, { ...body, company: "Evil\u0000Co" }]) {
+      { ...body, name: "x".repeat(121) }, { ...body, company: "Evil\u0000Co" },
+      { ...body, trialDays: 0 }, { ...body, trialDays: 366 }, { ...body, trialDays: 7.5 }, { ...body, trialDays: "14" },
+      { ...body, trialDays: null }]) {
       const response = await app(request({ payload }));
       assert.equal(response.status, 400, JSON.stringify(payload));
     }
@@ -89,6 +91,8 @@ test("self-serve invitations are external/client only: caller cannot choose role
     assert.equal(accepted.status, 202);
     assert.deepEqual(await accepted.json(), { status: "queued", principalId: "00000000-0000-4000-8000-000000000000" });
     assert.deepEqual(store.calls, [{ name: "Ada Lovelace", email: "ada@example-studio.com", company: "Example Studio" }]);
+    assert.equal((await app(request({ payload: { ...body, trialDays: 30 } }))).status, 202);
+    assert.deepEqual(store.calls[1], { name: "Ada Lovelace", email: "ada@example-studio.com", company: "Example Studio", trialDays: 30 });
     await pool.end();
   });
 });
@@ -195,12 +199,13 @@ test("local mail capture writes a mode-0600 file and refuses non-loopback links"
       url: "http://localhost:3040/#invitation=" + "y".repeat(43), inviteeName: "Ada", company: "Example Studio" });
     await transport.send({ idempotencyKey: "c", to: "c@example.com", expiresAt: new Date(Date.now() + 60_000),
       url: "http://localhost:3040/#invitation=" + "z".repeat(43), inviteeName: "Cy Doe", company: "Trial Studio",
-      invitationKind: "self_serve_trial" });
+      invitationKind: "self_serve_trial", trialDays: 21 });
     const lines = readFileSync(outbox, "utf8").trim().split("\n").map((line) => JSON.parse(line));
     assert.equal(lines.length, 2); assert.equal(lines[0].to, "a@example.com");
     // The captured message is the branded email a real transport sends, with the trial copy when selected.
     assert.equal(lines[0].subject, "You're invited to Mirror Progress Prospect"); assert.equal(lines[0].invitationKind, "standard");
-    assert.equal(lines[1].subject, "Start your 14-day Prospect trial"); assert.equal(lines[1].invitationKind, "self_serve_trial");
+    assert.equal(lines[1].subject, "Start your 21-day Prospect trial"); assert.equal(lines[1].invitationKind, "self_serve_trial");
+    assert.equal(lines[1].trialDays, 21);
     assert.match(lines[1].html, /Start your trial/);
     assert.equal(statSync(outbox).mode & 0o777, 0o600);
     assert.equal(await invitationRecipientDeliverable("a@example.com"), true);

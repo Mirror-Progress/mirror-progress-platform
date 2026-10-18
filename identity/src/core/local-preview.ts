@@ -70,7 +70,7 @@ export function localPreviewConfig(env: NodeJS.ProcessEnv = process.env): Config
 }
 
 type CapturedMessage = { kind: "invitation" | "password_reset"; to: string; url: string; name?: string; company?: string; expiresAt?: string;
-  invitationKind?: string; subject?: string; text?: string; html?: string };
+  invitationKind?: string; trialDays?: number; subject?: string; text?: string; html?: string };
 
 /**
  * Writes captured mail (including the one-time link) to a mode-0600 JSON-lines file.
@@ -93,11 +93,12 @@ export class LocalFileEnrollmentTransport implements EnrollmentTransport {
   async send(message: EnrollmentMessage): Promise<void> {
     // The same branded message a real transport would send, rendered for the loopback link.
     const rendered = message.url.startsWith(`${LOCAL_PREVIEW_ORIGIN}/#invitation=`) ? invitationEmail({ to: message.to, name: message.inviteeName ?? "",
-      company: message.company ?? "", url: message.url, expiresAt: message.expiresAt, kind: message.invitationKind },
+      company: message.company ?? "", url: message.url, expiresAt: message.expiresAt, kind: message.invitationKind, trialDays: message.trialDays },
     { origin: LOCAL_PREVIEW_ORIGIN }) : undefined;
     this.capture({ kind: "invitation", to: message.to, url: message.url, name: message.inviteeName,
       company: message.company, expiresAt: message.expiresAt.toISOString(),
-      invitationKind: message.invitationKind ?? "standard", ...rendered });
+      invitationKind: message.invitationKind ?? "standard",
+      ...(message.invitationKind === "self_serve_trial" ? { trialDays: message.trialDays } : {}), ...rendered });
   }
 }
 

@@ -15,7 +15,9 @@ export function openDelivery(key: string, id: string, sealed: string): string {
 }
 export interface EnrollmentMessage { idempotencyKey: string; to: string; url: string; expiresAt: Date; inviteeName?: string; company?: string;
   /** Invitation copy; set to "self_serve_trial" for invitations the self-serve trial principal issued. */
-  invitationKind?: "self_serve_trial" }
+  invitationKind?: "self_serve_trial";
+  /** Trial length stored with a self-serve invitation; only used with the self-serve copy. */
+  trialDays?: number }
 export interface EnrollmentTransport {
   // Implementations deduplicate accepted IDs where supported and use a bounded timeout.
   // Providers without an idempotency API may redeliver the same token after an ambiguous failure.

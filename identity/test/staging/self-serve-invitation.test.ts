@@ -51,10 +51,10 @@ before(async () => {
 });
 after(async () => { await runtime?.end(); await owner?.end(); });
 
-const issue = (email: string, company = "Sample Studio") =>
-  store.issueSelfServeInvitation({ name: "Sample Person", email, company });
+const issue = (email: string, company = "Sample Studio", trialDays?: number) =>
+  store.issueSelfServeInvitation({ name: "Sample Person", email, company, ...(trialDays === undefined ? {} : { trialDays }) });
 const sqlIssue = (email: string, company = "Sample Studio") =>
-  runtime.query("SELECT mirror_self_serve_issue($1,$2,$3,$4,$5)", [randomUUID(), digest(opaqueToken()), email, "Sample Person", company]);
+  runtime.query("SELECT mirror_self_serve_issue($1,$2,$3,$4,$5,$6)", [randomUUID(), digest(opaqueToken()), email, "Sample Person", company, 14]);
 
 test("runtime role issues only an external/client invitation recorded against the self-serve principal", { skip: !enabled }, async () => {
   const result = await issue("ada@sample-one.example");
@@ -84,6 +84,21 @@ test("runtime role cannot bypass the function: no direct writes, no admin issuan
     ["no-session", randomUUID(), digest(opaqueToken()), "admin@sample.example", "A", "Mirror Progress", "admin", "admin"]), { code: "42501" });
   for (const [email, company] of [["staff@mirrorprogress.com", "Sample"], ["x@sample-two.example", "Mirror Progress"],
     ["Upper@Sample.example", "Sample"]]) await assert.rejects(sqlIssue(email!, company), { code: "42501" });
+});
+
+test("the requested trial length is stored with the invitation and used in the trial email", { skip: !enabled }, async () => {
+  const result = await issue("lin@sample-eight.example", "Sample Eight", 30);
+  assert.equal(result.status, "queued");
+  const { rows } = await owner.query("SELECT trial_days FROM mirror_managed_invitation WHERE principal_id=$1",
+    [(result as { principalId: string }).principalId]);
+  assert.equal(rows[0]?.trial_days, 30);
+  const transport = new FakeEnrollmentTransport();
+  while (await store.dispatchOne(transport) === "sent") { /* drain earlier queued messages */ }
+  const message = [...transport.messages.values()].find((item) => item.to === "lin@sample-eight.example");
+  assert.equal(message?.invitationKind, "self_serve_trial");
+  assert.equal(message?.trialDays, 30);
+  await assert.rejects(runtime.query("SELECT mirror_self_serve_issue($1,$2,$3,$4,$5,$6)",
+    [randomUUID(), digest(opaqueToken()), "x@sample-nine.example", "Sample", "Sample Nine", 366]), { code: "42501" });
 });
 
 test("duplicates do not mint a second account; resends are throttled to one per 15 minutes", { skip: !enabled }, async () => {
