@@ -30,7 +30,7 @@ const operatorRole = production ? "mirror_identity_production_operator" : "mirro
 const ownerUrl = process.env.ENROLLMENT_TEST_DATABASE_URL ?? "";
 const parsed = new URL(ownerUrl);
 assert.equal(parsed.hostname, "127.0.0.1");
-assert.equal(parsed.port, "55432");
+assert.equal(parsed.port, process.env.ENROLLMENT_TEST_PORT ?? "55432");
 assert.equal(parsed.pathname, production ? "/mirror_identity_production_enrollment_test" : "/mirror_identity_enrollment_test");
 assert.equal(parsed.username, "postgres");
 assert.equal(parsed.search, "");
@@ -368,7 +368,7 @@ test('managed invite sends one setup link and enrolls its exact mailbox without 
   assert.equal(message.company, 'Mirror Progress');
   const invitation = new URLSearchParams(new URL(message.url).hash.slice(1)).get('invitation');
   assert.ok(invitation);
-  assert.deepEqual(await fresh.managedInvitationInfo(invitation), { name: 'Synthetic Teammate', company: 'Mirror Progress' });
+  assert.deepEqual(await fresh.managedInvitationInfo(invitation), { name: 'Synthetic Teammate', company: 'Mirror Progress', email: inviteEmail });
   assert.equal((await fresh.resendManagedInvitation(sessionId, issued.principalId)).status, 'queued');
   assert.equal(await fresh.managedInvitationInfo(invitation), null);
   assert.equal(await fresh.dispatchOne(transport), 'sent');
