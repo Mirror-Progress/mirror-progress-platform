@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Pool } from "pg";
-import { loadConfig, platformOrigin } from "../../src/core/config.js";
+import { loadConfig, platformOrigin, selfServeSecret } from "../../src/core/config.js";
 import type { Config } from "../../src/core/config.js";
 import { PRODUCTION } from "../../src/core/production-config.js";
 import { StagingStore } from "../../src/staging/store.js";
@@ -14,15 +14,17 @@ import { enrollmentTransport, invitationRecipientDeliverable } from "../../src/c
 import { LocalFileEnrollmentTransport, localPreviewConfig, localPreviewEnabled, localPreviewTransport } from "../../src/core/local-preview.js";
 
 const secret = "s".repeat(64);
+const statusSecret = "q".repeat(64);
 const config: Config = { mode: "production", freshInstall: true, origin: PRODUCTION.origin,
   databaseUrl: "postgresql://mirror_identity_production_runtime:synthetic@localhost/mirror_identity_production",
-  secret: "a".repeat(64), sessionStatusSecret: secret, bindHost: "127.0.0.1", port: 3040,
+  secret: "a".repeat(64), sessionStatusSecret: statusSecret, selfServeSecret: secret, bindHost: "127.0.0.1", port: 3040,
   oidcClientId: PRODUCTION.clientId, redirectUris: [PRODUCTION.redirect],
   staging: { rpId: PRODUCTION.rpId, deliveryKey: Buffer.alloc(32, 7).toString("base64url"), certFile: "/x", keyFile: "/y" } };
 
 class RecordingStore extends StagingStore {
   calls: Array<{ name: string; email: string; company: string }> = [];
-  override async rateLimit(): Promise<void> {}
+  limits: string[] = [];
+  override async rateLimit(key: string): Promise<void> { this.limits.push(key); }
   override async issueSelfServeInvitation(input: { name: string; email: string; company: string }) {
     this.calls.push(input);
     return { status: "queued" as const, principalId: "00000000-0000-4000-8000-000000000000" };
@@ -60,7 +62,9 @@ function withLocalCapture<T>(fn: () => Promise<T>) {
 test("self-serve invitation endpoint requires the service secret in constant time and no browser origin", async () => {
   await withLocalCapture(async () => {
     const { app, store, pool } = harness();
-    for (const init of [{ auth: "" }, { auth: `Bearer ${"t".repeat(64)}` }, { auth: secret }, { origin: PRODUCTION.origin }]) {
+    // The session-status secret is not accepted here.
+    for (const init of [{ auth: "" }, { auth: `Bearer ${"t".repeat(64)}` }, { auth: secret }, { origin: PRODUCTION.origin },
+      { auth: `Bearer ${statusSecret}` }]) {
       const response = await app(request(init));
       assert.equal(response.status, 401);
       assert.deepEqual(await response.json(), { error: "service_authentication_required" });
@@ -92,15 +96,46 @@ test("self-serve invitations are external/client only: caller cannot choose role
 test("self-serve endpoint is not exposed outside the production fresh-install profile or without delivery", async () => {
   const fresh = harness({ freshInstall: false });
   assert.equal((await fresh.app(request())).status, 404);
-  const noSecret = harness({ sessionStatusSecret: undefined });
+  // Without its dedicated secret the route does not exist, even when the status secret is configured.
+  const noSecret = harness({ selfServeSecret: undefined });
   assert.equal((await noSecret.app(request())).status, 404);
+  assert.equal((await noSecret.app(request({ auth: `Bearer ${statusSecret}` }))).status, 404);
+  const shortSecret = harness({ selfServeSecret: "x".repeat(47) });
+  assert.equal((await shortSecret.app(request({ auth: `Bearer ${"x".repeat(47)}` }))).status, 404);
   // No verified mail transport configured: refuse before creating anything.
   const unconfigured = harness();
   const before = process.env.IDENTITY_MAIL_DELIVERY; delete process.env.IDENTITY_MAIL_DELIVERY;
   try { assert.equal((await unconfigured.app(request())).status, 409); }
   finally { if (before !== undefined) process.env.IDENTITY_MAIL_DELIVERY = before; }
   assert.equal(unconfigured.store.calls.length, 0);
-  await Promise.all([fresh.pool.end(), noSecret.pool.end(), unconfigured.pool.end()]);
+  await Promise.all([fresh.pool.end(), noSecret.pool.end(), shortSecret.pool.end(), unconfigured.pool.end()]);
+});
+
+test("self-serve route is rate limited per IP before authentication and per service before parsing", async () => {
+  await withLocalCapture(async () => {
+    const { app, store, pool } = harness();
+    assert.equal((await app(request({ auth: "" }), "203.0.113.9")).status, 401);
+    assert.deepEqual(store.limits, ["ip:203.0.113.9"], "unauthenticated callers reach only the per-IP limiter");
+    store.limits.length = 0;
+    const malformed = new Request(PRODUCTION.origin + path, { method: "POST",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, body: "{" });
+    assert.equal((await app(malformed, "203.0.113.9")).status, 400);
+    assert.deepEqual(store.limits, ["ip:203.0.113.9", "self-serve-invite:service"]);
+    store.limits.length = 0;
+    assert.equal((await app(request(), "203.0.113.9")).status, 202);
+    assert.deepEqual(store.limits, ["ip:203.0.113.9", "self-serve-invite:service", "self-serve-invite-domain:example-studio.com"]);
+    await pool.end();
+  });
+});
+
+test("the self-serve secret is separate, long and never the status, auth or delivery secret", () => {
+  const env = { BETTER_AUTH_SECRET: "a".repeat(64), IDENTITY_SESSION_STATUS_SECRET: "b".repeat(64),
+    IDENTITY_DELIVERY_KEY: Buffer.alloc(32, 3).toString("base64url") };
+  assert.equal(selfServeSecret(env), undefined);
+  assert.equal(selfServeSecret({ ...env, IDENTITY_SELF_SERVE_SECRET: "c".repeat(48) }), "c".repeat(48));
+  for (const value of ["c".repeat(47), "a".repeat(64), "b".repeat(64), "replace-me".padEnd(64, "x"), ""]) {
+    assert.throws(() => selfServeSecret({ ...env, IDENTITY_SELF_SERVE_SECRET: value }), /separate_self_serve_secret_required/);
+  }
 });
 
 test("hosted profiles derive the platform origin from their pinned redirect and refuse overrides", () => {

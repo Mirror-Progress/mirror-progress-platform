@@ -1,5 +1,5 @@
 import type { Config } from "./config.js";
-import { sessionStatusSecret } from "./config.js";
+import { selfServeSecret, sessionStatusSecret } from "./config.js";
 import { trustedAlbPeers } from "./proxy.js";
 import { PolicyError } from "./policy.js";
 // A bounded staging trust bundle, NOT production approval or DNS provisioning.
@@ -68,7 +68,7 @@ export function loadHostedConfig(env: NodeJS.ProcessEnv, profile: HostedProfile)
   }
   return { mode: profile.mode, origin: profile.origin, databaseUrl, secret, bindHost: albProxyCidrs ? "0.0.0.0" : "127.0.0.1", port: 3040, albProxyCidrs,
     platformOrigin: platform,
-    sessionStatusSecret: sessionStatusSecret(env),
+    sessionStatusSecret: sessionStatusSecret(env), selfServeSecret: selfServeSecret(env),
     oidcClientId: profile.clientId, redirectUris: [profile.redirect],
     staging: { rpId: profile.rpId, deliveryKey, certFile, keyFile } };
 }

@@ -1,7 +1,7 @@
 import { appendFileSync, chmodSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import type { Config } from "./config.js";
-import { sessionStatusSecret } from "./config.js";
+import { selfServeSecret, sessionStatusSecret } from "./config.js";
 import type { EnrollmentMessage, EnrollmentTransport } from "./delivery.js";
 import { invitationEmail } from "./invitation-email.js";
 
@@ -64,7 +64,7 @@ export function localPreviewConfig(env: NodeJS.ProcessEnv = process.env): Config
   if (!status) throw new Error("session_status_secret_required");
   const platformOrigin = localPreviewPlatformOrigin(env.IDENTITY_PLATFORM_ORIGIN);
   return { mode: "production", freshInstall: true, origin: LOCAL_PREVIEW_ORIGIN, databaseUrl, secret,
-    bindHost: "127.0.0.1", port: 3040, sessionStatusSecret: status, platformOrigin,
+    bindHost: "127.0.0.1", port: 3040, sessionStatusSecret: status, selfServeSecret: selfServeSecret(env), platformOrigin,
     oidcClientId: LOCAL_PREVIEW_CLIENT_ID, redirectUris: [`${platformOrigin}/api/auth/callback`],
     staging: { rpId: "localhost", deliveryKey, certFile: "/local-preview/no-tls", keyFile: "/local-preview/no-tls" } };
 }

@@ -6,7 +6,7 @@ import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } fr
 import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
 import type { Config } from "./core/config.js";
-import { platformOrigin } from "./core/config.js";
+import { platformOrigin, SELF_SERVE_SECRET_MIN_LENGTH } from "./core/config.js";
 import { PolicyError, validateAuthorizationQuery } from "./core/policy.js";
 import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest, digest } from "./core/tokens.js";
 import { ceremony } from "./auth.js";
@@ -169,15 +169,23 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     if (url.pathname === "/internal/identity/self-serve-trial-invitations") {
       // Service-to-service only: the Prospect platform has already validated, rate limited and
       // provisioned the public trial request. No browser origin and no actor session is accepted.
-      if (config.mode !== "production" || !config.freshInstall || !config.sessionStatusSecret || request.method !== "POST") {
+      // Authenticated with its own secret (IDENTITY_SELF_SERVE_SECRET), never the session-status secret.
+      const serviceSecret = config.selfServeSecret;
+      if (config.mode !== "production" || !config.freshInstall || !serviceSecret ||
+          serviceSecret.length < SELF_SERVE_SECRET_MIN_LENGTH || request.method !== "POST") {
         throw new PolicyError("route_not_exposed", 404);
       }
+      // Cheap ceilings first: the shared per-IP limiter covers this route, then the bearer check.
+      await store.rateLimit(`ip:${ip}`, 60);
       const presented = request.headers.get("authorization") ?? "";
       if (request.headers.has("origin") || !timingSafeEqual(
         createHash("sha256").update(presented).digest(),
-        createHash("sha256").update(`Bearer ${config.sessionStatusSecret}`).digest())) {
+        createHash("sha256").update(`Bearer ${serviceSecret}`).digest())) {
         throw new PolicyError("service_authentication_required", 401);
       }
+      // Service-level burst ceiling before body parsing, mail-provider checks or database writes.
+      // The database ceilings in migration 008 still apply behind it.
+      await store.rateLimit("self-serve-invite:service", 60, 3_600_000);
       const body = await readObject(request);
       // Account type, role, inviter, trial terms and links are never caller-controlled.
       if (Object.keys(body).length !== 3 || Object.keys(body).some(k => !["name", "email", "company"].includes(k))) {
@@ -191,8 +199,6 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
           company.toLowerCase() === "mirror progress" || /[\u0000-\u001f\u007f]/.test(name + company)) {
         throw new PolicyError("invalid_trial_invitation", 400);
       }
-      // Service-level burst ceilings in front of the database ceilings in migration 008.
-      await store.rateLimit("self-serve-invite:service", 60, 3_600_000);
       await store.rateLimit(`self-serve-invite-domain:${domain}`, 10, 86_400_000);
       if (!await invitationRecipientDeliverable(email)) throw new PolicyError("external_email_delivery_unavailable", 409);
       return json(await (store as StagingStore).issueSelfServeInvitation({ name, email, company }), 202);

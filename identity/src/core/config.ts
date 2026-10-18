@@ -4,6 +4,8 @@ import { loadStagingConfig } from "./staging-config.js";
 export interface Config {
   freshInstall?: boolean;
   sessionStatusSecret?: string;
+  /** Bearer secret for the self-serve trial invitation endpoint only (IDENTITY_SELF_SERVE_SECRET). */
+  selfServeSecret?: string;
   /** Prospect platform origin for service calls (prepare-trial, legacy pilots, company check). */
   platformOrigin?: string;
   albProxyCidrs?: readonly string[];
@@ -57,6 +59,22 @@ export function sessionStatusSecret(env: NodeJS.ProcessEnv): string | undefined 
   if (value === undefined) return undefined; // Endpoint is unavailable until explicitly configured.
   if (value.length < 48 || value.length > 256 || /replace|placeholder|change[-_]?me/i.test(value) ||
       value === env.BETTER_AUTH_SECRET || value === env.IDENTITY_DELIVERY_KEY) throw new PolicyError("separate_session_status_secret_required", 500);
+  return value;
+}
+
+export const SELF_SERVE_SECRET_MIN_LENGTH = 48;
+/**
+ * Dedicated bearer secret for POST /internal/identity/self-serve-trial-invitations. It is never
+ * the session-status secret: a leak of the widely used status secret must not mint accounts.
+ * Unset means the endpoint is not exposed (404).
+ */
+export function selfServeSecret(env: NodeJS.ProcessEnv): string | undefined {
+  const value = env.IDENTITY_SELF_SERVE_SECRET;
+  if (value === undefined) return undefined;
+  if (value.length < SELF_SERVE_SECRET_MIN_LENGTH || value.length > 256 || /replace|placeholder|change[-_]?me/i.test(value) ||
+      [env.BETTER_AUTH_SECRET, env.IDENTITY_DELIVERY_KEY, env.IDENTITY_SESSION_STATUS_SECRET].includes(value)) {
+    throw new PolicyError("separate_self_serve_secret_required", 500);
+  }
   return value;
 }
 

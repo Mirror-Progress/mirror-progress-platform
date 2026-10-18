@@ -21,6 +21,7 @@ const enabled = Boolean(process.env.SELF_SERVE_TEST_OWNER_URL);
 const DATABASE = "mirror_identity_self_serve_test", RUNTIME = "mirror_identity_self_serve_test_runtime";
 const runtimePassword = randomBytes(32).toString("hex");
 const statusSecret = randomBytes(32).toString("hex");
+const selfServeSecret = randomBytes(32).toString("hex");
 let owner: Pool, runtime: Pool, store: StagingStore, app: ReturnType<typeof createApp>, config: Config;
 
 before(async () => {
@@ -37,7 +38,7 @@ before(async () => {
   await admin.end();
   const runtimeUrl = new URL(ownerUrl); runtimeUrl.username = RUNTIME; runtimeUrl.password = runtimePassword;
   config = { mode: "production", freshInstall: true, origin: "http://localhost:3040", databaseUrl: runtimeUrl.href,
-    secret: randomBytes(48).toString("hex"), sessionStatusSecret: statusSecret, bindHost: "127.0.0.1", port: 3040,
+    secret: randomBytes(48).toString("hex"), sessionStatusSecret: statusSecret, selfServeSecret, bindHost: "127.0.0.1", port: 3040,
     platformOrigin: "http://127.0.0.1:3031", oidcClientId: "mirror-self-serve-test",
     redirectUris: ["http://127.0.0.1:3031/api/auth/callback"],
     staging: { rpId: "localhost", deliveryKey: randomBytes(32).toString("base64url"), certFile: "/unused", keyFile: "/unused" } };
@@ -126,7 +127,7 @@ test("the database enforces a per-domain daily ceiling and a kill switch", { ski
 
 test("HTTP route issues through the real store and returns only a coarse status", { skip: !enabled }, async () => {
   const response = await app(new Request("http://localhost:3040/internal/identity/self-serve-trial-invitations", {
-    method: "POST", headers: { authorization: `Bearer ${statusSecret}`, "content-type": "application/json" },
+    method: "POST", headers: { authorization: `Bearer ${selfServeSecret}`, "content-type": "application/json" },
     body: JSON.stringify({ name: "Route Person", email: "route@sample-seven.example", company: "Sample Seven" }) }));
   assert.equal(response.status, 202);
   const body = await response.json() as Record<string, unknown>;
