@@ -22,7 +22,7 @@ async function migrate() {
   const owner = new Pool({ connectionString: ownerUrl.href, max: 4 });
   try { await applyLocalPreviewSchema(owner, config, password); }
   finally { await owner.end(); }
-  console.info("Local preview identity schema applied (migrations 001-006 and 008, least-privilege runtime role).");
+  console.info("Local preview identity schema applied (migrations 001-008, least-privilege runtime role).");
 }
 
 async function serve() {

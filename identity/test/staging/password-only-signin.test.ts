@@ -1,6 +1,6 @@
 /**
  * Local PostgreSQL only (SELF_SERVE_TEST_OWNER_URL, loopback). Creates its own throwaway database
- * mirror_identity_password_only_test, applies migrations 001-006 and 008 with least-privilege grants,
+ * mirror_identity_password_only_test, applies migrations 001-008 with least-privilege grants,
  * then drives the real HTTP routes: invitation acceptance, password sign-in, session status, OIDC
  * code flow and the migration 008 database guard. Fake delivery; no mailbox or network.
  */

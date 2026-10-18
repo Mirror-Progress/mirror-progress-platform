@@ -1,6 +1,6 @@
 /**
  * Local PostgreSQL only (SELF_SERVE_TEST_OWNER_URL, loopback, database mirror_identity_self_serve_test).
- * Applies migrations 001-006 and 008 and the least-privilege grants, then exercises migration 008 through the
+ * Applies migrations 001-008 and the least-privilege grants, then exercises migration 008 through the
  * real runtime role, the StagingStore and the HTTP route. Fake delivery; no mailbox or network.
  */
 import test, { before, after } from "node:test";

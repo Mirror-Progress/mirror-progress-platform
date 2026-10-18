@@ -91,7 +91,8 @@ before(async () => {
   await owner.query("CREATE TABLE IF NOT EXISTS mirror_schema_migration(name text PRIMARY KEY, checksum text NOT NULL)");
   // Same ordered set as scripts/migrate-staging.ts and migrate-production.ts; the grants reference 006 and 008.
   for (const name of ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery", "004-managed-invitations",
-    "005-admin-invitation-authority", "006-trial-invitation-manager", "008-self-serve-trial-invitations"]) {
+    "005-admin-invitation-authority", "006-trial-invitation-manager", "007-unified-prospect-invitations",
+    "008-self-serve-trial-invitations"]) {
     const sql = await readFile(`migrations/${name}.sql`, "utf8"), checksum = createHash("sha256").update(sql).digest("hex");
     const prior = await owner.query("SELECT checksum FROM mirror_schema_migration WHERE name=$1", [name]);
     if (prior.rows.length) assert.equal(prior.rows[0].checksum, checksum);

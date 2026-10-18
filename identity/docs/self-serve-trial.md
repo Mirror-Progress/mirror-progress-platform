@@ -36,4 +36,4 @@ The production service stack does not yet inject `IDENTITY_SELF_SERVE_SECRET`. U
 
 ## Migrations
 
-Staging, production and the local preview apply the same ordered set: `001`–`006`, then `008-self-serve-trial-invitations`. Migration `007-unified-prospect-invitations` is not part of this change, and 008 does not depend on it.
+Staging, production and the local preview apply the same ordered, checksummed set: `001`–`008`. Production already has `001`–`007` (007, `unified-prospect-invitations`, shipped with the current live build), so `008-self-serve-trial-invitations` is the only new migration there. 008 does not redefine any 007 function.

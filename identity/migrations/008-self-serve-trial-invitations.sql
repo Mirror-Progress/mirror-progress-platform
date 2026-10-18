@@ -117,9 +117,9 @@ REVOKE ALL ON FUNCTION mirror_self_serve_issue(text,text,text,text,text,integer)
 -- password ceremony (password_at = mfa_at). It is valid only for a bound,
 -- enrolled, non-privileged, non-disabled principal whose managed invitation is
 -- an unrevoked external/client invitation. Admin, project-lead and every other
--- privileged principal still require passkey_uv: the SQL functions in 004-006
+-- privileged principal still require passkey_uv: the SQL functions in 004-007
 -- that authorize invitation management continue to require a fresh passkey.
--- Applied migrations 001-006 are not edited; their factor constraint is
+-- Applied migrations 001-007 are not edited; their factor constraint is
 -- replaced here (fails closed if the expected constraint name is absent).
 ALTER TABLE mirror_assurance DROP CONSTRAINT mirror_assurance_factor_check;
 ALTER TABLE mirror_assurance ADD CONSTRAINT mirror_assurance_factor_check
