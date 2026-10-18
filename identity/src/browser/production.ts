@@ -174,34 +174,6 @@ function chooseInviteType(type: "team" | "trial") {
   node<HTMLElement>("choose-trial").classList.toggle("selected", type === "trial");
 }
 let passkeyRegistered = false;
-// Set right after a new account is created. External client accounts can then add a passkey
-// ("for faster sign-in") or skip straight to Prospect; admin accounts still finish with a passkey.
-let offerOptionalPasskey = false;
-let optionalPasskeyShown = false;
-function showOptionalPasskey(): void {
-  optionalPasskeyShown = true;
-  node<HTMLElement>("auth-steps").hidden = false;
-  node<HTMLElement>("signin-step").hidden = true;
-  node<HTMLElement>("setup-details").hidden = true;
-  node<HTMLElement>("passkey-step-label").textContent = "OPTIONAL";
-  node<HTMLElement>("passkey-title").textContent = "Add a passkey for faster sign-in";
-  node<HTMLElement>("passkey-guidance").textContent = "Your account is ready and you’re signed in. A passkey lets you sign in with Face ID, Touch ID or your device screen lock instead of your password. You can skip this and keep using your password.";
-  node<HTMLButtonElement>("passkey-register").textContent = "Add a passkey";
-  node<HTMLElement>("passkey-skip").hidden = false;
-  const step = node<HTMLElement>("passkey-step");
-  step.hidden = false;
-  show("Account created. You’re signed in.");
-  step.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-async function addOptionalPasskey(): Promise<void> {
-  show("Approve the device prompt to create your passkey.");
-  const registered = await auth.passkey.addPasskey({ name: "Mirror Progress device" });
-  if (registered.error) throw passkeyError(registered.error);
-  passkeyRegistered = true;
-  node<HTMLElement>("passkey-skip").hidden = true;
-  show("Passkey added. Opening Prospect…");
-  openPlatform(true);
-}
 async function refresh(): Promise<Record<string, unknown> | null> {
   try {
     const state = await api("/api/identity/session");
@@ -221,10 +193,6 @@ async function refresh(): Promise<Record<string, unknown> | null> {
       node<HTMLElement>("passkey-step").hidden = setupActive || resetActive;
       node<HTMLElement>("device-access").hidden = !devicesRequested;
       if (state.accountType === "external") platform = "https://platform.mirrorprogress.com/api/auth/start?next=/apps/studioiq";
-      if (offerOptionalPasskey && passkeyOptional && !passkeyRegistered && !remoteEnrollRequested && !manageRequested && !devicesRequested) {
-        showOptionalPasskey();
-        return state;
-      }
       void loadInvitations();
       openPlatform();
     }
@@ -285,9 +253,8 @@ async function signInAndFinish(email: string, password: string): Promise<void> {
   const state = await refresh();
   if (!state) throw new Error("session_required");
   if (remoteEnrollRequested) await finishRemoteEnrollment();
-  // External client accounts are fully signed in with the password; refresh() either continued to
-  // Prospect or offered the optional passkey step.
-  else if (state.mfaCompleted === true) { if (!optionalPasskeyShown) show("Signed in. Opening Mirror Progress…"); }
+  // External client accounts are fully signed in with the password; refresh() continued to Prospect.
+  else if (state.mfaCompleted === true) show("Signed in. Opening Prospect…");
   else await finishPasskey();
 }
 function submit(id: string, action: (values: Record<string, string>) => Promise<void>) {
@@ -342,13 +309,8 @@ submit("reset-complete", async values => {
 if (resetToken) showReset("complete");
 node<HTMLButtonElement>("passkey-register").addEventListener("click", () => {
   const button = node<HTMLButtonElement>("passkey-register"); button.disabled = true;
-  void (remoteEnrollRequested ? finishRemoteEnrollment() : optionalPasskeyShown ? addOptionalPasskey() : finishPasskey())
+  void (remoteEnrollRequested ? finishRemoteEnrollment() : finishPasskey())
     .catch(error => show(userError(error), true)).finally(() => { button.disabled = false; });
-});
-node<HTMLButtonElement>("passkey-skip").addEventListener("click", () => {
-  node<HTMLElement>("passkey-skip").hidden = true;
-  show("Opening Prospect…");
-  openPlatform(true);
 });
 node<HTMLButtonElement>("passkey-signin").addEventListener("click", () => {
   void finishPasskey().catch(error => show(userError(error), true));
@@ -430,7 +392,6 @@ submit("enroll", async values => { const enrolled = await api("/api/identity/enr
     return;
   }
   show("Account created. Signing you in…");
-  offerOptionalPasskey = true;
   try { await signInAndFinish(email, values.password ?? ""); }
   catch (error) {
     node<HTMLElement>("signin-step").scrollIntoView({ behavior: "smooth", block: "center" });

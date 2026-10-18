@@ -450,7 +450,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const identity = await requiredSession(request.headers);
       const passkeyRegistered = config.mode === "production" ? (await store.pool.query<{ registered: boolean }>(
         `SELECT EXISTS(SELECT 1 FROM passkey WHERE "userId"=$1) AS registered`, [identity.user.id])).rows[0]?.registered === true : undefined;
-      // Tells the browser whether a passkey is optional ("Add a passkey for faster sign-in" / Skip).
+      // Tells the browser whether a passkey is optional (password-only sign-in continues to Prospect).
       const passkeyOptional = config.mode === "production" && config.freshInstall
         ? await store.passwordOnlyEligible(identity.user.id) : undefined;
       const passkeyState = { ...(passkeyRegistered === undefined ? {} : { passkeyRegistered }),

@@ -19,7 +19,7 @@ Kill switch: `UPDATE mirror_principal SET disabled=true WHERE id='mirror-self-se
 
 ## Sign-in for external client accounts
 
-An external client account can finish setup and sign in with its password alone. It qualifies when it is non-privileged, enrolled, and holds an unrevoked `external`/`client` managed invitation on the production fresh install. After the account is created, the browser offers "Add a passkey for faster sign-in" with a Skip that opens Prospect. Passkey sign-in stays available. The OIDC assurance method for these sessions is `password`. The identity bridge maps it to kind `pwd`.
+An external client account can finish setup and sign in with its password alone. It qualifies when it is non-privileged, enrolled, and holds an unrevoked `external`/`client` managed invitation on the production fresh install. After the account is created, the browser signs the person in and continues straight to Prospect, with no passkey step. A passkey can still be added later ("Set up another device"), and passkey sign-in stays available. The OIDC assurance method for these sessions is `password`. The identity bridge maps it to kind `pwd`.
 
 Admin, project-lead and other privileged accounts still require a passkey. Migration 008 enforces this on `mirror_assurance` with a check constraint and a trigger, so the runtime role cannot record password-only evidence for anyone else.
 
