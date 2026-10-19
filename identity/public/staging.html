@@ -17,14 +17,14 @@ Mailbox messages require an explicitly injected transport; a queued message is n
 <section class="card"><p class="step">01 / INVITATION</p><h2>Request your mailbox token</h2>
 <p>Use the invitation provided by your operator. The message goes only to the already reconciled email, never an address entered here.
 Repeated requests do not replace the token. Open the message in this browser or paste its token in step 2.</p>
-<form id="mailbox"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<form id="mailbox"><label>Invitation token<input name="invitation" type="text" class="token-input" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore required pattern="[A-Za-z0-9_-]{43}"></label>
 <button type="submit">Request mailbox token</button></form></section>
 <section class="card"><p class="step">02 / MAILBOX</p><h2>Verify and create credentials</h2>
 <p>You need both tokens. Mailbox tokens expire after at most 10 minutes; invitations after 15 minutes. Expired or used tokens require a new operator invitation.</p>
-<form id="enroll"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
-<label>Mailbox token<input name="mailboxToken" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<form id="enroll"><label>Invitation token<input name="invitation" type="text" class="token-input" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore required pattern="[A-Za-z0-9_-]{43}"></label>
+<label>Mailbox token<input name="mailboxToken" type="text" class="token-input" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore required pattern="[A-Za-z0-9_-]{43}"></label>
 <label>Display name<input name="name" maxlength="120" autocomplete="name" required></label>
-<label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+<label>New password<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
 <button type="submit">Verify mailbox and enroll</button></form><p class="small">This creates credentials only. It does not grant application access or create a session.</p></section>
 <section class="card"><p class="step">03 / SIGN IN</p><h2>Begin credential setup</h2>
 <form id="login"><label>Email<input name="email" type="email" autocomplete="username" required></label>

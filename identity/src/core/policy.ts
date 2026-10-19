@@ -35,6 +35,8 @@ export class PolicyError extends Error {
 export const MFA_MAX_AGE_MS = 60 * 60 * 1000;
 export const STEP_UP_MAX_AGE_MS = 5 * 60 * 1000;
 export const PASSWORD_FLOW_MAX_AGE_MS = 5 * 60 * 1000;
+/** Shortest password accepted at enrollment and reset (NIST SP 800-63B minimum). Admins also need a passkey. */
+export const MIN_PASSWORD_LENGTH = 8;
 export function assertOrdinaryPrincipal(principal: Principal): void {
   if (principal.disabled) throw new PolicyError("principal_disabled");
   // Deliberate release gate: there is NO caller-controlled approval bypass.

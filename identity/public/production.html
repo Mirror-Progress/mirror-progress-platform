@@ -15,14 +15,14 @@
 <div class="setup-content"><p class="step">YOUR INVITATION</p><h2>Create your account.</h2>
 <p id="setup-intro">Open your invitation link and choose a password to create your account.</p>
 <p id="mailbox-guide">Have an older invitation token? Verify its matching mailbox below.</p>
-<form id="mailbox"><label>Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<form id="mailbox"><label>Invitation token<input name="invitation" type="text" class="token-input" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore required pattern="[A-Za-z0-9_-]{43}"></label>
 <button type="submit">Send verification email</button></form>
-<form id="enroll"><label id="invitation-label">Invitation token<input name="invitation" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
-<label id="mailbox-label">Email verification token<input name="mailboxToken" type="password" autocomplete="off" required pattern="[A-Za-z0-9_-]{43}"></label>
+<form id="enroll"><label id="invitation-label">Invitation token<input name="invitation" type="text" class="token-input" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore required pattern="[A-Za-z0-9_-]{43}"></label>
+<label id="mailbox-label">Email verification token<input name="mailboxToken" type="text" class="token-input" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore required pattern="[A-Za-z0-9_-]{43}"></label>
 <label id="invited-email-label" hidden>Email<input id="invited-email" type="email" autocomplete="off" readonly></label>
 <label>Display name<input name="name" maxlength="120" autocomplete="name" required></label>
-<label>New password<input name="password" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
-<p class="form-hint">Use at least 14 characters. Admin accounts add a passkey next; for other accounts a passkey is optional.</p>
+<label>New password<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+<p class="form-hint">Use at least 8 characters. Admin accounts add a passkey next; for other accounts a passkey is optional.</p>
 <button type="submit">Create account</button></form>
 <button id="show-signin" type="button" class="text-action">Already have an account? Sign in</button></div></details>
 <section class="card" id="signin-step"><p class="step">YOUR ACCOUNT</p><h2>Welcome back.</h2><p>Sign in to continue to your workspace.</p>
@@ -35,8 +35,8 @@
 <form id="reset-request"><label>Email<input name="email" type="email" autocomplete="username" required></label><button type="submit">Send reset link</button></form>
 <button id="reset-request-signin" type="button" class="text-action">Back to sign in</button></section>
 <section class="card" id="reset-complete-step" hidden><p class="step">ACCOUNT RECOVERY</p><h2>Choose a new password.</h2><p>This link can be used once and expires after one hour.</p>
-<form id="reset-complete"><label>New password<input name="newPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
-<label>Confirm new password<input name="confirmPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label><p class="form-hint">Use at least 14 characters. If your account requires a passkey, you’ll still confirm it when you sign in.</p><button type="submit">Save new password</button></form>
+<form id="reset-complete"><label>New password<input name="newPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+<label>Confirm new password<input name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label><p class="form-hint">Use at least 8 characters. If your account requires a passkey, you’ll still confirm it when you sign in.</p><button type="submit">Save new password</button></form>
 <button id="reset-complete-request" type="button" class="text-action">Need a new link?</button></section>
 <section class="card" id="passkey-step" hidden><p class="step" id="passkey-step-label">FINAL STEP</p><h2 id="passkey-title">Approve on your device</h2>
 <p id="passkey-guidance">The first time, your device will create a passkey and then confirm it. Later sign-ins use only the confirmation. If your passkey is only on your Mac, <a href="/#devices">add one for your phone</a> from the Mac after signing in.</p>

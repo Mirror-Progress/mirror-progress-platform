@@ -51,6 +51,11 @@ const userError = (error: unknown): string => {
   if (code === "passwords_do_not_match") return "Those passwords do not match. Try again.";
   if (code === "invalid_or_expired_reset") return "This reset link has expired or was already used. Request a new link.";
   if (code === "rate_limited") return "Too many attempts. Wait a little while, then try again.";
+  if (code === "invalid_password" || code === "invalid_newPassword") return "Use a password of 8 to 128 characters.";
+  if (code === "invalid_name") return "Enter your name.";
+  if (code === "invalid_invitation" || code === "mailbox_proof_required") return "This invitation link has expired, was already used, or was replaced by a newer invite. Open the newest invitation email, or ask your admin to send a new one.";
+  if (code === "enrollment_conflict") return "An account already exists for this email. Sign in instead, or ask your admin for help.";
+  if (code === "unexpected_enrollment_field") return "This page is out of date. Reload it from your invitation link and try again.";
   if (code === "company_unavailable") return "Choose an existing company with active Prospect access and an available seat.";
   if (code === "external_email_delivery_unavailable") return "Invites to this email domain are temporarily unavailable. Contact your admin to use a verified Mirror Progress address.";
   if (code === "invitation_conflict") return "That email already has an invitation. Check the list below.";
