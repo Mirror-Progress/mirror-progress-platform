@@ -18,6 +18,7 @@ import { invitationRecipientDeliverable } from "./core/mail-delivery.js";
 import { REMOTE_ENROLL_EMAIL, REMOTE_GRANT_MS, REMOTE_LINK_MS, remoteGrantKey, remoteIssueKey,
   signRemoteGrant, verifyRemoteGrant } from "./core/remote-enrollment.js";
 import { opaqueToken } from "./core/tokens.js";
+import { notifyPlatformPrincipalRevoked } from "./core/platform-revoke.js";
 
 function json(data: unknown, status = 200, headers?: Headers): Response {
   const h = new Headers(headers);
@@ -416,9 +417,11 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         item.principalId === target && item.accountType === "external" && !item.revokedAt)) {
         throw new PolicyError("route_not_exposed", 404);
       }
-      return json(managedAction[2] === "resend"
-        ? await managed.resendManagedInvitation(identity.session.id, target)
-        : await managed.revokeManagedInvitation(identity.session.id, target));
+      if (managedAction[2] === "resend") return json(await managed.resendManagedInvitation(identity.session.id, target));
+      const revoked = await managed.revokeManagedInvitation(identity.session.id, target);
+      // Best effort and not awaited: the revoke has committed; the platform also learns of it from session status.
+      void notifyPlatformPrincipalRevoked(config, target);
+      return json(revoked);
     }
     if (staging && request.method === "POST" && url.pathname === "/api/identity/request-mailbox") {
       const body = await readObject(request);

@@ -1,6 +1,7 @@
 import { createAuthClient } from "better-auth/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { safeResumePath } from "../core/policy.js";
+import { invitationResendable, invitationStatus } from "../core/invitation-status.js";
 
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
 let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/prospect";
@@ -106,9 +107,7 @@ async function loadInvitations(): Promise<void> {
       const row = document.createElement("div");
       row.className = "access-row";
       const legacy = item.source === "legacy_pilot";
-      const status = legacy ? "Pending · previous system" : item.accepted === true ? "Accepted" : item.revokedAt ? "Revoked" :
-        new Date(String(item.expiresAt)).getTime() <= Date.now() ? "Expired" :
-        item.deliveryStatus === "sent" ? "Sent" : item.deliveryStatus === "failed" ? "Delivery failed" : "Sending";
+      const status = invitationStatus(item);
       const identity = document.createElement("div"); identity.className = "access-person";
       const name = document.createElement("strong"); name.textContent = String(item.name ?? item.email ?? "Person");
       const email = document.createElement("small"); email.textContent = String(item.email ?? "");
@@ -130,7 +129,7 @@ async function loadInvitations(): Promise<void> {
       }
       // Trial managers may resend (migration 007); revoking stays with invitation admins.
       if (/^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
-        if (item.accepted !== true) {
+        if (invitationResendable(item)) {
           const resend = document.createElement("button");
           resend.type = "button"; resend.className = "secondary"; resend.textContent = "Resend";
           resend.addEventListener("click", () => { resend.disabled = true;
