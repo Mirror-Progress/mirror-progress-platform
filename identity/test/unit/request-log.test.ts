@@ -8,7 +8,7 @@ test("refusal log keeps the reason code and hides tokens and ids", () => {
   assert.deepEqual(refusalLog("POST", "/api/identity/enroll", 400, new PolicyError("invalid_invitation", 400)),
     { event: "identity_request_refused", method: "POST", route: "/api/identity/enroll", status: 400, code: "invalid_invitation" });
   assert.equal(loggableRoute("/api/auth/reset-password/Abc_def-ghijklmnopqrstuvwxyz0123456789ABCDE"), "/api/auth/reset-password/:id");
-  assert.equal(loggableRoute("/api/identity/admin/managed/6f147ba3-86a8-43e7-96e1-a54309d5d08e/revoke"),
+  assert.equal(loggableRoute("/api/identity/admin/managed/00000000-0000-4000-8000-000000000001/revoke"),
     "/api/identity/admin/managed/:id/revoke");
   assert.equal(loggedRoute("/health"), false);
   assert.equal(loggedRoute("/style.css"), false);
