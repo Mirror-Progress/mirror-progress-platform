@@ -1,6 +1,6 @@
 /**
  * Migration history guard. Production Identity (image mirror-identity-production@sha256:ae4e3834...) has
- * applied 001-007 and recorded each file's SHA-256 in mirror_schema_migration. The runners refuse to start
+ * applied 001-008 and recorded each file's SHA-256 in mirror_schema_migration. The runners refuse to start
  * on a checksum mismatch, so these files must never change, and every runner must apply the same ordered
  * list. Reads files only; no database.
  */
@@ -12,8 +12,8 @@ import { LOCAL_PREVIEW_MIGRATIONS } from "../../scripts/local-preview-schema.js"
 
 const EXPECTED = ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery", "004-managed-invitations",
   "005-admin-invitation-authority", "006-trial-invitation-manager", "007-unified-prospect-invitations",
-  "008-self-serve-trial-invitations"];
-// SHA-256 of the files in the live production image; 008 is new in this release.
+  "008-self-serve-trial-invitations", "009-revoke-releases-email"];
+// SHA-256 of the files in the live production image; 009 is new in this release.
 const APPLIED_IN_PRODUCTION: Record<string, string> = {
   "001-mirror-policy": "b6db51a3987b475e09c3e6987d6e6bb7b76670393d049d504b9350555a9384ea",
   "002-staging-enrollment": "8aaf072857134135e00b7b25f24dc214b8025b067c87c3601e8c4ab82b9e246d",
@@ -22,6 +22,7 @@ const APPLIED_IN_PRODUCTION: Record<string, string> = {
   "005-admin-invitation-authority": "2cf895b6daf3ea6c6fdae5d0e1b7a5cdc829da79c64bfa5eae74680048bb67da",
   "006-trial-invitation-manager": "9d6638b3642d62bb33cc85120a468947dce2196205222ee07d323d594b86c467",
   "007-unified-prospect-invitations": "0dba9bd3d120706a338e62260734f22ebe3a609c470a4be006b6c62f61cc8b66",
+  "008-self-serve-trial-invitations": "c0dde91cda6a84bdf1f318bb8d125048b893fd668f70337af1d3de745c13ca8c",
 };
 const runnerList = (file: string): string[] => {
   const match = /for \(const name of (\[[^\]]+\])\)/.exec(readFileSync(file, "utf8"));
@@ -29,7 +30,7 @@ const runnerList = (file: string): string[] => {
   return JSON.parse(match[1]!) as string[];
 };
 
-test("every runner applies 001-008 in order, and every migration file is listed", () => {
+test("every runner applies 001-009 in order, and every migration file is listed", () => {
   assert.deepEqual(runnerList("scripts/migrate-production.ts"), EXPECTED);
   assert.deepEqual(runnerList("scripts/migrate-staging.ts"), EXPECTED);
   assert.deepEqual([...LOCAL_PREVIEW_MIGRATIONS], EXPECTED);
@@ -50,4 +51,17 @@ test("008 does not redefine any function 004-007 own, so 007's trial-manager res
   const earlier = new Set(EXPECTED.slice(0, 7).flatMap(name => [...defined(name)]));
   assert.ok(earlier.has("mirror_managed_resend"));
   assert.deepEqual([...defined("008-self-serve-trial-invitations")].filter(f => earlier.has(f)), []);
+});
+
+test("009 redefines only mirror_managed_revoke and keeps it SECURITY DEFINER with a fixed search_path", () => {
+  const sql = readFileSync("migrations/009-revoke-releases-email.sql", "utf8");
+  assert.deepEqual([...sql.matchAll(/CREATE (?:OR REPLACE )?FUNCTION\s+(\w+)/g)].map(m => m[1]), ["mirror_managed_revoke"]);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION mirror_managed_revoke\(actor_session text, target text\)\s+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION mirror_managed_revoke\(text,text\) FROM PUBLIC;/);
+  // No new grants and no schema changes: only the function, its revoke, and the data backfill.
+  assert.doesNotMatch(sql, /\bGRANT\b|ALTER TABLE|CREATE TABLE|DROP /);
+  // The 004 body survives: every statement of the original revoke still appears in 009.
+  const original = /CREATE FUNCTION mirror_managed_revoke[\s\S]*?END \$\$;/.exec(readFileSync("migrations/004-managed-invitations.sql", "utf8"))![0];
+  const statements = original.split("\n").map(line => line.trim()).filter(line => line && !line.startsWith("CREATE FUNCTION"));
+  for (const line of statements) assert.ok(sql.includes(line), line);
 });
