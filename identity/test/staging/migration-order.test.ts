@@ -2,7 +2,7 @@
  * Local PostgreSQL only (SELF_SERVE_TEST_OWNER_URL, loopback). Creates its own throwaway database
  * mirror_identity_migration_order_test and simulates production: 001-007 are applied and checksummed
  * first, exactly as the live build's runner did, with invitations already issued. The release runner
- * path (001-008) must then skip 001-007, apply only 008, be idempotent on a second run, refuse a changed
+ * path (001-009) must then skip 001-007, apply only 008-009, be idempotent on a second run, refuse a changed
  * checksum, and leave 007's trial-manager resend behavior intact. Fake data only; no mailbox or network.
  */
 import test, { before, after } from "node:test";
@@ -111,14 +111,15 @@ test("production state: 007 lets a trial manager resend external invitations onl
   await resend("admin", invited.internal);
 });
 
-test("release runner on a 001-007 database applies only 008, keeps 007, and is idempotent", { skip: !enabled }, async () => {
+test("release runner on a 001-007 database applies only 008-009, keeps 007, and is idempotent", { skip: !enabled }, async () => {
   const beforeRun = await history(), resendBefore = await resendDefinition();
   await applyLocalPreviewSchema(owner, config, runtimePassword, { database: DATABASE, runtimeRole: RUNTIME, operatorRole: OPERATOR });
   const afterRun = await history();
   assert.deepEqual(afterRun.map(r => r.name), [...LOCAL_PREVIEW_MIGRATIONS]);
-  // 001-007 were skipped (same checksum, same applied_at); only 008 is new.
+  // 001-007 were skipped (same checksum, same applied_at); only 008 and 009 are new.
   assert.deepEqual(afterRun.slice(0, 7), beforeRun);
   assert.equal(afterRun[7]!.name, "008-self-serve-trial-invitations");
+  assert.equal(afterRun[8]!.name, "009-revoke-releases-email");
   assert.equal(await resendDefinition(), resendBefore);
   // Second run is a no-op.
   await applyLocalPreviewSchema(owner, config, runtimePassword, { database: DATABASE, runtimeRole: RUNTIME, operatorRole: OPERATOR });

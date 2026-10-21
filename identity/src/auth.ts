@@ -6,7 +6,7 @@ import { passkey } from "@better-auth/passkey";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { Config } from "./core/config.js";
 import { Store } from "./db.js";
-import { verifiedFactor } from "./core/policy.js";
+import { MIN_PASSWORD_LENGTH, verifiedFactor } from "./core/policy.js";
 import { invitationRecipientDeliverable, sendPasswordResetEmail } from "./core/mail-delivery.js";
 
 export function emailIdentityClaims(user: { email: string; emailVerified: boolean }, scopes: readonly string[]) {
@@ -40,7 +40,7 @@ export function createAuth(config: Config, store: Store) {
     trustedOrigins: [config.origin],
     logger: { disabled: true },
     emailAndPassword: {
-      enabled: true, disableSignUp: true, minPasswordLength: 14, maxPasswordLength: 128,
+      enabled: true, disableSignUp: true, minPasswordLength: MIN_PASSWORD_LENGTH, maxPasswordLength: 128,
       // Synthetic enrollment never claims mailbox ownership; both hosted profiles require verification.
       requireEmailVerification: (config.mode === "staging" || config.mode === "production"),
       ...(passwordRecovery ? {

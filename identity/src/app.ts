@@ -7,7 +7,7 @@ import { localOidcMetadata } from "./core/metadata.js";
 import { hashPassword } from "better-auth/crypto";
 import type { Config } from "./core/config.js";
 import { platformOrigin, SELF_SERVE_SECRET_MIN_LENGTH } from "./core/config.js";
-import { PolicyError, validateAuthorizationQuery } from "./core/policy.js";
+import { MIN_PASSWORD_LENGTH, PolicyError, validateAuthorizationQuery } from "./core/policy.js";
 import { cleanAuthHeaders, cookieValue, responseCookies, verifiedTotpDigest, tokenDigest, digest } from "./core/tokens.js";
 import { ceremony } from "./auth.js";
 import type { MirrorAuth } from "./auth.js";
@@ -18,6 +18,8 @@ import { invitationRecipientDeliverable } from "./core/mail-delivery.js";
 import { REMOTE_ENROLL_EMAIL, REMOTE_GRANT_MS, REMOTE_LINK_MS, remoteGrantKey, remoteIssueKey,
   signRemoteGrant, verifyRemoteGrant } from "./core/remote-enrollment.js";
 import { opaqueToken } from "./core/tokens.js";
+import { notifyPlatformPrincipalRevoked } from "./core/platform-revoke.js";
+import { logRefusal } from "./core/request-log.js";
 
 function json(data: unknown, status = 200, headers?: Headers): Response {
   const h = new Headers(headers);
@@ -271,7 +273,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       const body = await readObject(request);
       if (Object.keys(body).length !== 2) throw new PolicyError("invalid_password_reset_request", 400);
       const token = stringField(body, "token", 24, 128);
-      const newPassword = stringField(body, "newPassword", 14, 128);
+      const newPassword = stringField(body, "newPassword", MIN_PASSWORD_LENGTH, 128);
       if (!/^[A-Za-z0-9_-]{24,128}$/.test(token)) throw new PolicyError("invalid_reset_token", 400);
       await store.rateLimit(`password-reset-complete-ip:${ip}`, 10, 900_000);
       await store.rateLimit(`password-reset-token:${digest(token)}`, 5, 3_600_000);
@@ -416,9 +418,11 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
         item.principalId === target && item.accountType === "external" && !item.revokedAt)) {
         throw new PolicyError("route_not_exposed", 404);
       }
-      return json(managedAction[2] === "resend"
-        ? await managed.resendManagedInvitation(identity.session.id, target)
-        : await managed.revokeManagedInvitation(identity.session.id, target));
+      if (managedAction[2] === "resend") return json(await managed.resendManagedInvitation(identity.session.id, target));
+      const revoked = await managed.revokeManagedInvitation(identity.session.id, target);
+      // Best effort and not awaited: the revoke has committed; the platform also learns of it from session status.
+      void notifyPlatformPrincipalRevoked(config, target);
+      return json(revoked);
     }
     if (staging && request.method === "POST" && url.pathname === "/api/identity/request-mailbox") {
       const body = await readObject(request);
@@ -436,7 +440,7 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
       if (Object.keys(body).some((key) => !["invitation", "name", "password", ...(staging ? ["mailboxToken"] : [])].includes(key))) {
         throw new PolicyError("unexpected_enrollment_field", 400);
       }
-      const password = stringField(body, "password", 14, 128);
+      const password = stringField(body, "password", MIN_PASSWORD_LENGTH, 128);
       const name = stringField(body, "name", 1, 120).trim();
       if (!name) throw new PolicyError("invalid_name", 400);
       await store.rateLimit(`enroll:${ip}`, 5);
@@ -714,7 +718,15 @@ export function createApp(config: Config, store: Store, auth: MirrorAuth) {
     return json({ error: "route_not_exposed" }, 404);
   };
   return async (request: Request, ip = "127.0.0.1"): Promise<Response> => {
-    try { return harden(await handle(request, ip), staging); }
-    catch (error) { return harden(errorResponse(error), staging); }
+    const pathname = new URL(request.url).pathname;
+    try {
+      const response = await handle(request, ip);
+      logRefusal(request.method, pathname, response.status);
+      return harden(response, staging);
+    } catch (error) {
+      const response = errorResponse(error);
+      logRefusal(request.method, pathname, response.status, error);
+      return harden(response, staging);
+    }
   };
 }

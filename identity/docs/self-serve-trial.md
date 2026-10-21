@@ -36,4 +36,39 @@ The production service stack does not yet inject `IDENTITY_SELF_SERVE_SECRET`. U
 
 ## Migrations
 
-Staging, production and the local preview apply the same ordered, checksummed set: `001`–`008`. Production already has `001`–`007` (007, `unified-prospect-invitations`, shipped with the current live build), so `008-self-serve-trial-invitations` is the only new migration there. 008 does not redefine any 007 function.
+Staging, production and the local preview apply the same ordered, checksummed set: `001`–`009`. Production already has `001`–`008`; the unit test `migration-order` pins their checksums, so `009-revoke-releases-email` is the only new migration there. 008 does not redefine any 007 function. 009 redefines only `mirror_managed_revoke` (see below) and adds no tables, columns or grants.
+
+## Revoking a person
+
+An invitation admin revokes a person from the admin Invitations list (`POST /api/identity/admin/invitations/:principalId/revoke`, fresh passkey required). The SQL function `mirror_managed_revoke` (004, replaced by 009) does all of this in one transaction:
+
+- marks the managed invitation revoked, disables the principal and advances its authorization epoch;
+- consumes the pending invitation link and cancels any queued or failed invitation email;
+- deletes the bound user's sessions, password flows and pending password-reset links (Better Auth `verification` rows `reset-password:*` whose value is the user id);
+- **releases the email**: the bound Better Auth user's email becomes `revoked-<userId>@revoked.invalid` (RFC 2606 `.invalid`, never routable, unique per user, at most 254 characters). `emailVerified` is left unchanged. The original address stays on the managed invitation, enrollment and audit history, so the list still shows who was revoked;
+- writes the `invite_revoke` outbox row and the `managed-revoke` audit row, as before.
+
+Because the address is released, the same email can be invited again straight away, by an admin or through self-serve. Previously, `mirror_managed_issue` refused it ("That email already has an invitation") and operators renamed the user by hand.
+
+009 also backfills people revoked before it: each user bound to a disabled principal whose managed invitation is revoked gets the same `revoked-<userId>@revoked.invalid` address, unless the email already ends in `.invalid` (for example an earlier hand rename such as `revoked-<name>-<userId>@mirrorprogress.invalid`, which is left as it is). Leftover sessions, password flows and reset links of disabled principals' users are deleted. Running the backfill again changes nothing.
+
+Privileges: none new. The function stays `SECURITY DEFINER` with `search_path = public, pg_temp`; `CREATE OR REPLACE` keeps its owner and the runtime role's existing `EXECUTE`. `PUBLIC` has no `EXECUTE`.
+
+The admin list labels a row **Revoked** before **Accepted** before the pending states (Expired, Sent, Delivery failed, Sending). Revoked and accepted rows have no Resend button.
+
+### Platform notification
+
+After a successful revoke, Identity tells Prospect so it can close its own principal, membership and access records without waiting for a session-status check:
+
+```
+POST {IDENTITY_PLATFORM_ORIGIN or https://platform.mirrorprogress.com}/api/internal/identity/principal-revoked
+authorization: Bearer <IDENTITY_SESSION_STATUS_SECRET>
+content-type: application/json
+
+{"principalId": "<revoked principal id>", "reason": "identity_revoked"}
+```
+
+- Same secret, `redirect: "error"`, `cache: "no-store"` and a 5-second timeout as Identity's other calls to Prospect (`legacy-pilots`, `prepare-trial`, `company-check`).
+- Best effort: the request is sent after the revoke has committed and is not awaited, so it never delays or fails the revoke. There is no retry; Prospect's per-request session-status checks still catch a missed notice.
+- `200`, `202` and `404` (principal unknown to Prospect) count as done. Prospect should treat repeats as idempotent.
+- Identity logs one JSON line without personal data: `{"event":"identity_platform_revoke_notify","status":<HTTP status | "failed" | "unconfigured">}` (`console.info` when done, `console.error` otherwise). `unconfigured` means the session-status secret is missing and nothing was sent.

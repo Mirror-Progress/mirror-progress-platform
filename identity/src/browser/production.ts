@@ -1,6 +1,7 @@
 import { createAuthClient } from "better-auth/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { safeResumePath } from "../core/policy.js";
+import { invitationResendable, invitationStatus } from "../core/invitation-status.js";
 
 const auth = createAuthClient({ baseURL: location.origin, plugins: [passkeyClient()] });
 let platform = "https://platform.mirrorprogress.com/api/auth/start?next=/prospect";
@@ -50,6 +51,11 @@ const userError = (error: unknown): string => {
   if (code === "passwords_do_not_match") return "Those passwords do not match. Try again.";
   if (code === "invalid_or_expired_reset") return "This reset link has expired or was already used. Request a new link.";
   if (code === "rate_limited") return "Too many attempts. Wait a little while, then try again.";
+  if (code === "invalid_password" || code === "invalid_newPassword") return "Use a password of 8 to 128 characters.";
+  if (code === "invalid_name") return "Enter your name.";
+  if (code === "invalid_invitation" || code === "mailbox_proof_required") return "This invitation link has expired, was already used, or was replaced by a newer invite. Open the newest invitation email, or ask your admin to send a new one.";
+  if (code === "enrollment_conflict") return "An account already exists for this email. Sign in instead, or ask your admin for help.";
+  if (code === "unexpected_enrollment_field") return "This page is out of date. Reload it from your invitation link and try again.";
   if (code === "company_unavailable") return "Choose an existing company with active Prospect access and an available seat.";
   if (code === "external_email_delivery_unavailable") return "Invites to this email domain are temporarily unavailable. Contact your admin to use a verified Mirror Progress address.";
   if (code === "invitation_conflict") return "That email already has an invitation. Check the list below.";
@@ -106,9 +112,7 @@ async function loadInvitations(): Promise<void> {
       const row = document.createElement("div");
       row.className = "access-row";
       const legacy = item.source === "legacy_pilot";
-      const status = legacy ? "Pending · previous system" : item.accepted === true ? "Accepted" : item.revokedAt ? "Revoked" :
-        new Date(String(item.expiresAt)).getTime() <= Date.now() ? "Expired" :
-        item.deliveryStatus === "sent" ? "Sent" : item.deliveryStatus === "failed" ? "Delivery failed" : "Sending";
+      const status = invitationStatus(item);
       const identity = document.createElement("div"); identity.className = "access-person";
       const name = document.createElement("strong"); name.textContent = String(item.name ?? item.email ?? "Person");
       const email = document.createElement("small"); email.textContent = String(item.email ?? "");
@@ -130,7 +134,7 @@ async function loadInvitations(): Promise<void> {
       }
       // Trial managers may resend (migration 007); revoking stays with invitation admins.
       if (/^[a-f0-9-]{36}$/.test(id) && !item.revokedAt) {
-        if (item.accepted !== true) {
+        if (invitationResendable(item)) {
           const resend = document.createElement("button");
           resend.type = "button"; resend.className = "secondary"; resend.textContent = "Resend";
           resend.addEventListener("click", () => { resend.disabled = true;

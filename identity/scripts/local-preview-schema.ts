@@ -11,7 +11,7 @@ import { LOCAL_PREVIEW_DATABASE, LOCAL_PREVIEW_RUNTIME_ROLE, localPreviewEnabled
 // Same ordered, checksummed migrations as scripts/migrate-production.ts and scripts/migrate-staging.ts.
 export const LOCAL_PREVIEW_MIGRATIONS = ["001-mirror-policy", "002-staging-enrollment", "003-assisted-recovery",
   "004-managed-invitations", "005-admin-invitation-authority", "006-trial-invitation-manager",
-  "007-unified-prospect-invitations", "008-self-serve-trial-invitations"] as const;
+  "007-unified-prospect-invitations", "008-self-serve-trial-invitations", "009-revoke-releases-email"] as const;
 export const LOCAL_PREVIEW_OPERATOR_ROLE = "mirror_identity_local_preview_operator";
 
 /** Applies the production schema and least-privilege grants to the loopback preview database. */
