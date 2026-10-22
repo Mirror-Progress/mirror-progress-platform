@@ -560,3 +560,46 @@ select {
     transition: none !important;
   }
 }
+
+
+/* ------------------------------------------------------------------ */
+/* One-page homepage (components/home). Scoped to .mp-home; always light. */
+/* ------------------------------------------------------------------ */
+.mp-home {
+  --mp-border: #e2eaea;
+  --mp-input: #d6e1e0;
+  background: #ffffff;
+  color: #0b1f1d;
+  color-scheme: light;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.mp-home *,
+.mp-home ::before,
+.mp-home ::after { border-color: var(--mp-border); }
+.mp-home h1, .mp-home h2, .mp-home h3 { text-wrap: balance; letter-spacing: -0.025em; }
+.mp-home a:focus-visible, .mp-home button:focus-visible { outline: 2px solid #00c2f4; outline-offset: 4px; }
+.mp-home .site-container { width: min(100% - 3rem, 1120px); margin-inline: auto; }
+.mp-home .section-title { font-size: clamp(1.8rem, 3.1vw, 2.5rem); font-weight: 500; line-height: 1.12; color: #012727; }
+.mp-home .contact-section { display: grid; grid-template-columns: 1fr 1.2fr; gap: 5rem; padding-block: 6rem; scroll-margin-top: 7rem; }
+.mp-home .contact-input { min-height: 44px; width: 100%; border: 1px solid var(--mp-input); border-radius: 5px; background: #fff; padding-inline: .85rem; font-size: 1rem; color: #0b1f1d; outline: none; }
+.mp-home .contact-input:focus-visible { border-color: #012727; outline: 2px solid #00c2f4; outline-offset: 2px; }
+.mp-site-header { position: sticky; top: 0; z-index: 40; background: #fff; }
+.mp-site-header::after { content: ""; position: absolute; inset-inline: 0; top: 100%; height: 1.5rem; background: linear-gradient(#fff, rgba(255, 255, 255, 0)); pointer-events: none; }
+
+@property --cta-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+.mp-home .cta-button { position: relative; isolation: isolate; display: inline-flex; flex-shrink: 0; align-items: center; height: 2.75rem; padding-inline: 1.4rem; border-radius: 999px; background: #012727; color: #fff; font-size: .875rem; font-weight: 500; white-space: nowrap; box-shadow: 0 10px 24px -14px rgba(0, 39, 36, .7); transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s ease; }
+.mp-home .cta-button::before { content: ""; position: absolute; inset: -2px; z-index: -1; border-radius: inherit; padding: 1.5px; background: conic-gradient(from var(--cta-angle), transparent 0 72%, rgba(0, 194, 244, .5) 82%, #e9fbff 86%, #00c2f4 88%, transparent 93%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; opacity: .55; animation: cta-spin 6s linear infinite; transition: opacity .3s ease; }
+.mp-home .cta-button:hover { transform: translateY(-1px); box-shadow: 0 16px 30px -14px rgba(0, 39, 36, .75); }
+.mp-home .cta-button:hover::before { opacity: 1; animation-duration: 1.8s; }
+@keyframes cta-spin { to { --cta-angle: 360deg; } }
+
+@media (max-width: 900px) {
+  .mp-home .site-container { width: min(100% - 2rem, 1120px); }
+  .mp-home .contact-section { grid-template-columns: 1fr; gap: 2.5rem; padding-block: 4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-home *, .mp-home *::before, .mp-home *::after { animation-duration: .01ms !important; transition-duration: 0s !important; }
+}

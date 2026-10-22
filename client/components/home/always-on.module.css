@@ -1,0 +1,79 @@
+.scene {
+  --play-state: paused;
+}
+
+.scene[data-running="true"] {
+  --play-state: running;
+}
+
+.count {
+  transform: translateY(-4.5rem);
+}
+
+/* One 4.8-second sequence, then a still frame. All tracks share the same clock. */
+@media (prefers-reduced-motion: no-preference) {
+  .arrival,
+  .count {
+    animation-duration: 4.8s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+    animation-play-state: var(--play-state);
+  }
+
+  .first {
+    animation-name: first-arrival;
+  }
+
+  .second {
+    animation-name: second-arrival;
+  }
+
+  .third {
+    animation-name: third-arrival;
+  }
+
+  .review {
+    animation-name: review-arrival;
+  }
+
+  .count {
+    animation-name: count-arrivals;
+  }
+
+  .dot {
+    animation: pulse 1.6s ease-in-out 3;
+    animation-play-state: var(--play-state);
+  }
+}
+
+@keyframes first-arrival {
+  0%, 16% { opacity: 0; transform: translateY(4px); }
+  25%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes second-arrival {
+  0%, 37% { opacity: 0; transform: translateY(4px); }
+  46%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes third-arrival {
+  0%, 58% { opacity: 0; transform: translateY(4px); }
+  67%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes review-arrival {
+  0%, 79% { opacity: 0; transform: translateY(4px); }
+  90%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes count-arrivals {
+  0%, 16% { transform: translateY(0); }
+  25%, 37% { transform: translateY(-1.5rem); }
+  46%, 58% { transform: translateY(-3rem); }
+  67%, 100% { transform: translateY(-4.5rem); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
